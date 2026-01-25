@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
 import { User } from '../users/user.entity';
 import { RegisterInput, AuthPayload } from './dto/auth.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
@@ -11,6 +12,7 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private mailService: MailService,
   ) {}
 
   async validateUser(email: string, password: string): Promise<User | null> {
@@ -48,9 +50,14 @@ export class AuthService {
       });
     }
 
-    // Generate verification token
+    // Generate verification token and send email
     const verificationToken = crypto.randomBytes(32).toString('hex');
     await this.usersService.setEmailVerificationToken(user.id, verificationToken);
+
+    // Send verification email asynchronously
+    this.mailService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
+      console.error('Failed to send verification email:', err);
+    });
 
     const payload: JwtPayload = { sub: user.id, email: user.email };
     return {
@@ -72,6 +79,11 @@ export class AuthService {
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     await this.usersService.setResetPasswordToken(user.id, resetToken);
+
+    // Send password reset email asynchronously
+    this.mailService.sendPasswordResetEmail(user.email, resetToken).catch((err) => {
+      console.error('Failed to send password reset email:', err);
+    });
 
     return resetToken;
   }

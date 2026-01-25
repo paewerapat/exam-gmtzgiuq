@@ -20,19 +20,19 @@ export class User {
 
   @HideField()
   @Column({ nullable: true })
-  password: string;
+  password: string | null;
 
   @Field({ nullable: true })
   @Column({ nullable: true })
-  firstName: string;
+  firstName: string | null;
 
   @Field({ nullable: true })
   @Column({ nullable: true })
-  lastName: string;
+  lastName: string | null;
 
   @Field({ nullable: true })
   @Column({ nullable: true })
-  avatar: string;
+  avatar: string | null;
 
   @Field()
   @Column({ default: false })
@@ -40,19 +40,19 @@ export class User {
 
   @HideField()
   @Column({ nullable: true })
-  emailVerificationToken: string;
+  emailVerificationToken: string | null;
 
   @HideField()
   @Column({ nullable: true, type: 'timestamp' })
-  emailVerificationExpires: Date;
+  emailVerificationExpires: Date | null;
 
   @HideField()
   @Column({ nullable: true })
-  resetPasswordToken: string;
+  resetPasswordToken: string | null;
 
   @HideField()
   @Column({ nullable: true, type: 'timestamp' })
-  resetPasswordExpires: Date;
+  resetPasswordExpires: Date | null;
 
   @Field()
   @Column({ default: 'local' })
@@ -60,7 +60,7 @@ export class User {
 
   @Field({ nullable: true })
   @Column({ nullable: true })
-  providerId: string;
+  providerId: string | null;
 
   @Field()
   @Column({ default: true })
