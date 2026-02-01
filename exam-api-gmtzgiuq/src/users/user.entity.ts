@@ -4,8 +4,24 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
-import { ObjectType, Field, ID, HideField } from '@nestjs/graphql';
+import {
+  ObjectType,
+  Field,
+  ID,
+  HideField,
+  registerEnumType,
+} from '@nestjs/graphql';
+
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
+registerEnumType(UserRole, {
+  name: 'UserRole',
+});
 
 @ObjectType()
 @Entity('users')
@@ -19,52 +35,56 @@ export class User {
   email: string;
 
   @HideField()
-  @Column({ nullable: true })
-  password: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  password?: string;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
-  firstName: string | null;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  firstName?: string;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
-  lastName: string | null;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  lastName?: string;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
-  avatar: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  avatar?: string;
 
   @Field()
   @Column({ default: false })
   isEmailVerified: boolean;
 
   @HideField()
-  @Column({ nullable: true })
-  emailVerificationToken: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  emailVerificationToken?: string;
 
   @HideField()
-  @Column({ nullable: true, type: 'timestamp' })
-  emailVerificationExpires: Date | null;
+  @Column({ type: 'timestamp', nullable: true })
+  emailVerificationExpires?: Date;
 
   @HideField()
-  @Column({ nullable: true })
-  resetPasswordToken: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  resetPasswordToken?: string;
 
   @HideField()
-  @Column({ nullable: true, type: 'timestamp' })
-  resetPasswordExpires: Date | null;
+  @Column({ type: 'timestamp', nullable: true })
+  resetPasswordExpires?: Date;
 
   @Field()
   @Column({ default: 'local' })
   provider: string; // 'local', 'google'
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
-  providerId: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  providerId?: string;
 
   @Field()
   @Column({ default: true })
   isActive: boolean;
+
+  @Field(() => UserRole)
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
+  role: UserRole;
 
   @Field()
   @CreateDateColumn()

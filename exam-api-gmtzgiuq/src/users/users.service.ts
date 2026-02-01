@@ -1,4 +1,8 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -12,7 +16,9 @@ export class UsersService {
   ) {}
 
   async create(email: string, password: string): Promise<User> {
-    const existingUser = await this.usersRepository.findOne({ where: { email } });
+    const existingUser = await this.usersRepository.findOne({
+      where: { email },
+    });
     if (existingUser) {
       throw new ConflictException('Email already exists');
     }
@@ -35,7 +41,10 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { id } });
   }
 
-  async findByProviderId(provider: string, providerId: string): Promise<User | null> {
+  async findByProviderId(
+    provider: string,
+    providerId: string,
+  ): Promise<User | null> {
     return this.usersRepository.findOne({ where: { provider, providerId } });
   }
 
@@ -62,7 +71,10 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
-  async setEmailVerificationToken(userId: string, token: string): Promise<void> {
+  async setEmailVerificationToken(
+    userId: string,
+    token: string,
+  ): Promise<void> {
     const expires = new Date();
     expires.setHours(expires.getHours() + 24); // Token expires in 24 hours
 
@@ -86,8 +98,8 @@ export class UsersService {
     }
 
     user.isEmailVerified = true;
-    user.emailVerificationToken = null;
-    user.emailVerificationExpires = null;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
 
     return this.usersRepository.save(user);
   }
@@ -116,8 +128,8 @@ export class UsersService {
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = null;
-    user.resetPasswordExpires = null;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
 
     return this.usersRepository.save(user);
   }

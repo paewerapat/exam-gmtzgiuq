@@ -1,0 +1,118 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AuthPayload {
+  accessToken: String!
+  user: User!
+}
+
+type Blog {
+  author: User!
+  content: String!
+  createdAt: DateTime!
+  excerpt: String
+  featuredImage: String
+  id: ID!
+  metaDescription: String
+  metaTitle: String
+  publishedAt: DateTime
+  slug: String!
+  status: BlogStatus!
+  title: String!
+  updatedAt: DateTime!
+  viewCount: Float!
+}
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+}
+
+input CreateBlogInput {
+  content: String!
+  excerpt: String
+  featuredImage: String
+  metaDescription: String
+  metaTitle: String
+  slug: String
+  status: BlogStatus
+  title: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type Mutation {
+  createBlog(input: CreateBlogInput!): Blog!
+  deleteBlog(id: String!): Boolean!
+  login(email: String!, password: String!): AuthPayload!
+  register(input: RegisterInput!): AuthPayload!
+  requestPasswordReset(email: String!): String!
+  resetPassword(input: ResetPasswordInput!): User!
+  updateBlog(id: String!, input: UpdateBlogInput!): Blog!
+  updateProfile(avatar: String, firstName: String, lastName: String): User!
+  verifyEmail(token: String!): User!
+}
+
+type PaginatedBlogs {
+  items: [Blog!]!
+  limit: Int!
+  page: Int!
+  total: Int!
+  totalPages: Int!
+}
+
+type Query {
+  adminBlog(id: String!): Blog!
+  adminBlogs(limit: Int = 10, page: Int = 1, status: BlogStatus): PaginatedBlogs!
+  blogBySlug(slug: String!): Blog!
+  blogs(limit: Int = 10, page: Int = 1): PaginatedBlogs!
+  currentUser: User!
+  me: User
+}
+
+input RegisterInput {
+  email: String!
+  firstName: String
+  lastName: String
+  password: String!
+}
+
+input ResetPasswordInput {
+  newPassword: String!
+  token: String!
+}
+
+input UpdateBlogInput {
+  content: String
+  excerpt: String
+  featuredImage: String
+  metaDescription: String
+  metaTitle: String
+  slug: String
+  status: BlogStatus
+  title: String
+}
+
+type User {
+  avatar: String
+  createdAt: DateTime!
+  email: String!
+  firstName: String
+  id: ID!
+  isActive: Boolean!
+  isEmailVerified: Boolean!
+  lastName: String
+  provider: String!
+  providerId: String
+  role: UserRole!
+  updatedAt: DateTime!
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}

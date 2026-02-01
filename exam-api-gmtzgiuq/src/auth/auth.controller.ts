@@ -1,4 +1,11 @@
-import { Controller, Post, Body, UseGuards, Request, Get } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Get,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterInput, AuthPayload } from './dto/auth.dto';
 import { LocalAuthGuard } from '../common/guards/local-auth.guard';
@@ -26,7 +33,9 @@ export class AuthController {
   }
 
   @Post('request-password-reset')
-  async requestPasswordReset(@Body('email') email: string): Promise<{ message: string }> {
+  async requestPasswordReset(
+    @Body('email') email: string,
+  ): Promise<{ message: string }> {
     const token = await this.authService.requestPasswordReset(email);
     return { message: 'If email exists, reset link will be sent' };
   }

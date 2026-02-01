@@ -2,12 +2,17 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu } from 'lucide-react';
+import { Menu, LogOut, User, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    setMobileMenuOpen(false);
+  };
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
@@ -22,28 +27,43 @@ export default function Navbar() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-8">
             <Link href="/blogs" className="text-gray-700 hover:text-indigo-600 transition">
-              Blogs
+              บทความ
             </Link>
 
-            {user ? (
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+            ) : user ? (
               <>
-                <Link href="/profile" className="text-gray-700 hover:text-indigo-600 transition">
-                  Profile
+                <Link href="/profile" className="text-gray-700 hover:text-indigo-600 transition flex items-center">
+                  <User className="w-4 h-4 mr-1" />
+                  {user.firstName || user.email?.split('@')[0]}
+                </Link>
+                <Link href="/admin" className="text-gray-700 hover:text-indigo-600 transition">
+                  จัดการระบบ
                 </Link>
                 <button
-                  onClick={logout}
-                  className="text-gray-700 hover:text-indigo-600 transition"
+                  onClick={handleLogout}
+                  className="text-gray-700 hover:text-indigo-600 transition flex items-center"
                 >
-                  Logout
+                  <LogOut className="w-4 h-4 mr-1" />
+                  ออกจากระบบ
                 </button>
               </>
             ) : (
-              <Link
-                href="/login"
-                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
-              >
-                Login
-              </Link>
+              <>
+                <Link
+                  href="/login"
+                  className="text-gray-700 hover:text-indigo-600 transition"
+                >
+                  เข้าสู่ระบบ
+                </Link>
+                <Link
+                  href="/register"
+                  className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+                >
+                  สมัครสมาชิก
+                </Link>
+              </>
             )}
           </div>
 
@@ -66,31 +86,54 @@ export default function Navbar() {
             <Link
               href="/blogs"
               className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+              onClick={() => setMobileMenuOpen(false)}
             >
-              Blogs
+              บทความ
             </Link>
-            {user ? (
+            {loading ? (
+              <div className="px-3 py-2 flex items-center">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+              </div>
+            ) : user ? (
               <>
                 <Link
                   href="/profile"
                   className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
-                  Profile
+                  โปรไฟล์
+                </Link>
+                <Link
+                  href="/admin"
+                  className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  จัดการระบบ
                 </Link>
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
                 >
-                  Logout
+                  ออกจากระบบ
                 </button>
               </>
             ) : (
-              <Link
-                href="/login"
-                className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 rounded-md font-medium"
-              >
-                Login
-              </Link>
+              <>
+                <Link
+                  href="/login"
+                  className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  เข้าสู่ระบบ
+                </Link>
+                <Link
+                  href="/register"
+                  className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 rounded-md font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  สมัครสมาชิก
+                </Link>
+              </>
             )}
           </div>
         </div>

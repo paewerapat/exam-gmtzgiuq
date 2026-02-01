@@ -1,7 +1,12 @@
 import { Resolver, Mutation, Args, Query } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterInput, LoginInput, AuthPayload, ResetPasswordInput } from './dto/auth.dto';
+import {
+  RegisterInput,
+  LoginInput,
+  AuthPayload,
+  ResetPasswordInput,
+} from './dto/auth.dto';
 import { User } from '../users/user.entity';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { GqlAuthGuard } from '../common/guards/gql-auth.guard';
@@ -11,12 +16,17 @@ export class AuthResolver {
   constructor(private authService: AuthService) {}
 
   @Mutation(() => AuthPayload)
-  async register(@Args('input') registerInput: RegisterInput): Promise<AuthPayload> {
+  async register(
+    @Args('input') registerInput: RegisterInput,
+  ): Promise<AuthPayload> {
     return this.authService.register(registerInput);
   }
 
   @Mutation(() => AuthPayload)
-  async login(@Args('email') email: string, @Args('password') password: string): Promise<AuthPayload> {
+  async login(
+    @Args('email') email: string,
+    @Args('password') password: string,
+  ): Promise<AuthPayload> {
     const user = await this.authService.validateUser(email, password);
     if (!user) {
       throw new Error('Invalid credentials');
@@ -35,7 +45,9 @@ export class AuthResolver {
   }
 
   @Mutation(() => User)
-  async resetPassword(@Args('input') resetPasswordInput: ResetPasswordInput): Promise<User> {
+  async resetPassword(
+    @Args('input') resetPasswordInput: ResetPasswordInput,
+  ): Promise<User> {
     return this.authService.resetPassword(
       resetPasswordInput.token,
       resetPasswordInput.newPassword,

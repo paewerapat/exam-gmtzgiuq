@@ -21,7 +21,10 @@ export class AuthService {
       return null;
     }
 
-    const isPasswordValid = await this.usersService.validatePassword(user, password);
+    const isPasswordValid = await this.usersService.validatePassword(
+      user,
+      password,
+    );
     if (!isPasswordValid) {
       return null;
     }
@@ -52,12 +55,17 @@ export class AuthService {
 
     // Generate verification token and send email
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    await this.usersService.setEmailVerificationToken(user.id, verificationToken);
+    await this.usersService.setEmailVerificationToken(
+      user.id,
+      verificationToken,
+    );
 
     // Send verification email asynchronously
-    this.mailService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
-      console.error('Failed to send verification email:', err);
-    });
+    this.mailService
+      .sendVerificationEmail(user.email, verificationToken)
+      .catch((err) => {
+        console.error('Failed to send verification email:', err);
+      });
 
     const payload: JwtPayload = { sub: user.id, email: user.email };
     return {
@@ -81,9 +89,11 @@ export class AuthService {
     await this.usersService.setResetPasswordToken(user.id, resetToken);
 
     // Send password reset email asynchronously
-    this.mailService.sendPasswordResetEmail(user.email, resetToken).catch((err) => {
-      console.error('Failed to send password reset email:', err);
-    });
+    this.mailService
+      .sendPasswordResetEmail(user.email, resetToken)
+      .catch((err) => {
+        console.error('Failed to send password reset email:', err);
+      });
 
     return resetToken;
   }
