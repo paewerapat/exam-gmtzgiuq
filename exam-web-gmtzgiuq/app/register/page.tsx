@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock, User, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { user, loading: authLoading, register } = useAuth();
+  const { user, loading: authLoading, register, loginWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -18,6 +19,7 @@ export default function RegisterPage() {
     lastName: '',
   });
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -57,6 +59,23 @@ export default function RegisterPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
+    if (!credentialResponse.credential) {
+      toast.error('ไม่สามารถสมัครด้วย Google ได้');
+      return;
+    }
+
+    setGoogleLoading(true);
+    try {
+      await loginWithGoogle(credentialResponse.credential);
+      toast.success('สมัครสมาชิกด้วย Google สำเร็จ!');
+    } catch {
+      toast.error('เกิดข้อผิดพลาดในการสมัครด้วย Google');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   // Show loading while checking auth
   if (authLoading) {
     return (
@@ -78,6 +97,36 @@ export default function RegisterPage() {
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900">สมัครสมาชิก</h2>
             <p className="text-gray-600 mt-2">เริ่มต้นการเรียนรู้วันนี้</p>
+          </div>
+
+          {/* Google Sign Up */}
+          <div className="mb-6">
+            <div className="flex justify-center">
+              {googleLoading ? (
+                <div className="flex items-center justify-center py-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-indigo-600 mr-2" />
+                  <span className="text-gray-600">กำลังสมัครสมาชิก...</span>
+                </div>
+              ) : (
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => toast.error('ไม่สามารถสมัครด้วย Google ได้')}
+                  text="signup_with"
+                  shape="rectangular"
+                  size="large"
+                  width={350}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">หรือสมัครด้วยอีเมล</span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">

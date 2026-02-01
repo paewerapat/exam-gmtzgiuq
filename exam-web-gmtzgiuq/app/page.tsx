@@ -59,7 +59,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              🎯 แพลตฟอร์มฝึกสอบออนไลน์อันดับ 1
+              แพลตฟอร์มฝึกสอบออนไลน์อันดับ 1
             </motion.span>
             <motion.h1
               className="text-5xl md:text-6xl font-bold mb-6 leading-tight"
@@ -114,27 +114,62 @@ export default function Home() {
       <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-8" staggerDelay={0.1}>
-            {[
-              { value: '10,000+', label: 'ผู้ใช้งาน', color: 'indigo' },
-              { value: '50,000+', label: 'ข้อสอบ', color: 'purple' },
-              { value: '95%', label: 'ความพึงพอใจ', color: 'green' },
-              { value: '100+', label: 'หมวดหมู่', color: 'orange' },
-            ].map((stat, index) => (
-              <StaggerItem key={index} direction="up">
-                <div className="text-center">
-                  <motion.div
-                    className={`text-4xl md:text-5xl font-bold text-${stat.color}-600 mb-2`}
-                    initial={{ scale: 0 }}
-                    whileInView={{ scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ type: 'spring', stiffness: 100, delay: index * 0.1 }}
-                  >
-                    {stat.value}
-                  </motion.div>
-                  <div className="text-gray-600">{stat.label}</div>
-                </div>
-              </StaggerItem>
-            ))}
+            <StaggerItem direction="up">
+              <div className="text-center">
+                <motion.div
+                  className="text-4xl md:text-5xl font-bold text-indigo-600 mb-2"
+                  initial={{ scale: 0 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ type: 'spring', stiffness: 100, delay: 0 }}
+                >
+                  10,000+
+                </motion.div>
+                <div className="text-gray-600">ผู้ใช้งาน</div>
+              </div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <div className="text-center">
+                <motion.div
+                  className="text-4xl md:text-5xl font-bold text-purple-600 mb-2"
+                  initial={{ scale: 0 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ type: 'spring', stiffness: 100, delay: 0.1 }}
+                >
+                  50,000+
+                </motion.div>
+                <div className="text-gray-600">ข้อสอบ</div>
+              </div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <div className="text-center">
+                <motion.div
+                  className="text-4xl md:text-5xl font-bold text-green-600 mb-2"
+                  initial={{ scale: 0 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ type: 'spring', stiffness: 100, delay: 0.2 }}
+                >
+                  95%
+                </motion.div>
+                <div className="text-gray-600">ความพึงพอใจ</div>
+              </div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <div className="text-center">
+                <motion.div
+                  className="text-4xl md:text-5xl font-bold text-orange-600 mb-2"
+                  initial={{ scale: 0 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}
+                >
+                  100+
+                </motion.div>
+                <div className="text-gray-600">หมวดหมู่</div>
+              </div>
+            </StaggerItem>
           </StaggerContainer>
         </div>
       </section>
@@ -152,27 +187,62 @@ export default function Home() {
           </FadeIn>
 
           <StaggerContainer className="grid md:grid-cols-2 lg:grid-cols-4 gap-8" staggerDelay={0.1}>
-            {[
-              { icon: BookOpen, title: 'ข้อสอบครอบคลุม', desc: 'เข้าถึงข้อสอบนับพันที่ครอบคลุมทุกหัวข้อในการสอบของคุณ', color: 'indigo' },
-              { icon: Target, title: 'Feedback ทันที', desc: 'รับผลลัพธ์ทันทีพร้อมคำอธิบายละเอียดสำหรับทุกคำถาม', color: 'purple' },
-              { icon: TrendingUp, title: 'ติดตามความก้าวหน้า', desc: 'ดูพัฒนาการของคุณด้วยการวิเคราะห์และข้อมูลเชิงลึกอย่างละเอียด', color: 'green' },
-              { icon: Award, title: 'เนื้อหาจากผู้เชี่ยวชาญ', desc: 'ข้อสอบคัดสรรโดยผู้เชี่ยวชาญและนักการศึกษามืออาชีพ', color: 'yellow' },
-            ].map((feature, index) => (
-              <StaggerItem key={index} direction="up">
-                <motion.div
-                  className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
-                  whileHover={{ y: -5 }}
-                >
-                  <div className={`inline-block p-4 bg-${feature.color}-100 rounded-2xl mb-6 group-hover:bg-${feature.color}-600 transition`}>
-                    <feature.icon className={`w-8 h-8 text-${feature.color}-600 group-hover:text-white transition`} />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                    {feature.title}
-                  </h3>
-                  <p className="text-gray-600">{feature.desc}</p>
-                </motion.div>
-              </StaggerItem>
-            ))}
+            <StaggerItem direction="up">
+              <motion.div
+                className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
+                whileHover={{ y: -5 }}
+              >
+                <div className="inline-block p-4 bg-indigo-100 rounded-2xl mb-6 group-hover:bg-indigo-600 transition">
+                  <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white transition" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  ข้อสอบครอบคลุม
+                </h3>
+                <p className="text-gray-600">เข้าถึงข้อสอบนับพันที่ครอบคลุมทุกหัวข้อในการสอบของคุณ</p>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div
+                className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
+                whileHover={{ y: -5 }}
+              >
+                <div className="inline-block p-4 bg-purple-100 rounded-2xl mb-6 group-hover:bg-purple-600 transition">
+                  <Target className="w-8 h-8 text-purple-600 group-hover:text-white transition" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  Feedback ทันที
+                </h3>
+                <p className="text-gray-600">รับผลลัพธ์ทันทีพร้อมคำอธิบายละเอียดสำหรับทุกคำถาม</p>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div
+                className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
+                whileHover={{ y: -5 }}
+              >
+                <div className="inline-block p-4 bg-green-100 rounded-2xl mb-6 group-hover:bg-green-600 transition">
+                  <TrendingUp className="w-8 h-8 text-green-600 group-hover:text-white transition" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  ติดตามความก้าวหน้า
+                </h3>
+                <p className="text-gray-600">ดูพัฒนาการของคุณด้วยการวิเคราะห์และข้อมูลเชิงลึกอย่างละเอียด</p>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div
+                className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
+                whileHover={{ y: -5 }}
+              >
+                <div className="inline-block p-4 bg-yellow-100 rounded-2xl mb-6 group-hover:bg-yellow-600 transition">
+                  <Award className="w-8 h-8 text-yellow-600 group-hover:text-white transition" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  เนื้อหาจากผู้เชี่ยวชาญ
+                </h3>
+                <p className="text-gray-600">ข้อสอบคัดสรรโดยผู้เชี่ยวชาญและนักการศึกษามืออาชีพ</p>
+              </motion.div>
+            </StaggerItem>
           </StaggerContainer>
         </div>
       </section>
@@ -190,28 +260,47 @@ export default function Home() {
           </FadeIn>
 
           <StaggerContainer className="grid md:grid-cols-3 gap-8" staggerDelay={0.2}>
-            {[
-              { num: '1', title: 'สมัครสมาชิก', desc: 'สร้างบัญชีฟรีใน 30 วินาที ไม่ต้องใช้บัตรเครดิต', color: 'indigo' },
-              { num: '2', title: 'เลือกข้อสอบ', desc: 'เลือกหมวดหมู่และชุดข้อสอบที่ต้องการฝึก', color: 'purple' },
-              { num: '3', title: 'ฝึกและพัฒนา', desc: 'ทำข้อสอบ รับ feedback และพัฒนาตัวเองอย่างต่อเนื่อง', color: 'green' },
-            ].map((step, index) => (
-              <StaggerItem key={index} direction="up">
-                <div className="text-center relative">
-                  <motion.div
-                    className={`w-16 h-16 bg-${step.color}-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6`}
-                    whileHover={{ scale: 1.1, rotate: 10 }}
-                    transition={{ type: 'spring', stiffness: 300 }}
-                  >
-                    {step.num}
-                  </motion.div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">{step.title}</h3>
-                  <p className="text-gray-600">{step.desc}</p>
-                  {index < 2 && (
-                    <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200"></div>
-                  )}
-                </div>
-              </StaggerItem>
-            ))}
+            <StaggerItem direction="up">
+              <div className="text-center relative">
+                <motion.div
+                  className="w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg"
+                  whileHover={{ scale: 1.1, rotate: 10 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                >
+                  1
+                </motion.div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">สมัครสมาชิก</h3>
+                <p className="text-gray-600">สร้างบัญชีฟรีใน 30 วินาที ไม่ต้องใช้บัตรเครดิต</p>
+                <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200"></div>
+              </div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <div className="text-center relative">
+                <motion.div
+                  className="w-16 h-16 bg-purple-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg"
+                  whileHover={{ scale: 1.1, rotate: 10 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                >
+                  2
+                </motion.div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">เลือกข้อสอบ</h3>
+                <p className="text-gray-600">เลือกหมวดหมู่และชุดข้อสอบที่ต้องการฝึก</p>
+                <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200"></div>
+              </div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <div className="text-center relative">
+                <motion.div
+                  className="w-16 h-16 bg-green-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg"
+                  whileHover={{ scale: 1.1, rotate: 10 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                >
+                  3
+                </motion.div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">ฝึกและพัฒนา</h3>
+                <p className="text-gray-600">ทำข้อสอบ รับ feedback และพัฒนาตัวเองอย่างต่อเนื่อง</p>
+              </div>
+            </StaggerItem>
           </StaggerContainer>
         </div>
       </section>
@@ -229,34 +318,120 @@ export default function Home() {
           </FadeIn>
 
           <StaggerContainer className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" staggerDelay={0.08}>
-            {[
-              { name: 'ข้อสอบราชการ (ก.พ.)', count: '5,000+', icon: Shield, color: 'indigo' },
-              { name: 'ข้อสอบ TOEIC', count: '3,000+', icon: FileQuestion, color: 'purple' },
-              { name: 'ข้อสอบ GAT/PAT', count: '4,500+', icon: BarChart3, color: 'green' },
-              { name: 'ข้อสอบ O-NET', count: '6,000+', icon: BookOpen, color: 'orange' },
-              { name: 'ข้อสอบใบขับขี่', count: '1,500+', icon: CheckCircle, color: 'red' },
-              { name: 'ข้อสอบอื่นๆ', count: '10,000+', icon: Target, color: 'gray' },
-            ].map((category, index) => (
-              <StaggerItem key={index} direction="up">
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Link
-                    href="/register"
-                    className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
-                  >
-                    <div className={`p-4 bg-${category.color}-100 rounded-xl mr-4 group-hover:bg-${category.color}-600 transition`}>
-                      <category.icon className={`w-6 h-6 text-${category.color}-600 group-hover:text-white transition`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
-                        {category.name}
-                      </h3>
-                      <p className="text-sm text-gray-500">{category.count} ข้อ</p>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
-                  </Link>
-                </motion.div>
-              </StaggerItem>
-            ))}
+            <StaggerItem direction="up">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  href="/register"
+                  className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
+                >
+                  <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition">
+                    <Shield className="w-6 h-6 text-indigo-600 group-hover:text-white transition" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
+                      ข้อสอบราชการ (ก.พ.)
+                    </h3>
+                    <p className="text-sm text-gray-500">5,000+ ข้อ</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                </Link>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  href="/register"
+                  className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
+                >
+                  <div className="p-4 bg-purple-100 rounded-xl mr-4 group-hover:bg-purple-600 transition">
+                    <FileQuestion className="w-6 h-6 text-purple-600 group-hover:text-white transition" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
+                      ข้อสอบ TOEIC
+                    </h3>
+                    <p className="text-sm text-gray-500">3,000+ ข้อ</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                </Link>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  href="/register"
+                  className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
+                >
+                  <div className="p-4 bg-green-100 rounded-xl mr-4 group-hover:bg-green-600 transition">
+                    <BarChart3 className="w-6 h-6 text-green-600 group-hover:text-white transition" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
+                      ข้อสอบ GAT/PAT
+                    </h3>
+                    <p className="text-sm text-gray-500">4,500+ ข้อ</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                </Link>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  href="/register"
+                  className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
+                >
+                  <div className="p-4 bg-orange-100 rounded-xl mr-4 group-hover:bg-orange-600 transition">
+                    <BookOpen className="w-6 h-6 text-orange-600 group-hover:text-white transition" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
+                      ข้อสอบ O-NET
+                    </h3>
+                    <p className="text-sm text-gray-500">6,000+ ข้อ</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                </Link>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  href="/register"
+                  className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
+                >
+                  <div className="p-4 bg-red-100 rounded-xl mr-4 group-hover:bg-red-600 transition">
+                    <CheckCircle className="w-6 h-6 text-red-600 group-hover:text-white transition" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
+                      ข้อสอบใบขับขี่
+                    </h3>
+                    <p className="text-sm text-gray-500">1,500+ ข้อ</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                </Link>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  href="/register"
+                  className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
+                >
+                  <div className="p-4 bg-gray-100 rounded-xl mr-4 group-hover:bg-gray-600 transition">
+                    <Target className="w-6 h-6 text-gray-600 group-hover:text-white transition" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
+                      ข้อสอบอื่นๆ
+                    </h3>
+                    <p className="text-sm text-gray-500">10,000+ ข้อ</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                </Link>
+              </motion.div>
+            </StaggerItem>
           </StaggerContainer>
         </div>
       </section>
@@ -312,7 +487,7 @@ export default function Home() {
                       </motion.div>
                     ))}
                   </div>
-                  <p className="text-gray-700 mb-6 italic">"{testimonial.content}"</p>
+                  <p className="text-gray-700 mb-6 italic">&ldquo;{testimonial.content}&rdquo;</p>
                   <div className="flex items-center">
                     <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold mr-4">
                       {testimonial.name.charAt(0)}

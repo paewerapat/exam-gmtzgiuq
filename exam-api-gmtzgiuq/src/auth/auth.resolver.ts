@@ -34,6 +34,13 @@ export class AuthResolver {
     return this.authService.login(user);
   }
 
+  @Mutation(() => AuthPayload)
+  async googleLogin(
+    @Args('credential') credential: string,
+  ): Promise<AuthPayload> {
+    return this.authService.googleLogin(credential);
+  }
+
   @Mutation(() => User)
   async verifyEmail(@Args('token') token: string): Promise<User> {
     return this.authService.verifyEmail(token);

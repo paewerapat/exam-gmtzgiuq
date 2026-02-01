@@ -5,16 +5,18 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   FileText,
+  FileQuestion,
   Users,
   Settings,
   ChevronLeft,
 } from 'lucide-react';
 
 const menuItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/blogs', label: 'Blogs', icon: FileText },
-  { href: '/admin/users', label: 'Users', icon: Users },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
+  { href: '/admin', label: 'แดชบอร์ด', icon: LayoutDashboard },
+  { href: '/admin/blogs', label: 'บทความ', icon: FileText },
+  { href: '/admin/questions', label: 'โจทย์สอบ', icon: FileQuestion },
+  { href: '/admin/users', label: 'ผู้ใช้งาน', icon: Users },
+  { href: '/admin/settings', label: 'ตั้งค่า', icon: Settings },
 ];
 
 export default function AdminSidebar() {
@@ -25,9 +27,9 @@ export default function AdminSidebar() {
       <div className="p-6">
         <Link href="/" className="flex items-center text-gray-400 hover:text-white mb-8">
           <ChevronLeft className="w-4 h-4 mr-2" />
-          Back to Site
+          กลับหน้าเว็บ
         </Link>
-        <h2 className="text-xl font-bold text-white mb-8">Admin Panel</h2>
+        <h2 className="text-xl font-bold text-white mb-8">จัดการระบบ</h2>
         <nav className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;

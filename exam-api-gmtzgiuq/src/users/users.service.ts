@@ -20,7 +20,13 @@ export class UsersService {
       where: { email },
     });
     if (existingUser) {
-      throw new ConflictException('Email already exists');
+      // Check if user registered with Google
+      if (existingUser.provider === 'google') {
+        throw new ConflictException(
+          'อีเมลนี้ลงทะเบียนด้วย Google กรุณาเข้าสู่ระบบด้วย Google',
+        );
+      }
+      throw new ConflictException('อีเมลนี้ถูกใช้งานแล้ว');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -46,6 +52,50 @@ export class UsersService {
     providerId: string,
   ): Promise<User | null> {
     return this.usersRepository.findOne({ where: { provider, providerId } });
+  }
+
+  async findOrCreateGoogleUser(googleData: {
+    email: string;
+    googleId: string;
+    firstName?: string;
+    lastName?: string;
+    avatar?: string;
+  }): Promise<User> {
+    // First try to find by Google provider ID
+    let user = await this.findByProviderId('google', googleData.googleId);
+
+    if (!user) {
+      // Try to find by email
+      user = await this.findByEmail(googleData.email);
+
+      if (user) {
+        // User exists with different provider - reject Google login
+        if (user.provider === 'local') {
+          throw new ConflictException(
+            'อีเมลนี้ลงทะเบียนด้วยรหัสผ่าน กรุณาเข้าสู่ระบบด้วยอีเมลและรหัสผ่าน',
+          );
+        }
+        // If somehow provider is something else, still reject
+        throw new ConflictException(
+          `อีเมลนี้ลงทะเบียนด้วยวิธีอื่น กรุณาเข้าสู่ระบบด้วยวิธีเดิม`,
+        );
+      }
+
+      // Create new user with Google
+      user = this.usersRepository.create({
+        email: googleData.email,
+        provider: 'google',
+        providerId: googleData.googleId,
+        firstName: googleData.firstName,
+        lastName: googleData.lastName,
+        avatar: googleData.avatar,
+        isEmailVerified: true, // Google emails are verified
+      });
+
+      return this.usersRepository.save(user);
+    }
+
+    return user;
   }
 
   async updateProfile(

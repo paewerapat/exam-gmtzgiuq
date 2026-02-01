@@ -1,5 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { OAuth2Client } from 'google-auth-library';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/user.entity';
@@ -9,16 +15,30 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
+  private googleClient: OAuth2Client;
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private mailService: MailService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.googleClient = new OAuth2Client(
+      this.configService.get<string>('GOOGLE_CLIENT_ID'),
+    );
+  }
 
   async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       return null;
+    }
+
+    // Check if user registered with Google
+    if (user.provider === 'google') {
+      throw new ConflictException(
+        'อีเมลนี้ลงทะเบียนด้วย Google กรุณาเข้าสู่ระบบด้วย Google',
+      );
     }
 
     const isPasswordValid = await this.usersService.validatePassword(
@@ -104,5 +124,40 @@ export class AuthService {
 
   generateVerificationToken(user: User): string {
     return crypto.randomBytes(32).toString('hex');
+  }
+
+  async googleLogin(credential: string): Promise<AuthPayload> {
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: credential,
+        audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        throw new UnauthorizedException('Invalid Google token');
+      }
+
+      const user = await this.usersService.findOrCreateGoogleUser({
+        email: payload.email,
+        googleId: payload.sub,
+        firstName: payload.given_name,
+        lastName: payload.family_name,
+        avatar: payload.picture,
+      });
+
+      const jwtPayload: JwtPayload = { sub: user.id, email: user.email };
+      return {
+        accessToken: this.jwtService.sign(jwtPayload),
+        user,
+      };
+    } catch (error) {
+      // Re-throw ConflictException to preserve the Thai error message
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      console.error('Google login error:', error);
+      throw new UnauthorizedException('ไม่สามารถเข้าสู่ระบบด้วย Google ได้');
+    }
   }
 }

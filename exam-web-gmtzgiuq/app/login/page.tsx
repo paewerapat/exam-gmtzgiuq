@@ -3,18 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading: authLoading, login } = useAuth();
+  const { user, loading: authLoading, login, loginWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -34,6 +36,23 @@ export default function LoginPage() {
       toast.error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
+    if (!credentialResponse.credential) {
+      toast.error('ไม่สามารถเข้าสู่ระบบด้วย Google ได้');
+      return;
+    }
+
+    setGoogleLoading(true);
+    try {
+      await loginWithGoogle(credentialResponse.credential);
+      toast.success('เข้าสู่ระบบด้วย Google สำเร็จ!');
+    } catch {
+      toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -58,6 +77,36 @@ export default function LoginPage() {
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900">ยินดีต้อนรับ</h2>
             <p className="text-gray-600 mt-2">เข้าสู่ระบบเพื่อเริ่มการเรียนรู้</p>
+          </div>
+
+          {/* Google Login */}
+          <div className="mb-6">
+            <div className="flex justify-center">
+              {googleLoading ? (
+                <div className="flex items-center justify-center py-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-indigo-600 mr-2" />
+                  <span className="text-gray-600">กำลังเข้าสู่ระบบ...</span>
+                </div>
+              ) : (
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => toast.error('ไม่สามารถเข้าสู่ระบบด้วย Google ได้')}
+                  text="signin_with"
+                  shape="rectangular"
+                  size="large"
+                  width={350}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">หรือเข้าสู่ระบบด้วยอีเมล</span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

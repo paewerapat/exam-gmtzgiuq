@@ -19,6 +19,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   register: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User | null) => void;
@@ -28,6 +29,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface LoginResponse {
   login: {
+    accessToken: string;
+    user: User;
+  };
+}
+
+interface GoogleLoginResponse {
+  googleLogin: {
     accessToken: string;
     user: User;
   };
@@ -43,6 +51,23 @@ interface RegisterResponse {
 const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
     login(email: $email, password: $password) {
+      accessToken
+      user {
+        id
+        email
+        firstName
+        lastName
+        avatar
+        isEmailVerified
+        createdAt
+      }
+    }
+  }
+`;
+
+const GOOGLE_LOGIN_MUTATION = gql`
+  mutation GoogleLogin($credential: String!) {
+    googleLogin(credential: $credential) {
       accessToken
       user {
         id
@@ -79,11 +104,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   type LoginVars = { email: string; password: string };
+  type GoogleLoginVars = { credential: string };
   type RegisterVars = {
     input: { email: string; password: string; firstName?: string; lastName?: string };
   };
 
   const [loginMutation] = useMutation<LoginResponse, LoginVars>(LOGIN_MUTATION);
+  const [googleLoginMutation] = useMutation<GoogleLoginResponse, GoogleLoginVars>(GOOGLE_LOGIN_MUTATION);
   const [registerMutation] = useMutation<RegisterResponse, RegisterVars>(REGISTER_MUTATION);
 
   useEffect(() => {
@@ -114,6 +141,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.push('/');
     } catch (error: unknown) {
       console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const loginWithGoogle = async (credential: string) => {
+    try {
+      const { data } = await googleLoginMutation({
+        variables: { credential },
+      });
+
+      if (!data?.googleLogin) {
+        throw new Error('Google login failed: no data returned');
+      }
+
+      const { accessToken, user: userData } = data.googleLogin;
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      router.push('/');
+    } catch (error: unknown) {
+      console.error('Google login error:', error);
       throw error;
     }
   };
@@ -149,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, register, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

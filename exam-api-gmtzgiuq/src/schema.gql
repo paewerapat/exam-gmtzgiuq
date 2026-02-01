@@ -48,6 +48,7 @@ scalar DateTime
 type Mutation {
   createBlog(input: CreateBlogInput!): Blog!
   deleteBlog(id: String!): Boolean!
+  googleLogin(credential: String!): AuthPayload!
   login(email: String!, password: String!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   requestPasswordReset(email: String!): String!
