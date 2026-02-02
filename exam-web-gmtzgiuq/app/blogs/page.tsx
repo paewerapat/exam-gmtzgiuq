@@ -1,98 +1,176 @@
 'use client';
 
-import { BookOpen, Calendar, Clock, Eye, ArrowRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BookOpen, Calendar, Clock, Eye, ArrowRight, FileText, PenTool, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { getBlogs, formatDate, calculateReadTime, Blog, PaginatedBlogs } from '@/lib/api/blogs';
 
-// Mock data - matches the blog detail page
-const mockBlogs = [
-  {
-    id: '1',
-    title: 'Getting Started with Our Exam Platform',
-    slug: 'getting-started-exam-platform',
-    excerpt: 'Learn how to make the most of our exam preparation platform with this comprehensive guide. Discover all the features and tools available to help you succeed.',
-    featuredImage: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800',
-    author: { name: 'Admin' },
-    viewCount: 1234,
-    createdAt: '2024-01-15T10:00:00Z',
-    publishedAt: '2024-02-25T10:00:00Z',
-  },
-  {
-    id: '2',
-    title: '10 Tips for Effective Exam Preparation',
-    slug: '10-tips-effective-exam-preparation',
-    excerpt: 'Discover proven strategies to boost your exam scores with these essential preparation tips.',
-    featuredImage: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800',
-    author: { name: 'Admin' },
-    viewCount: 856,
-    createdAt: '2024-01-20T14:30:00Z',
-    publishedAt: '2024-02-20T14:30:00Z',
-  },
-  {
-    id: '3',
-    title: 'Understanding Question Patterns',
-    slug: 'understanding-question-patterns',
-    excerpt: 'Learn to recognize and master different question patterns to improve your answering strategy.',
-    featuredImage: 'https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?w=800',
-    author: { name: 'Admin' },
-    viewCount: 543,
-    createdAt: '2024-02-01T09:00:00Z',
-    publishedAt: '2024-02-15T09:00:00Z',
-  },
-  {
-    id: '4',
-    title: 'How to Manage Exam Stress Effectively',
-    slug: 'how-to-manage-exam-stress',
-    excerpt: 'Learn practical techniques to stay calm and focused during your exam preparation and on exam day.',
-    featuredImage: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800',
-    author: { name: 'Admin' },
-    viewCount: 721,
-    createdAt: '2024-02-10T11:00:00Z',
-    publishedAt: '2024-02-10T11:00:00Z',
-  },
-  {
-    id: '5',
-    title: 'The Science of Memory and Retention',
-    slug: 'science-of-memory-retention',
-    excerpt: 'Explore evidence-based techniques to improve your memory and recall abilities during exams.',
-    featuredImage: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?w=800',
-    author: { name: 'Admin' },
-    viewCount: 634,
-    createdAt: '2024-02-15T08:00:00Z',
-    publishedAt: '2024-02-05T08:00:00Z',
-  },
-  {
-    id: '6',
-    title: 'Creating the Perfect Study Schedule',
-    slug: 'creating-perfect-study-schedule',
-    excerpt: 'A comprehensive guide to organizing your time for maximum learning efficiency and productivity.',
-    featuredImage: 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=800',
-    author: { name: 'Admin' },
-    viewCount: 489,
-    createdAt: '2024-02-20T10:00:00Z',
-    publishedAt: '2024-02-01T10:00:00Z',
-  },
-];
+// Blog Card Component
+function BlogCard({ blog }: { blog: Blog }) {
+  return (
+    <Link href={`/blogs/${blog.slug}`} className="block">
+      <article className="bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
+        {blog.featuredImage ? (
+          <div className="h-48 overflow-hidden">
+            <img
+              src={blog.featuredImage}
+              alt={blog.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+            />
+          </div>
+        ) : (
+          <div className="h-48 bg-gradient-to-br from-indigo-400 to-purple-400 flex items-center justify-center">
+            <BookOpen className="w-16 h-16 text-white opacity-50" />
+          </div>
+        )}
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+        <div className="p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition line-clamp-2">
+            {blog.title}
+          </h3>
+
+          <p className="text-gray-600 mb-4 line-clamp-2">{blog.excerpt}</p>
+
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                <Calendar className="w-4 h-4 mr-1" />
+                {formatDate(blog.publishedAt)}
+              </div>
+              <div className="flex items-center">
+                <Clock className="w-4 h-4 mr-1" />
+                {calculateReadTime(blog.content)} นาที
+              </div>
+            </div>
+            <div className="flex items-center">
+              <Eye className="w-4 h-4 mr-1" />
+              {blog.viewCount.toLocaleString()}
+            </div>
+          </div>
+
+          <span className="inline-block mt-4 text-indigo-600 group-hover:text-indigo-700 font-medium">
+            อ่านเพิ่มเติม →
+          </span>
+        </div>
+      </article>
+    </Link>
+  );
 }
 
-function calculateReadTime(index: number) {
-  const times = [5, 7, 6, 4, 8, 5];
-  return times[index % times.length];
+function BlogCardSkeleton() {
+  return (
+    <div className="bg-white rounded-xl shadow-md overflow-hidden animate-pulse">
+      <div className="h-48 bg-gray-200" />
+      <div className="p-6">
+        <div className="h-6 bg-gray-200 rounded mb-2" />
+        <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
+        <div className="flex justify-between">
+          <div className="h-4 bg-gray-200 rounded w-24" />
+          <div className="h-4 bg-gray-200 rounded w-12" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeaturedPostSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl shadow-lg overflow-hidden lg:flex animate-pulse">
+      <div className="lg:w-1/2 h-64 lg:h-auto bg-gray-200" />
+      <div className="lg:w-1/2 p-8">
+        <div className="flex space-x-4 mb-4">
+          <div className="h-4 bg-gray-200 rounded w-24" />
+          <div className="h-4 bg-gray-200 rounded w-16" />
+        </div>
+        <div className="h-8 bg-gray-200 rounded mb-4" />
+        <div className="h-4 bg-gray-200 rounded w-full mb-2" />
+        <div className="h-4 bg-gray-200 rounded w-3/4" />
+      </div>
+    </div>
+  );
+}
+
+// Section Component
+function BlogSection({
+  title,
+  icon: Icon,
+  blogs,
+  viewAllLink,
+  badgeColor = 'bg-indigo-600',
+  loading = false,
+}: {
+  title: string;
+  icon: React.ElementType;
+  blogs: Blog[];
+  viewAllLink: string;
+  badgeColor?: string;
+  loading?: boolean;
+}) {
+  const displayBlogs = blogs.slice(0, 3);
+
+  return (
+    <div className="mb-12">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+          <span className={`${badgeColor} text-white p-2 rounded-lg mr-3`}>
+            <Icon className="w-5 h-5" />
+          </span>
+          {title}
+        </h2>
+        <Link
+          href={viewAllLink}
+          className="inline-flex items-center text-indigo-600 hover:text-indigo-700 font-medium transition"
+        >
+          ดูทั้งหมด
+          <ArrowRight className="w-4 h-4 ml-1" />
+        </Link>
+      </div>
+
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {loading ? (
+          [...Array(3)].map((_, i) => <BlogCardSkeleton key={i} />)
+        ) : displayBlogs.length > 0 ? (
+          displayBlogs.map((blog) => <BlogCard key={blog.id} blog={blog} />)
+        ) : (
+          <div className="col-span-3 text-center py-8 text-gray-500">
+            ยังไม่มีบทความในหมวดหมู่นี้
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function BlogsPage() {
-  // Sort by publishedAt (newest first) and get featured post
-  const sortedBlogs = [...mockBlogs].sort(
-    (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-  );
-  const featuredPost = sortedBlogs[0];
-  const otherPosts = sortedBlogs.slice(1);
+  const [recentData, setRecentData] = useState<PaginatedBlogs | null>(null);
+  const [notesData, setNotesData] = useState<PaginatedBlogs | null>(null);
+  const [essaysData, setEssaysData] = useState<PaginatedBlogs | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAllBlogs = async () => {
+      setLoading(true);
+      try {
+        const [recent, notes, essays] = await Promise.all([
+          getBlogs({ page: 1, limit: 4 }),
+          getBlogs({ page: 1, limit: 3, category: 'notes' }),
+          getBlogs({ page: 1, limit: 3, category: 'essays' }),
+        ]);
+        setRecentData(recent);
+        setNotesData(notes);
+        setEssaysData(essays);
+      } catch (err) {
+        console.error('Failed to fetch blogs:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllBlogs();
+  }, []);
+
+  const featuredPost = recentData?.items?.[0];
+  const recentBlogs = recentData?.items?.slice(1) || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -113,120 +191,95 @@ export default function BlogsPage() {
             <span className="bg-indigo-600 text-white text-sm px-3 py-1 rounded-full mr-3">ล่าสุด</span>
             บทความแนะนำ
           </h2>
-          <Link href={`/blogs/${featuredPost.slug}`} className="block group">
-            <article className="bg-white rounded-2xl shadow-lg overflow-hidden lg:flex hover:shadow-xl transition">
-              {/* Image */}
-              <div className="lg:w-1/2 h-64 lg:h-auto overflow-hidden">
-                {featuredPost.featuredImage ? (
-                  <img
-                    src={featuredPost.featuredImage}
-                    alt={featuredPost.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-400 flex items-center justify-center">
-                    <BookOpen className="w-20 h-20 text-white opacity-50" />
-                  </div>
-                )}
-              </div>
 
-              {/* Content */}
-              <div className="lg:w-1/2 p-8 flex flex-col justify-center">
-                <div className="flex items-center text-sm text-gray-500 mb-4 space-x-4">
-                  <span className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-1" />
-                    {formatDate(featuredPost.publishedAt)}
-                  </span>
-                  <span className="flex items-center">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {calculateReadTime(0)} นาที
-                  </span>
-                  <span className="flex items-center">
-                    <Eye className="w-4 h-4 mr-1" />
-                    {featuredPost.viewCount.toLocaleString()}
-                  </span>
-                </div>
-
-                <h3 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4 group-hover:text-indigo-600 transition">
-                  {featuredPost.title}
-                </h3>
-
-                <p className="text-gray-600 mb-6 line-clamp-3">
-                  {featuredPost.excerpt}
-                </p>
-
-                <span className="inline-flex items-center text-indigo-600 font-semibold group-hover:text-indigo-700">
-                  อ่านเพิ่มเติม
-                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition" />
-                </span>
-              </div>
-            </article>
-          </Link>
-        </div>
-
-        {/* Other Posts Grid */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">บทความทั้งหมด</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {otherPosts.map((blog, index) => (
-              <Link
-                key={blog.id}
-                href={`/blogs/${blog.slug}`}
-                className="block"
-              >
-                <article className="bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
-                  {/* Image */}
-                  {blog.featuredImage ? (
-                    <div className="h-48 overflow-hidden">
-                      <img
-                        src={blog.featuredImage}
-                        alt={blog.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                      />
-                    </div>
+          {loading ? (
+            <FeaturedPostSkeleton />
+          ) : featuredPost ? (
+            <Link href={`/blogs/${featuredPost.slug}`} className="block group">
+              <article className="bg-white rounded-2xl shadow-lg overflow-hidden lg:flex hover:shadow-xl transition">
+                {/* Image */}
+                <div className="lg:w-1/2 h-64 lg:h-auto overflow-hidden">
+                  {featuredPost.featuredImage ? (
+                    <img
+                      src={featuredPost.featuredImage}
+                      alt={featuredPost.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                    />
                   ) : (
-                    <div className="h-48 bg-gradient-to-br from-indigo-400 to-purple-400 flex items-center justify-center">
-                      <BookOpen className="w-16 h-16 text-white opacity-50" />
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-400 flex items-center justify-center min-h-[256px]">
+                      <BookOpen className="w-20 h-20 text-white opacity-50" />
                     </div>
                   )}
+                </div>
 
-                  <div className="p-6">
-                    {/* Title */}
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition line-clamp-2">
-                      {blog.title}
-                    </h3>
-
-                    {/* Excerpt */}
-                    <p className="text-gray-600 mb-4 line-clamp-2">{blog.excerpt}</p>
-
-                    {/* Meta Info */}
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {formatDate(blog.publishedAt)}
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="w-4 h-4 mr-1" />
-                          {calculateReadTime(index + 1)} นาที
-                        </div>
-                      </div>
-                      <div className="flex items-center">
-                        <Eye className="w-4 h-4 mr-1" />
-                        {blog.viewCount.toLocaleString()}
-                      </div>
-                    </div>
-
-                    {/* Read More */}
-                    <span className="inline-block mt-4 text-indigo-600 group-hover:text-indigo-700 font-medium">
-                      อ่านเพิ่มเติม →
+                {/* Content */}
+                <div className="lg:w-1/2 p-8 flex flex-col justify-center">
+                  <div className="flex items-center text-sm text-gray-500 mb-4 space-x-4">
+                    <span className="flex items-center">
+                      <Calendar className="w-4 h-4 mr-1" />
+                      {formatDate(featuredPost.publishedAt)}
+                    </span>
+                    <span className="flex items-center">
+                      <Clock className="w-4 h-4 mr-1" />
+                      {calculateReadTime(featuredPost.content)} นาที
+                    </span>
+                    <span className="flex items-center">
+                      <Eye className="w-4 h-4 mr-1" />
+                      {featuredPost.viewCount.toLocaleString()}
                     </span>
                   </div>
-                </article>
-              </Link>
-            ))}
-          </div>
+
+                  <h3 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4 group-hover:text-indigo-600 transition">
+                    {featuredPost.title}
+                  </h3>
+
+                  <p className="text-gray-600 mb-6 line-clamp-3">
+                    {featuredPost.excerpt}
+                  </p>
+
+                  <span className="inline-flex items-center text-indigo-600 font-semibold group-hover:text-indigo-700">
+                    อ่านเพิ่มเติม
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition" />
+                  </span>
+                </div>
+              </article>
+            </Link>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-lg p-12 text-center text-gray-500">
+              ยังไม่มีบทความ
+            </div>
+          )}
         </div>
+
+        {/* Recent Blogs Section */}
+        <BlogSection
+          title="บทความล่าสุด"
+          icon={BookOpen}
+          blogs={recentBlogs}
+          viewAllLink="/blogs/recent"
+          badgeColor="bg-indigo-600"
+          loading={loading}
+        />
+
+        {/* Notes Section */}
+        <BlogSection
+          title="Notes"
+          icon={FileText}
+          blogs={notesData?.items || []}
+          viewAllLink="/blogs/notes"
+          badgeColor="bg-emerald-600"
+          loading={loading}
+        />
+
+        {/* Essays Section */}
+        <BlogSection
+          title="Essays"
+          icon={PenTool}
+          blogs={essaysData?.items || []}
+          viewAllLink="/blogs/essays"
+          badgeColor="bg-amber-600"
+          loading={loading}
+        />
       </div>
 
       {/* CTA Section */}
