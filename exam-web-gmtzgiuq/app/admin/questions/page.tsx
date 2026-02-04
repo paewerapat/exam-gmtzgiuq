@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -20,78 +20,40 @@ import {
   GraduationCap,
   FileText,
   HelpCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
+import LatexRenderer from '@/components/latex/LatexRenderer';
+import {
+  getAdminQuestions,
+  getQuestionStats,
+  deleteQuestion,
+  categoryDisplayNames,
+  difficultyDisplayNames,
+  difficultyColors,
+  statusDisplayNames,
+  type QuestionCategory,
+  type QuestionDifficulty,
+  type QuestionStatus,
+  type PaginatedQuestions,
+  type QuestionStats,
+} from '@/lib/api/questions';
 
-// Mock data
-const mockQuestions = [
-  {
-    id: '1',
-    question: 'ประเทศไทยมีกี่จังหวัด?',
-    category: 'ความรู้ทั่วไป',
-    difficulty: 'easy',
-    type: 'multiple_choice',
-    status: 'published',
-    createdAt: '2024-01-15',
-  },
-  {
-    id: '2',
-    question: 'What is the capital of France?',
-    category: 'TOEIC',
-    difficulty: 'easy',
-    type: 'multiple_choice',
-    status: 'published',
-    createdAt: '2024-01-16',
-  },
-  {
-    id: '3',
-    question: 'จงหาค่า x จากสมการ 2x + 5 = 15',
-    category: 'คณิตศาสตร์',
-    difficulty: 'medium',
-    type: 'multiple_choice',
-    status: 'draft',
-    createdAt: '2024-01-17',
-  },
-  {
-    id: '4',
-    question: 'รัฐธรรมนูญฉบับปัจจุบันประกาศใช้เมื่อใด?',
-    category: 'ก.พ.',
-    difficulty: 'hard',
-    type: 'multiple_choice',
-    status: 'published',
-    createdAt: '2024-01-18',
-  },
-  {
-    id: '5',
-    question: 'เมื่อขับรถผ่านทางม้าลายและมีคนข้าม ควรปฏิบัติอย่างไร?',
-    category: 'ใบขับขี่',
-    difficulty: 'easy',
-    type: 'multiple_choice',
-    status: 'published',
-    createdAt: '2024-01-19',
-  },
-  {
-    id: '6',
-    question: 'พันธะเคมีแบบโควาเลนต์คืออะไร?',
-    category: 'วิทยาศาสตร์',
-    difficulty: 'medium',
-    type: 'multiple_choice',
-    status: 'published',
-    createdAt: '2024-01-20',
-  },
-];
+const ITEMS_PER_PAGE = 10;
 
-const categories = [
-  { id: 'all', name: 'ทั้งหมด', icon: FileQuestion, count: 6 },
-  { id: 'ความรู้ทั่วไป', name: 'ความรู้ทั่วไป', icon: BookOpen, count: 1 },
-  { id: 'ก.พ.', name: 'ข้อสอบ ก.พ.', icon: GraduationCap, count: 1 },
-  { id: 'TOEIC', name: 'TOEIC', icon: Globe, count: 1 },
-  { id: 'คณิตศาสตร์', name: 'คณิตศาสตร์', icon: Calculator, count: 1 },
-  { id: 'วิทยาศาสตร์', name: 'วิทยาศาสตร์', icon: FlaskConical, count: 1 },
-  { id: 'ใบขับขี่', name: 'ใบขับขี่', icon: Car, count: 1 },
-  { id: 'GAT/PAT', name: 'GAT/PAT', icon: FileText, count: 0 },
-  { id: 'O-NET', name: 'O-NET', icon: HelpCircle, count: 0 },
-];
+const categoryIcons: Record<string, React.ElementType> = {
+  general_knowledge: BookOpen,
+  kor_por: GraduationCap,
+  toeic: Globe,
+  gat_pat: FileText,
+  o_net: HelpCircle,
+  mathematics: Calculator,
+  english: Globe,
+  science: FlaskConical,
+  driving_license: Car,
+};
 
 const difficulties = [
   { id: 'all', name: 'ทุกระดับ' },
@@ -106,31 +68,103 @@ const statuses = [
   { id: 'draft', name: 'แบบร่าง' },
 ];
 
-const difficultyColors: Record<string, string> = {
-  easy: 'bg-green-100 text-green-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  hard: 'bg-red-100 text-red-700',
-};
-
-const difficultyLabels: Record<string, string> = {
-  easy: 'ง่าย',
-  medium: 'ปานกลาง',
-  hard: 'ยาก',
-};
-
 export default function QuestionsPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedDifficulty, setSelectedDifficulty] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [data, setData] = useState<PaginatedQuestions | null>(null);
+  const [stats, setStats] = useState<QuestionStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
-  const filteredQuestions = mockQuestions.filter((q) => {
-    const matchesSearch = q.question.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || q.category === selectedCategory;
-    const matchesDifficulty = selectedDifficulty === 'all' || q.difficulty === selectedDifficulty;
-    const matchesStatus = selectedStatus === 'all' || q.status === selectedStatus;
-    return matchesSearch && matchesCategory && matchesDifficulty && matchesStatus;
-  });
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, selectedDifficulty, selectedStatus]);
+
+  // Fetch stats
+  useEffect(() => {
+    getQuestionStats()
+      .then(setStats)
+      .catch((err) => console.error('Failed to fetch stats:', err));
+  }, []);
+
+  // Fetch questions
+  const fetchQuestions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await getAdminQuestions({
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        category: selectedCategory !== 'all' ? (selectedCategory as QuestionCategory) : undefined,
+        difficulty: selectedDifficulty !== 'all' ? (selectedDifficulty as QuestionDifficulty) : undefined,
+        status: selectedStatus !== 'all' ? (selectedStatus as QuestionStatus) : undefined,
+        search: debouncedSearch || undefined,
+      });
+      setData(result);
+    } catch (err) {
+      console.error('Failed to fetch questions:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, selectedCategory, selectedDifficulty, selectedStatus, debouncedSearch]);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [fetchQuestions]);
+
+  // Handle delete
+  const handleDelete = async (id: string) => {
+    if (!confirm('คุณต้องการลบโจทย์นี้ใช่ไหม?')) return;
+    setDeleting(id);
+    try {
+      await deleteQuestion(id);
+      fetchQuestions();
+      // Refresh stats
+      getQuestionStats().then(setStats).catch(console.error);
+    } catch (err) {
+      console.error('Failed to delete question:', err);
+      alert('ไม่สามารถลบโจทย์ได้');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  // Build categories list from stats
+  const categories = [
+    {
+      id: 'all',
+      name: 'ทั้งหมด',
+      icon: FileQuestion,
+      count: stats?.total || 0,
+    },
+    ...Object.entries(categoryDisplayNames).map(([key, name]) => ({
+      id: key,
+      name,
+      icon: categoryIcons[key] || FileQuestion,
+      count: stats?.byCategory.find((c) => c.category === key)?.count || 0,
+    })),
+  ];
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
   return (
     <div className="flex gap-6">
@@ -233,7 +267,16 @@ export default function QuestionsPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">จัดการโจทย์สอบ</h1>
               <p className="text-gray-600 text-sm mt-1">
-                ทั้งหมด {mockQuestions.length} โจทย์ • แสดง {filteredQuestions.length} รายการ
+                {loading ? (
+                  <span className="inline-flex items-center">
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    กำลังโหลด...
+                  </span>
+                ) : (
+                  <>
+                    ทั้งหมด {stats?.total || 0} โจทย์ • แสดง {data?.total || 0} รายการ
+                  </>
+                )}
               </p>
             </div>
             <Link
@@ -265,103 +308,143 @@ export default function QuestionsPage() {
         {/* Questions List */}
         <FadeIn delay={0.2}>
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <table className="min-w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    โจทย์
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    หมวดหมู่
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ระดับ
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    สถานะ
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    จัดการ
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredQuestions.map((question, index) => (
-                  <motion.tr
-                    key={question.id}
-                    className="hover:bg-gray-50"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.03 }}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 line-clamp-1 max-w-sm">
-                        {question.question}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5">{question.createdAt}</div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
-                        {question.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${difficultyColors[question.difficulty]}`}
-                      >
-                        {difficultyLabels[question.difficulty]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      {question.status === 'published' ? (
-                        <span className="flex items-center text-green-600 text-xs">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          เผยแพร่
-                        </span>
-                      ) : (
-                        <span className="flex items-center text-gray-500 text-xs">
-                          <XCircle className="w-3 h-3 mr-1" />
-                          แบบร่าง
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-end space-x-1">
-                        <button className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <Link
-                          href={`/admin/questions/${question.id}/edit`}
-                          className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-
-            {filteredQuestions.length === 0 && (
-              <div className="text-center py-12">
-                <FileQuestion className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">ไม่พบโจทย์ที่ค้นหา</p>
-                <button
-                  onClick={() => {
-                    setSelectedCategory('all');
-                    setSelectedDifficulty('all');
-                    setSelectedStatus('all');
-                    setSearchTerm('');
-                  }}
-                  className="mt-4 text-indigo-600 hover:text-indigo-700 text-sm"
-                >
-                  ล้างตัวกรอง
-                </button>
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
               </div>
+            ) : (
+              <>
+                <table className="min-w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        โจทย์
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        หมวดหมู่
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ระดับ
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        สถานะ
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        จัดการ
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {data?.items.map((question, index) => (
+                      <motion.tr
+                        key={question.id}
+                        className="hover:bg-gray-50"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900 line-clamp-1 max-w-sm">
+                            <LatexRenderer content={question.question} />
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {formatDate(question.createdAt)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                            {categoryDisplayNames[question.category] || question.category}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${difficultyColors[question.difficulty]}`}
+                          >
+                            {difficultyDisplayNames[question.difficulty]}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          {question.status === 'published' ? (
+                            <span className="flex items-center text-green-600 text-xs">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              เผยแพร่
+                            </span>
+                          ) : (
+                            <span className="flex items-center text-gray-500 text-xs">
+                              <XCircle className="w-3 h-3 mr-1" />
+                              แบบร่าง
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end space-x-1">
+                            <Link
+                              href={`/admin/questions/${question.id}/edit`}
+                              className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(question.id)}
+                              disabled={deleting === question.id}
+                              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                            >
+                              {deleting === question.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {data && data.items.length === 0 && (
+                  <div className="text-center py-12">
+                    <FileQuestion className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">ไม่พบโจทย์ที่ค้นหา</p>
+                    <button
+                      onClick={() => {
+                        setSelectedCategory('all');
+                        setSelectedDifficulty('all');
+                        setSelectedStatus('all');
+                        setSearchTerm('');
+                      }}
+                      className="mt-4 text-indigo-600 hover:text-indigo-700 text-sm"
+                    >
+                      ล้างตัวกรอง
+                    </button>
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {data && data.totalPages > 1 && (
+                  <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+                    <p className="text-sm text-gray-500">
+                      หน้า {data.page} จาก {data.totalPages}
+                    </p>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(data.totalPages, p + 1))}
+                        disabled={currentPage === data.totalPages}
+                        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </FadeIn>

@@ -4,7 +4,8 @@
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
       "Bash(npm run lint:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(dir:*)"
     ],
     "additionalDirectories": [
       "e:\\Fastwork\\559LDU4Z\\exam-web-gmtzgiuq\\app\\api\\auth"

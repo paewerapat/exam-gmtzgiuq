@@ -107,12 +107,34 @@ export default function ImageUpload({
     [handleFileSelect]
   );
 
-  const handleRemove = useCallback(() => {
+  const handleRemove = useCallback(async () => {
+    // Delete from server if it's a local upload URL
+    if (value && value.includes('/uploads/')) {
+      try {
+        // Extract filename from URL like http://localhost:3001/uploads/abc.jpg
+        const filename = value.split('/uploads/').pop();
+        if (filename) {
+          const token = localStorage.getItem('token');
+          const res = await fetch(`${API_URL}/upload/${filename}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (!res.ok) {
+            console.error('Delete failed:', res.status);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to delete file:', err);
+      }
+    }
+
     onChange('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [onChange]);
+  }, [onChange, value]);
 
   return (
     <div className={className}>

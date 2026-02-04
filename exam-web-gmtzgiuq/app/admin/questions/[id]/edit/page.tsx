@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,7 +19,8 @@ import ImageUpload from '@/components/upload/ImageUpload';
 import FadeIn from '@/components/animations/FadeIn';
 import LatexText from '@/components/latex/LatexText';
 import {
-  createQuestion,
+  getAdminQuestion,
+  updateQuestion,
   categoryDisplayNames,
   type QuestionCategory,
   type QuestionDifficulty,
@@ -35,9 +36,13 @@ interface Choice {
 
 const categoryOptions = Object.entries(categoryDisplayNames) as [QuestionCategory, string][];
 
-export default function NewQuestionPage() {
+export default function EditQuestionPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const params = useParams();
+  const questionId = params.id as string;
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     question: '',
     questionImage: '',
@@ -49,12 +54,40 @@ export default function NewQuestionPage() {
     tags: '',
   });
 
-  const [choices, setChoices] = useState<Choice[]>([
-    { id: '1', text: '', isCorrect: true },
-    { id: '2', text: '', isCorrect: false },
-    { id: '3', text: '', isCorrect: false },
-    { id: '4', text: '', isCorrect: false },
-  ]);
+  const [choices, setChoices] = useState<Choice[]>([]);
+
+  // Load question data
+  useEffect(() => {
+    async function loadQuestion() {
+      try {
+        const question = await getAdminQuestion(questionId);
+        setFormData({
+          question: question.question,
+          questionImage: question.questionImage || '',
+          explanation: question.explanation || '',
+          category: question.category,
+          difficulty: question.difficulty,
+          type: question.type,
+          status: question.status,
+          tags: question.tags?.join(', ') || '',
+        });
+        setChoices(
+          question.choices.map((c) => ({
+            id: c.id,
+            text: c.text,
+            isCorrect: c.isCorrect,
+          })),
+        );
+      } catch (err) {
+        console.error('Failed to load question:', err);
+        toast.error('ไม่สามารถโหลดข้อมูลโจทย์ได้');
+        router.push('/admin/questions');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadQuestion();
+  }, [questionId, router]);
 
   const handleAddChoice = () => {
     if (choices.length >= 6) {
@@ -108,10 +141,10 @@ export default function NewQuestionPage() {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
 
     try {
-      await createQuestion({
+      await updateQuestion(questionId, {
         question: formData.question,
         questionImage: formData.questionImage || undefined,
         explanation: formData.explanation || undefined,
@@ -124,15 +157,23 @@ export default function NewQuestionPage() {
           : undefined,
         choices,
       });
-      toast.success('สร้างโจทย์สำเร็จ!');
+      toast.success('บันทึกโจทย์สำเร็จ!');
       router.push('/admin/questions');
     } catch (err) {
-      console.error('Failed to create question:', err);
-      toast.error('ไม่สามารถสร้างโจทย์ได้ กรุณาลองใหม่อีกครั้ง');
+      console.error('Failed to update question:', err);
+      toast.error('ไม่สามารถบันทึกโจทย์ได้ กรุณาลองใหม่อีกครั้ง');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -145,9 +186,9 @@ export default function NewQuestionPage() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             กลับไปหน้ารายการ
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">สร้างโจทย์ใหม่</h1>
+          <h1 className="text-3xl font-bold text-gray-900">แก้ไขโจทย์</h1>
           <p className="text-gray-600 mt-1">
-            เพิ่มโจทย์ข้อสอบใหม่เข้าสู่ระบบ (รองรับ LaTeX เช่น $x^2 + y^2 = r^2$)
+            แก้ไขโจทย์ข้อสอบ (รองรับ LaTeX เช่น $x^2 + y^2 = r^2$)
           </p>
         </div>
       </FadeIn>
@@ -192,7 +233,7 @@ export default function NewQuestionPage() {
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">ตัวเลือกคำตอบ</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">รองรับ LaTeX ในตัวเลือก เช่น $\frac{'{1}'}{'{2}'}$</p>
+                    <p className="text-xs text-gray-400 mt-0.5">รองรับ LaTeX ในตัวเลือก</p>
                   </div>
                   <button
                     type="button"
@@ -317,10 +358,10 @@ export default function NewQuestionPage() {
 
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={saving}
                     className="w-full flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
                   >
-                    {loading ? (
+                    {saving ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         กำลังบันทึก...
@@ -328,7 +369,7 @@ export default function NewQuestionPage() {
                     ) : (
                       <>
                         <Save className="w-4 h-4 mr-2" />
-                        บันทึกโจทย์
+                        บันทึกการแก้ไข
                       </>
                     )}
                   </button>

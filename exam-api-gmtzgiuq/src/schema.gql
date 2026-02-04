@@ -9,6 +9,7 @@ type AuthPayload {
 
 type Blog {
   author: User!
+  category: BlogCategory!
   content: String!
   createdAt: DateTime!
   excerpt: String
@@ -24,12 +25,29 @@ type Blog {
   viewCount: Float!
 }
 
+enum BlogCategory {
+  ESSAYS
+  NOTES
+}
+
 enum BlogStatus {
   DRAFT
   PUBLISHED
 }
 
+type CategoryCount {
+  category: String!
+  count: Int!
+}
+
+input ChoiceInput {
+  id: String!
+  isCorrect: Boolean!
+  text: String!
+}
+
 input CreateBlogInput {
+  category: BlogCategory
   content: String!
   excerpt: String
   featuredImage: String
@@ -40,6 +58,18 @@ input CreateBlogInput {
   title: String!
 }
 
+input CreateQuestionInput {
+  category: QuestionCategory!
+  choices: [ChoiceInput!]!
+  difficulty: QuestionDifficulty
+  explanation: String
+  question: String!
+  questionImage: String
+  status: QuestionStatus
+  tags: [String!]
+  type: QuestionType
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
@@ -47,7 +77,9 @@ scalar DateTime
 
 type Mutation {
   createBlog(input: CreateBlogInput!): Blog!
+  createQuestion(input: CreateQuestionInput!): Question!
   deleteBlog(id: String!): Boolean!
+  deleteQuestion(id: String!): Boolean!
   googleLogin(credential: String!): AuthPayload!
   login(email: String!, password: String!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
@@ -55,6 +87,7 @@ type Mutation {
   resetPassword(input: ResetPasswordInput!): User!
   updateBlog(id: String!, input: UpdateBlogInput!): Blog!
   updateProfile(avatar: String, firstName: String, lastName: String): User!
+  updateQuestion(id: String!, input: UpdateQuestionInput!): Question!
   verifyEmail(token: String!): User!
 }
 
@@ -66,13 +99,83 @@ type PaginatedBlogs {
   totalPages: Int!
 }
 
+type PaginatedQuestions {
+  items: [Question!]!
+  limit: Int!
+  page: Int!
+  total: Int!
+  totalPages: Int!
+}
+
 type Query {
   adminBlog(id: String!): Blog!
   adminBlogs(limit: Int = 10, page: Int = 1, status: BlogStatus): PaginatedBlogs!
+  adminQuestion(id: String!): Question!
+  adminQuestions(category: QuestionCategory, difficulty: QuestionDifficulty, limit: Int = 10, page: Int = 1, search: String, status: QuestionStatus): PaginatedQuestions!
   blogBySlug(slug: String!): Blog!
   blogs(limit: Int = 10, page: Int = 1): PaginatedBlogs!
   currentUser: User!
   me: User
+  question(id: String!): Question!
+  questionStats: QuestionStats!
+  questions(category: QuestionCategory, difficulty: QuestionDifficulty, limit: Int = 10, page: Int = 1, search: String): PaginatedQuestions!
+}
+
+type Question {
+  author: User!
+  category: QuestionCategory!
+  choices: [QuestionChoice!]!
+  createdAt: DateTime!
+  difficulty: QuestionDifficulty!
+  explanation: String
+  id: ID!
+  question: String!
+  questionImage: String
+  status: QuestionStatus!
+  tags: [String!]
+  type: QuestionType!
+  updatedAt: DateTime!
+}
+
+enum QuestionCategory {
+  DRIVING_LICENSE
+  ENGLISH
+  GAT_PAT
+  GENERAL_KNOWLEDGE
+  KOR_POR
+  MATHEMATICS
+  O_NET
+  SCIENCE
+  TOEIC
+}
+
+type QuestionChoice {
+  id: String!
+  isCorrect: Boolean!
+  text: String!
+}
+
+enum QuestionDifficulty {
+  EASY
+  HARD
+  MEDIUM
+}
+
+type QuestionStats {
+  byCategory: [CategoryCount!]!
+  draft: Int!
+  published: Int!
+  total: Int!
+}
+
+enum QuestionStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
 }
 
 input RegisterInput {
@@ -88,6 +191,7 @@ input ResetPasswordInput {
 }
 
 input UpdateBlogInput {
+  category: BlogCategory
   content: String
   excerpt: String
   featuredImage: String
@@ -96,6 +200,18 @@ input UpdateBlogInput {
   slug: String
   status: BlogStatus
   title: String
+}
+
+input UpdateQuestionInput {
+  category: QuestionCategory
+  choices: [ChoiceInput!]
+  difficulty: QuestionDifficulty
+  explanation: String
+  question: String
+  questionImage: String
+  status: QuestionStatus
+  tags: [String!]
+  type: QuestionType
 }
 
 type User {

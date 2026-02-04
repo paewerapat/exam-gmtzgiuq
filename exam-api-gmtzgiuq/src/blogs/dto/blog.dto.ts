@@ -1,6 +1,6 @@
 import { InputType, Field, ObjectType, Int } from '@nestjs/graphql';
 import { IsString, IsOptional, IsEnum } from 'class-validator';
-import { Blog, BlogStatus } from '../blog.entity';
+import { Blog, BlogStatus, BlogCategory } from '../blog.entity';
 
 @InputType()
 export class CreateBlogInput {
@@ -31,6 +31,11 @@ export class CreateBlogInput {
   @IsEnum(BlogStatus)
   @IsOptional()
   status?: BlogStatus;
+
+  @Field(() => BlogCategory, { nullable: true })
+  @IsEnum(BlogCategory)
+  @IsOptional()
+  category?: BlogCategory;
 
   @Field({ nullable: true })
   @IsString()
@@ -74,6 +79,11 @@ export class UpdateBlogInput {
   @IsEnum(BlogStatus)
   @IsOptional()
   status?: BlogStatus;
+
+  @Field(() => BlogCategory, { nullable: true })
+  @IsEnum(BlogCategory)
+  @IsOptional()
+  category?: BlogCategory;
 
   @Field({ nullable: true })
   @IsString()

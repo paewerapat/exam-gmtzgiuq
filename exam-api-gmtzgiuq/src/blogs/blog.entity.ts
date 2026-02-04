@@ -15,8 +15,17 @@ export enum BlogStatus {
   PUBLISHED = 'published',
 }
 
+export enum BlogCategory {
+  NOTES = 'notes',
+  ESSAYS = 'essays',
+}
+
 registerEnumType(BlogStatus, {
   name: 'BlogStatus',
+});
+
+registerEnumType(BlogCategory, {
+  name: 'BlogCategory',
 });
 
 @ObjectType()
@@ -49,6 +58,10 @@ export class Blog {
   @Field(() => BlogStatus)
   @Column({ type: 'enum', enum: BlogStatus, default: BlogStatus.DRAFT })
   status: BlogStatus;
+
+  @Field(() => BlogCategory)
+  @Column({ type: 'enum', enum: BlogCategory, default: BlogCategory.NOTES })
+  category: BlogCategory;
 
   @Field({ nullable: true })
   @Column({ nullable: true })

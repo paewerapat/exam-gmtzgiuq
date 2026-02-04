@@ -5,19 +5,21 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Blog, BlogStatus } from './blog.entity';
+import { Blog, BlogStatus, BlogCategory } from './blog.entity';
 import {
   CreateBlogInput,
   UpdateBlogInput,
   PaginatedBlogs,
 } from './dto/blog.dto';
 import { User } from '../users/user.entity';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class BlogsService {
   constructor(
     @InjectRepository(Blog)
     private blogsRepository: Repository<Blog>,
+    private uploadService: UploadService,
   ) {}
 
   private generateSlug(title: string): string {
@@ -59,16 +61,29 @@ export class BlogsService {
     page: number = 1,
     limit: number = 10,
     status?: BlogStatus,
+    category?: BlogCategory,
+    search?: string,
   ): Promise<PaginatedBlogs> {
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.blogsRepository
       .createQueryBuilder('blog')
       .leftJoinAndSelect('blog.author', 'author')
-      .orderBy('blog.createdAt', 'DESC');
+      .orderBy('blog.publishedAt', 'DESC');
 
     if (status) {
-      queryBuilder.where('blog.status = :status', { status });
+      queryBuilder.andWhere('blog.status = :status', { status });
+    }
+
+    if (category) {
+      queryBuilder.andWhere('blog.category = :category', { category });
+    }
+
+    if (search) {
+      queryBuilder.andWhere(
+        '(blog.title LIKE :search OR blog.excerpt LIKE :search)',
+        { search: `%${search}%` },
+      );
     }
 
     const [items, total] = await queryBuilder
@@ -88,8 +103,10 @@ export class BlogsService {
   async findPublished(
     page: number = 1,
     limit: number = 10,
+    category?: BlogCategory,
+    search?: string,
   ): Promise<PaginatedBlogs> {
-    return this.findAll(page, limit, BlogStatus.PUBLISHED);
+    return this.findAll(page, limit, BlogStatus.PUBLISHED, category, search);
   }
 
   async findOne(id: string): Promise<Blog> {
@@ -134,6 +151,15 @@ export class BlogsService {
       }
     }
 
+    // Delete old featured image if it's being replaced
+    if (
+      updateBlogInput.featuredImage &&
+      blog.featuredImage &&
+      updateBlogInput.featuredImage !== blog.featuredImage
+    ) {
+      this.uploadService.deleteByUrl(blog.featuredImage);
+    }
+
     // Set publishedAt if status changes to published
     if (
       updateBlogInput.status === BlogStatus.PUBLISHED &&
@@ -148,6 +174,12 @@ export class BlogsService {
 
   async remove(id: string): Promise<boolean> {
     const blog = await this.findOne(id);
+
+    // Delete associated featured image
+    if (blog.featuredImage) {
+      this.uploadService.deleteByUrl(blog.featuredImage);
+    }
+
     await this.blogsRepository.remove(blog);
     return true;
   }

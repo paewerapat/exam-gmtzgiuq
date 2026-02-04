@@ -8,7 +8,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { BlogsModule } from './blogs/blogs.module';
+import { QuestionsModule } from './questions/questions.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -44,10 +47,18 @@ import { BlogsModule } from './blogs/blogs.module';
       context: ({ req, res }) => ({ req, res }),
     }),
 
+    // Serve uploaded files
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
+    }),
+
     // Feature Modules
     AuthModule,
     UsersModule,
     BlogsModule,
+    QuestionsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

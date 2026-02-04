@@ -16,7 +16,7 @@ import {
   UpdateBlogInput,
   PaginatedBlogs,
 } from './dto/blog.dto';
-import { Blog, BlogStatus } from './blog.entity';
+import { Blog, BlogStatus, BlogCategory } from './blog.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 
@@ -29,8 +29,10 @@ export class BlogsController {
   async findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('category') category?: BlogCategory,
+    @Query('search') search?: string,
   ): Promise<PaginatedBlogs> {
-    return this.blogsService.findPublished(+page, +limit);
+    return this.blogsService.findPublished(+page, +limit, category, search);
   }
 
   // Public - Get single blog by slug
@@ -46,8 +48,10 @@ export class BlogsController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('status') status?: BlogStatus,
+    @Query('category') category?: BlogCategory,
+    @Query('search') search?: string,
   ): Promise<PaginatedBlogs> {
-    return this.blogsService.findAll(+page, +limit, status);
+    return this.blogsService.findAll(+page, +limit, status, category, search);
   }
 
   // Admin - Get blog stats
