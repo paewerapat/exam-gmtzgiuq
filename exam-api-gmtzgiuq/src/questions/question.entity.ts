@@ -78,6 +78,10 @@ export class Question {
   @Column({ type: 'longtext', nullable: true })
   explanation: string;
 
+  @Field({ nullable: true })
+  @Column({ type: 'text', nullable: true })
+  hint: string;
+
   @Field(() => QuestionCategory)
   @Column({ type: 'enum', enum: QuestionCategory })
   category: QuestionCategory;

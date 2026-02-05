@@ -63,6 +63,7 @@ input CreateQuestionInput {
   choices: [ChoiceInput!]!
   difficulty: QuestionDifficulty
   explanation: String
+  hint: String
   question: String!
   questionImage: String
   status: QuestionStatus
@@ -128,6 +129,7 @@ type Question {
   createdAt: DateTime!
   difficulty: QuestionDifficulty!
   explanation: String
+  hint: String
   id: ID!
   question: String!
   questionImage: String
@@ -207,6 +209,7 @@ input UpdateQuestionInput {
   choices: [ChoiceInput!]
   difficulty: QuestionDifficulty
   explanation: String
+  hint: String
   question: String
   questionImage: String
   status: QuestionStatus

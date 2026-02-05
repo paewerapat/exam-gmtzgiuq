@@ -3,11 +3,15 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function ProfilePage() {
+interface PageProps {
+  params: Promise<{ category: string }>;
+}
+
+export default function CategoryConfigPage({ params }: PageProps) {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/dashboard/profile');
+    router.replace('/dashboard/practice');
   }, [router]);
 
   return null;

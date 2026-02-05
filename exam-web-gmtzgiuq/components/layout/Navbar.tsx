@@ -2,17 +2,12 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, LogOut, User, Loader2 } from 'lucide-react';
+import { Menu, Loader2, LayoutDashboard } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const handleLogout = () => {
-    logout();
-    setMobileMenuOpen(false);
-  };
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
@@ -33,22 +28,13 @@ export default function Navbar() {
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
             ) : user ? (
-              <>
-                <Link href="/profile" className="text-gray-700 hover:text-indigo-600 transition flex items-center">
-                  <User className="w-4 h-4 mr-1" />
-                  {user.firstName || user.email?.split('@')[0]}
-                </Link>
-                <Link href="/admin" className="text-gray-700 hover:text-indigo-600 transition">
-                  จัดการระบบ
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-700 hover:text-indigo-600 transition flex items-center"
-                >
-                  <LogOut className="w-4 h-4 mr-1" />
-                  ออกจากระบบ
-                </button>
-              </>
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                เมนูหลัก
+              </Link>
             ) : (
               <>
                 <Link
@@ -95,28 +81,14 @@ export default function Navbar() {
                 <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
               </div>
             ) : user ? (
-              <>
-                <Link
-                  href="/profile"
-                  className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  โปรไฟล์
-                </Link>
-                <Link
-                  href="/admin"
-                  className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  จัดการระบบ
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
-                >
-                  ออกจากระบบ
-                </button>
-              </>
+              <Link
+                href="/dashboard"
+                className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 rounded-md font-medium flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                เมนูหลัก
+              </Link>
             ) : (
               <>
                 <Link

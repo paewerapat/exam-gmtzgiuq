@@ -3,11 +3,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function ProfilePage() {
+export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/dashboard/profile');
+    router.replace('/dashboard/practice');
   }, [router]);
 
   return null;

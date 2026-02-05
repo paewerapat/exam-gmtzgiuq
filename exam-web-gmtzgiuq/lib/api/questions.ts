@@ -34,6 +34,7 @@ export interface Question {
   questionImage?: string;
   choices: QuestionChoice[];
   explanation?: string;
+  hint?: string;
   category: QuestionCategory;
   difficulty: QuestionDifficulty;
   type: QuestionType;
@@ -212,4 +213,72 @@ export const difficultyColors: Record<QuestionDifficulty, string> = {
 export const statusDisplayNames: Record<QuestionStatus, string> = {
   draft: 'แบบร่าง',
   published: 'เผยแพร่',
+};
+
+// Public - Get published questions for practice/exam
+export interface GetPublicQuestionsParams {
+  category?: QuestionCategory;
+  difficulty?: QuestionDifficulty;
+  limit?: number;
+  page?: number;
+  search?: string;
+}
+
+export async function getPublicQuestions(
+  params: GetPublicQuestionsParams = {},
+): Promise<PaginatedQuestions> {
+  const { page = 1, limit = 50, category, difficulty, search } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', String(page));
+  queryParams.set('limit', String(limit));
+
+  if (category) queryParams.set('category', category);
+  if (difficulty) queryParams.set('difficulty', difficulty);
+  if (search) queryParams.set('search', search);
+
+  const response = await fetch(
+    `${API_URL}/questions?${queryParams.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch questions');
+  }
+
+  return response.json();
+}
+
+// Public - Get questions as array (convenience function for exam)
+export async function getQuestionsForExam(params: {
+  category: QuestionCategory;
+  difficulty?: QuestionDifficulty;
+  count: number;
+}): Promise<Question[]> {
+  const result = await getPublicQuestions({
+    category: params.category,
+    difficulty: params.difficulty,
+    limit: params.count,
+  });
+
+  return result.items;
+}
+
+// Category icons for UI
+export const categoryIcons: Record<QuestionCategory, string> = {
+  general_knowledge: '📚',
+  kor_por: '🏛️',
+  toeic: '🌍',
+  gat_pat: '🎓',
+  o_net: '📝',
+  mathematics: '🔢',
+  english: '🔤',
+  science: '🔬',
+  driving_license: '🚗',
 };
