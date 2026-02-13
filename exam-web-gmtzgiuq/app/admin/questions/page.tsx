@@ -30,6 +30,7 @@ import {
   getAdminQuestions,
   getQuestionStats,
   deleteQuestion,
+  updateQuestion,
   categoryDisplayNames,
   difficultyDisplayNames,
   difficultyColors,
@@ -79,6 +80,7 @@ export default function QuestionsPage() {
   const [stats, setStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [toggling, setToggling] = useState<string | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -139,6 +141,22 @@ export default function QuestionsPage() {
       alert('ไม่สามารถลบโจทย์ได้');
     } finally {
       setDeleting(null);
+    }
+  };
+
+  // Handle toggle status
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    setToggling(id);
+    try {
+      const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+      await updateQuestion(id, { status: newStatus as QuestionStatus });
+      fetchQuestions();
+      getQuestionStats().then(setStats).catch(console.error);
+    } catch (err) {
+      console.error('Failed to toggle status:', err);
+      alert('ไม่สามารถเปลี่ยนสถานะได้');
+    } finally {
+      setToggling(null);
     }
   };
 
@@ -364,17 +382,26 @@ export default function QuestionsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-4">
-                          {question.status === 'published' ? (
-                            <span className="flex items-center text-green-600 text-xs">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              เผยแพร่
-                            </span>
-                          ) : (
-                            <span className="flex items-center text-gray-500 text-xs">
-                              <XCircle className="w-3 h-3 mr-1" />
-                              แบบร่าง
-                            </span>
-                          )}
+                          <button
+                            onClick={() => handleToggleStatus(question.id, question.status)}
+                            disabled={toggling === question.id}
+                            className="flex items-center text-xs cursor-pointer hover:opacity-70 transition disabled:opacity-50"
+                            title={question.status === 'published' ? 'คลิกเพื่อเปลี่ยนเป็นแบบร่าง' : 'คลิกเพื่อเผยแพร่'}
+                          >
+                            {toggling === question.id ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : question.status === 'published' ? (
+                              <>
+                                <CheckCircle className="w-3 h-3 mr-1 text-green-600" />
+                                <span className="text-green-600">เผยแพร่</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="w-3 h-3 mr-1 text-gray-500" />
+                                <span className="text-gray-500">แบบร่าง</span>
+                              </>
+                            )}
+                          </button>
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center justify-end space-x-1">

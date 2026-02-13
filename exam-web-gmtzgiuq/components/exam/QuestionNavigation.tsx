@@ -108,19 +108,18 @@ export default function QuestionNavigation({
         <button
           type="button"
           onClick={onNext}
-          disabled={isLast}
           className={`
             flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg
-            bg-indigo-600 text-white transition-colors
+            transition-colors
             ${
               isLast
-                ? 'opacity-50 cursor-not-allowed'
-                : 'hover:bg-indigo-700'
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700'
             }
           `}
         >
-          <span>ถัดไป</span>
-          <ChevronRight className="w-4 h-4" />
+          <span>{isLast ? 'ส่งข้อสอบ' : 'ถัดไป'}</span>
+          {!isLast && <ChevronRight className="w-4 h-4" />}
         </button>
       </div>
     </div>

@@ -5,7 +5,10 @@
       "Bash(npm run build:*)",
       "Bash(npm run lint:*)",
       "Bash(npx tsc:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(node -e:*)",
+      "Bash(npx next build)",
+      "Bash(npx nest build:*)"
     ],
     "additionalDirectories": [
       "e:\\Fastwork\\559LDU4Z\\exam-web-gmtzgiuq\\app\\api\\auth"

@@ -2,6 +2,8 @@ import type { Question, QuestionCategory, QuestionDifficulty } from '@/lib/api/q
 
 export interface ExamSession {
   id: string;
+  examId: string;
+  examTitle: string;
   category: QuestionCategory;
   difficulty?: QuestionDifficulty;
   questionIds: string[];
@@ -41,6 +43,8 @@ export type ExamAction =
   | { type: 'RESET_QUESTION_STATE' };
 
 export interface ExamConfig {
+  examId: string;
+  examTitle: string;
   category: QuestionCategory;
   difficulty?: QuestionDifficulty;
   questionCount: number;

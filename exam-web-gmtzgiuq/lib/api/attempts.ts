@@ -1,0 +1,241 @@
+// Attempts API Service
+import type { QuestionCategory } from './questions';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+export interface ExamAttempt {
+  id: string;
+  userId: string;
+  examId: string | null;
+  examTitle: string;
+  category: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unanswered: number;
+  score: number;
+  totalTime: number;
+  timePerQuestion: Record<string, number>;
+  answers: Record<string, string>;
+  questionIds: string[];
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  exam?: {
+    id: string;
+    title: string;
+    category: string;
+  } | null;
+}
+
+export interface PaginatedAttempts {
+  items: ExamAttempt[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface AttemptCategoryStats {
+  category: string;
+  attempts: number;
+  averageScore: number;
+}
+
+export interface AttemptStats {
+  totalAttempts: number;
+  averageScore: number;
+  uniqueUsers: number;
+  byCategory: AttemptCategoryStats[];
+}
+
+export interface SubmitAttemptInput {
+  examId: string;
+  examTitle: string;
+  category: QuestionCategory;
+  totalQuestions: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unanswered: number;
+  score: number;
+  totalTime: number;
+  timePerQuestion: Record<string, number>;
+  answers: Record<string, string>;
+  questionIds: string[];
+  startedAt: string;
+  completedAt?: string;
+}
+
+export interface GetAttemptsParams {
+  page?: number;
+  limit?: number;
+  category?: QuestionCategory;
+  examId?: string;
+  userId?: string;
+  search?: string;
+}
+
+function getAuthHeaders(): HeadersInit {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+// User - Submit attempt
+export async function submitAttempt(input: SubmitAttemptInput): Promise<ExamAttempt> {
+  const response = await fetch(`${API_URL}/attempts`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const message = errorData?.message
+      ? Array.isArray(errorData.message)
+        ? errorData.message.join(', ')
+        : errorData.message
+      : `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+// User - Get my attempts
+export async function getMyAttempts(
+  params: GetAttemptsParams = {},
+): Promise<PaginatedAttempts> {
+  const { page = 1, limit = 10, category } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', String(page));
+  queryParams.set('limit', String(limit));
+  if (category) queryParams.set('category', category);
+
+  const response = await fetch(
+    `${API_URL}/attempts/my?${queryParams.toString()}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch attempts');
+  }
+
+  return response.json();
+}
+
+// User - Get my attempts for a specific exam
+export async function getMyExamAttempts(
+  examId: string,
+  params: GetAttemptsParams = {},
+): Promise<PaginatedAttempts> {
+  const { page = 1, limit = 10 } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', String(page));
+  queryParams.set('limit', String(limit));
+
+  const response = await fetch(
+    `${API_URL}/attempts/my/exam/${examId}?${queryParams.toString()}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch exam attempts');
+  }
+
+  return response.json();
+}
+
+// User - Get single attempt detail
+export async function getMyAttempt(id: string): Promise<ExamAttempt> {
+  const response = await fetch(`${API_URL}/attempts/my/${id}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Attempt not found');
+  }
+
+  return response.json();
+}
+
+// Admin - Get all attempts
+export async function getAdminAttempts(
+  params: GetAttemptsParams = {},
+): Promise<PaginatedAttempts> {
+  const { page = 1, limit = 10, userId, examId, category, search } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', String(page));
+  queryParams.set('limit', String(limit));
+  if (userId) queryParams.set('userId', userId);
+  if (examId) queryParams.set('examId', examId);
+  if (category) queryParams.set('category', category);
+  if (search) queryParams.set('search', search);
+
+  const response = await fetch(
+    `${API_URL}/attempts/admin/all?${queryParams.toString()}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch attempts');
+  }
+
+  return response.json();
+}
+
+// Admin - Get single attempt
+export async function getAdminAttempt(id: string): Promise<ExamAttempt> {
+  const response = await fetch(`${API_URL}/attempts/admin/${id}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Attempt not found');
+  }
+
+  return response.json();
+}
+
+// Admin - Get stats
+export async function getAttemptStats(): Promise<AttemptStats> {
+  const response = await fetch(`${API_URL}/attempts/admin/stats`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch attempt stats');
+  }
+
+  return response.json();
+}

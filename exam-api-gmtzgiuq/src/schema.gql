@@ -2,6 +2,12 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type AttemptCategoryStats {
+  attempts: Int!
+  averageScore: Float!
+  category: String!
+}
+
 type AuthPayload {
   accessToken: String!
   user: User!
@@ -76,6 +82,43 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type Exam {
+  author: User!
+  category: QuestionCategory!
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  questionCount: Int!
+  questions: [Question!]!
+  status: QuestionStatus!
+  title: String!
+  updatedAt: DateTime!
+}
+
+type ExamAttempt {
+  category: QuestionCategory!
+  completedAt: DateTime
+  correctAnswers: Int!
+  createdAt: DateTime!
+  exam: Exam!
+  examTitle: String!
+  id: ID!
+  incorrectAnswers: Int!
+  score: Float!
+  startedAt: DateTime!
+  status: String!
+  totalQuestions: Int!
+  totalTime: Int!
+  unanswered: Int!
+  updatedAt: DateTime!
+  user: User!
+}
+
+type ExamCategoryCount {
+  category: String!
+  count: Int!
+}
+
 type Mutation {
   createBlog(input: CreateBlogInput!): Blog!
   createQuestion(input: CreateQuestionInput!): Question!
@@ -128,9 +171,11 @@ type Question {
   choices: [QuestionChoice!]!
   createdAt: DateTime!
   difficulty: QuestionDifficulty!
+  examId: String
   explanation: String
   hint: String
   id: ID!
+  orderIndex: Int
   question: String!
   questionImage: String
   status: QuestionStatus!

@@ -21,6 +21,8 @@ import {
 const initialState: ExamState = {
   session: {
     id: '',
+    examId: '',
+    examTitle: '',
     category: 'general_knowledge',
     questionIds: [],
     currentIndex: 0,
@@ -239,7 +241,7 @@ interface ExamContextType {
   hideHint: () => void;
   showExplanation: () => void;
   hideExplanation: () => void;
-  completeExam: () => void;
+  completeExam: () => { session: ExamSession; questions: Question[] };
   clearSession: () => void;
 }
 
@@ -332,7 +334,20 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
 
   const completeExam = useCallback(() => {
     dispatch({ type: 'COMPLETE_EXAM' });
-  }, []);
+
+    // Return finalized session synchronously (don't rely on async state update)
+    const currentQuestionId = state.session.questionIds[state.session.currentIndex];
+    const finalSession: ExamSession = {
+      ...state.session,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+      timePerQuestion: {
+        ...state.session.timePerQuestion,
+        ...(currentQuestionId ? { [currentQuestionId]: state.currentTimer } : {}),
+      },
+    };
+    return { session: finalSession, questions: state.questions };
+  }, [state.session, state.currentTimer, state.questions]);
 
   const clearSession = useCallback(() => {
     clearExamSession();

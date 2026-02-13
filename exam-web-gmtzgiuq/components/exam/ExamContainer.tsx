@@ -1,7 +1,7 @@
 'use client';
 
 import { useExam } from '@/contexts/ExamContext';
-import { getCorrectChoiceId } from '@/lib/exam-utils';
+import { getCorrectChoiceId, saveExamSession } from '@/lib/exam-utils';
 import ExamHeader from './ExamHeader';
 import QuestionCard from './QuestionCard';
 import ChoiceButton from './ChoiceButton';
@@ -53,7 +53,8 @@ export default function ExamContainer({ onComplete }: ExamContainerProps) {
 
   const handleFinish = () => {
     if (confirm('คุณต้องการส่งข้อสอบหรือไม่?')) {
-      completeExam();
+      const { session: finalSession, questions } = completeExam();
+      saveExamSession(finalSession, questions);
       onComplete();
     }
   };
@@ -71,6 +72,7 @@ export default function ExamContainer({ onComplete }: ExamContainerProps) {
       {/* Header */}
       <ExamHeader
         category={session.category}
+        examTitle={session.examTitle}
         timer={currentTimer}
         currentIndex={session.currentIndex}
         totalQuestions={session.questionIds.length}

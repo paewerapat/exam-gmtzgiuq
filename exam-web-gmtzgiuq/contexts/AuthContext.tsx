@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { gql } from '@apollo/client';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useLazyQuery } from '@apollo/client/react';
 import { useRouter } from 'next/navigation';
 
 interface User {
@@ -12,6 +12,7 @@ interface User {
   lastName?: string;
   avatar?: string;
   isEmailVerified: boolean;
+  role?: string;
   createdAt?: string;
 }
 
@@ -59,6 +60,7 @@ const LOGIN_MUTATION = gql`
         lastName
         avatar
         isEmailVerified
+        role
         createdAt
       }
     }
@@ -76,6 +78,7 @@ const GOOGLE_LOGIN_MUTATION = gql`
         lastName
         avatar
         isEmailVerified
+        role
         createdAt
       }
     }
@@ -93,8 +96,24 @@ const REGISTER_MUTATION = gql`
         lastName
         avatar
         isEmailVerified
+        role
         createdAt
       }
+    }
+  }
+`;
+
+const CURRENT_USER_QUERY = gql`
+  query CurrentUser {
+    currentUser {
+      id
+      email
+      firstName
+      lastName
+      avatar
+      isEmailVerified
+      role
+      createdAt
     }
   }
 `;
@@ -112,16 +131,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loginMutation] = useMutation<LoginResponse, LoginVars>(LOGIN_MUTATION);
   const [googleLoginMutation] = useMutation<GoogleLoginResponse, GoogleLoginVars>(GOOGLE_LOGIN_MUTATION);
   const [registerMutation] = useMutation<RegisterResponse, RegisterVars>(REGISTER_MUTATION);
+  const [fetchCurrentUser] = useLazyQuery<{ currentUser: User }>(CURRENT_USER_QUERY, {
+    fetchPolicy: 'network-only',
+  });
 
   useEffect(() => {
-    // Check if user is logged in on mount
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
 
     if (token && storedUser) {
-      setUser(JSON.parse(storedUser));
+      const parsed = JSON.parse(storedUser);
+
+      // Decode JWT to get role as fallback (JWT payload has role)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.role && !parsed.role) {
+          parsed.role = payload.role;
+          localStorage.setItem('user', JSON.stringify(parsed));
+        }
+      } catch {
+        // ignore decode error
+      }
+
+      setUser(parsed);
+
+      // Refresh user data from API to get latest fields
+      fetchCurrentUser().then(({ data }) => {
+        if (data?.currentUser) {
+          const freshUser = data.currentUser;
+          localStorage.setItem('user', JSON.stringify(freshUser));
+          setUser(freshUser);
+        }
+      }).catch((err) => {
+        // Don't clear session on network errors - keep existing data
+        console.error('Failed to refresh user:', err);
+      });
     }
     setLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (email: string, password: string) => {

@@ -6,25 +6,22 @@ import Link from 'next/link';
 import { ArrowLeft, RefreshCw, Home, Loader2 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { ResultsSummary, QuestionReview } from '@/components/exam';
-import {
-  categoryDisplayNames,
-  type QuestionCategory,
-  type Question,
-} from '@/lib/api/questions';
+import type { Question } from '@/lib/api/questions';
 import {
   loadExamSession,
   clearExamSession,
   calculateExamResult,
 } from '@/lib/exam-utils';
 import type { ExamSession, ExamResult } from '@/types/exam';
+import LatexText from '@/components/latex/LatexText';
 
 interface PageProps {
-  params: Promise<{ category: string }>;
+  params: Promise<{ examId: string }>;
 }
 
-export default function ResultsPage({ params }: PageProps) {
+export default function ExamResultsPage({ params }: PageProps) {
   const router = useRouter();
-  const [category, setCategory] = useState<QuestionCategory | null>(null);
+  const [examId, setExamId] = useState<string | null>(null);
   const [session, setSession] = useState<ExamSession | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [result, setResult] = useState<ExamResult | null>(null);
@@ -35,13 +32,13 @@ export default function ResultsPage({ params }: PageProps) {
   // Load params
   useEffect(() => {
     params.then((p) => {
-      setCategory(p.category as QuestionCategory);
+      setExamId(p.examId);
     });
   }, [params]);
 
   // Load session results
   useEffect(() => {
-    if (!category) return;
+    if (!examId) return;
 
     const { session: loadedSession, questions: loadedQuestions } = loadExamSession(true);
 
@@ -50,7 +47,7 @@ export default function ResultsPage({ params }: PageProps) {
       return;
     }
 
-    if (loadedSession.category !== category) {
+    if (loadedSession.examId !== examId) {
       router.push('/dashboard/practice');
       return;
     }
@@ -59,14 +56,18 @@ export default function ResultsPage({ params }: PageProps) {
     setQuestions(loadedQuestions);
     setResult(calculateExamResult(loadedSession, loadedQuestions));
     setLoading(false);
-  }, [category, router]);
+  }, [examId, router]);
 
   const handleRetry = () => {
     clearExamSession();
-    router.push('/dashboard/practice');
+    if (examId) {
+      router.push(`/practice/exam/${examId}`);
+    } else {
+      router.push('/dashboard/practice');
+    }
   };
 
-  if (loading || !category || !session || !result) {
+  if (loading || !examId || !session || !result) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -74,7 +75,7 @@ export default function ResultsPage({ params }: PageProps) {
     );
   }
 
-  const categoryName = categoryDisplayNames[category] || category;
+  const examTitle = session.examTitle || 'ข้อสอบ';
 
   // Create question map for easy lookup
   const questionMap = new Map(questions.map((q) => [q.id, q]));
@@ -99,13 +100,13 @@ export default function ResultsPage({ params }: PageProps) {
             className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>กลับหน้าเลือกหมวดหมู่</span>
+            <span>กลับหน้าเลือกข้อสอบ</span>
           </Link>
 
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              ผลการทำข้อสอบ {categoryName}
+              ผลการทำข้อสอบ: <LatexText text={examTitle} />
             </h1>
             <p className="text-gray-600">
               ทำเสร็จเมื่อ{' '}
@@ -183,7 +184,7 @@ export default function ResultsPage({ params }: PageProps) {
               </div>
             ) : (
               <div className="space-y-3">
-                {displayedQuestionIds.map((qId, index) => {
+                {displayedQuestionIds.map((qId) => {
                   const question = questionMap.get(qId);
                   if (!question) return null;
 

@@ -178,8 +178,9 @@ export function saveExamSession(session: ExamSession, questions: Question[]): vo
 
 /**
  * Load exam session from localStorage
+ * @param includeCompleted - if true, also returns completed sessions (for results page)
  */
-export function loadExamSession(): {
+export function loadExamSession(includeCompleted = false): {
   session: ExamSession | null;
   questions: Question[] | null;
 } {
@@ -198,16 +199,14 @@ export function loadExamSession(): {
     const session = JSON.parse(sessionStr) as ExamSession;
     const questions = JSON.parse(questionsStr) as Question[];
 
-    // Validate session is still in progress
-    if (session.status !== 'in_progress') {
-      clearExamSession();
+    // If not including completed, only return in-progress sessions
+    if (!includeCompleted && session.status !== 'in_progress') {
       return { session: null, questions: null };
     }
 
     return { session, questions };
   } catch (error) {
     console.error('Failed to load exam session:', error);
-    clearExamSession();
     return { session: null, questions: null };
   }
 }

@@ -11,6 +11,8 @@ import { UsersModule } from './users/users.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { BlogsModule } from './blogs/blogs.module';
 import { QuestionsModule } from './questions/questions.module';
+import { ExamsModule } from './exams/exams.module';
+import { AttemptsModule } from './attempts/attempts.module';
 import { UploadModule } from './upload/upload.module';
 
 @Module({
@@ -58,6 +60,8 @@ import { UploadModule } from './upload/upload.module';
     UsersModule,
     BlogsModule,
     QuestionsModule,
+    ExamsModule,
+    AttemptsModule,
     UploadModule,
   ],
   controllers: [AppController],

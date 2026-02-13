@@ -5,44 +5,80 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { ExamProvider, useExam } from '@/contexts/ExamContext';
 import { ExamContainer } from '@/components/exam';
-import { loadExamSession, saveExamSession, calculateExamResult } from '@/lib/exam-utils';
+import {
+  loadExamSession,
+  saveExamSession,
+  generateSessionId,
+  calculateExamResult,
+} from '@/lib/exam-utils';
+import { getPublicExam } from '@/lib/api/exams';
 import { submitAttempt } from '@/lib/api/attempts';
+import type { ExamSession } from '@/types/exam';
 import type { QuestionCategory } from '@/lib/api/questions';
 
 interface PageProps {
-  params: Promise<{ category: string }>;
+  params: Promise<{ examId: string }>;
 }
 
-function ExamPageContent({ category }: { category: QuestionCategory }) {
+function ExamPageContent({ examId }: { examId: string }) {
   const router = useRouter();
-  const { initExam, state, getResult, clearSession } = useExam();
+  const { initExam, state, getResult } = useExam();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load session on mount
   useEffect(() => {
-    const { session, questions } = loadExamSession();
+    async function loadOrCreateSession() {
+      // Try to load existing session first
+      const { session: existingSession, questions: existingQuestions } = loadExamSession();
 
-    if (!session || !questions) {
-      setError('ไม่พบข้อมูลการทำข้อสอบ');
-      setLoading(false);
-      return;
+      if (existingSession && existingQuestions && existingSession.examId === examId) {
+        if (existingSession.status === 'completed') {
+          router.push(`/practice/exam/${examId}/results`);
+          return;
+        }
+        initExam(existingSession, existingQuestions);
+        setLoading(false);
+        return;
+      }
+
+      // No existing session - fetch exam from API and create new session
+      try {
+        const exam = await getPublicExam(examId);
+
+        if (!exam.questions || exam.questions.length === 0) {
+          setError('ชุดข้อสอบนี้ยังไม่มีคำถาม');
+          setLoading(false);
+          return;
+        }
+
+        const questionIds = exam.questions.map((q) => q.id);
+
+        const session: ExamSession = {
+          id: generateSessionId(),
+          examId: exam.id,
+          examTitle: exam.title,
+          category: exam.category as QuestionCategory,
+          questionIds,
+          currentIndex: 0,
+          answers: {},
+          markedForReview: [],
+          timePerQuestion: {},
+          startedAt: new Date().toISOString(),
+          status: 'in_progress',
+        };
+
+        saveExamSession(session, exam.questions);
+        initExam(session, exam.questions);
+        setLoading(false);
+      } catch (err) {
+        console.error('Failed to load exam:', err);
+        setError('ไม่สามารถโหลดข้อสอบได้');
+        setLoading(false);
+      }
     }
 
-    if (session.category !== category) {
-      setError('หมวดหมู่ไม่ตรงกัน');
-      setLoading(false);
-      return;
-    }
-
-    if (session.status === 'completed') {
-      router.push(`/practice/${category}/results`);
-      return;
-    }
-
-    initExam(session, questions);
-    setLoading(false);
-  }, [category, initExam, router]);
+    loadOrCreateSession();
+  }, [examId, initExam, router]);
 
   const handleComplete = () => {
     // ExamContainer.handleFinish already called completeExam() + saveExamSession()
@@ -67,7 +103,7 @@ function ExamPageContent({ category }: { category: QuestionCategory }) {
         completedAt: savedSession.completedAt,
       }).catch((err) => console.error('Failed to submit attempt:', err));
     }
-    router.push(`/practice/${category}/results`);
+    router.push(`/practice/exam/${examId}/results`);
   };
 
   if (loading) {
@@ -101,15 +137,13 @@ function ExamPageContent({ category }: { category: QuestionCategory }) {
 }
 
 export default function ExamPage({ params }: PageProps) {
-  const [category, setCategory] = useState<QuestionCategory | null>(null);
+  const [examId, setExamId] = useState<string | null>(null);
 
   useEffect(() => {
-    params.then((p) => {
-      setCategory(p.category as QuestionCategory);
-    });
+    params.then((p) => setExamId(p.examId));
   }, [params]);
 
-  if (!category) {
+  if (!examId) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -119,7 +153,7 @@ export default function ExamPage({ params }: PageProps) {
 
   return (
     <ExamProvider>
-      <ExamPageContent category={category} />
+      <ExamPageContent examId={examId} />
     </ExamProvider>
   );
 }

@@ -2,12 +2,17 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, Loader2, LayoutDashboard } from 'lucide-react';
+import { Menu, Loader2, LayoutDashboard, LogOut } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    setMobileMenuOpen(false);
+  };
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
@@ -28,13 +33,22 @@ export default function Navbar() {
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
             ) : user ? (
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                เมนูหลัก
-              </Link>
+              <>
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  เมนูหลัก
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1 text-gray-700 hover:text-red-600 transition"
+                >
+                  <LogOut className="w-4 h-4" />
+                  ออกจากระบบ
+                </button>
+              </>
             ) : (
               <>
                 <Link
@@ -81,14 +95,23 @@ export default function Navbar() {
                 <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
               </div>
             ) : user ? (
-              <Link
-                href="/dashboard"
-                className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 rounded-md font-medium flex items-center gap-2"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                เมนูหลัก
-              </Link>
+              <>
+                <Link
+                  href="/dashboard"
+                  className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 rounded-md font-medium flex items-center gap-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  เมนูหลัก
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  ออกจากระบบ
+                </button>
+              </>
             ) : (
               <>
                 <Link

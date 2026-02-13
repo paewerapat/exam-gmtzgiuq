@@ -53,7 +53,7 @@ export class AuthService {
   }
 
   async login(user: User): Promise<AuthPayload> {
-    const payload: JwtPayload = { sub: user.id, email: user.email };
+    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
     return {
       accessToken: this.jwtService.sign(payload),
       user,
@@ -87,7 +87,7 @@ export class AuthService {
         console.error('Failed to send verification email:', err);
       });
 
-    const payload: JwtPayload = { sub: user.id, email: user.email };
+    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
     return {
       accessToken: this.jwtService.sign(payload),
       user,
@@ -146,7 +146,7 @@ export class AuthService {
         avatar: payload.picture,
       });
 
-      const jwtPayload: JwtPayload = { sub: user.id, email: user.email };
+      const jwtPayload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
       return {
         accessToken: this.jwtService.sign(jwtPayload),
         user,

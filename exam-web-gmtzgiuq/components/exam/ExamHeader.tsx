@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { categoryDisplayNames, type QuestionCategory } from '@/lib/api/questions';
 import ExamTimer from './ExamTimer';
 import ExamProgress from './ExamProgress';
+import LatexText from '@/components/latex/LatexText';
 
 interface ExamHeaderProps {
   category: QuestionCategory;
+  examTitle?: string;
   timer: number;
   currentIndex: number;
   totalQuestions: number;
@@ -19,6 +21,7 @@ interface ExamHeaderProps {
 
 export default function ExamHeader({
   category,
+  examTitle,
   timer,
   currentIndex,
   totalQuestions,
@@ -27,7 +30,7 @@ export default function ExamHeader({
   backUrl = '/dashboard/practice',
   className = '',
 }: ExamHeaderProps) {
-  const categoryName = categoryDisplayNames[category] || category;
+  const displayName = examTitle || categoryDisplayNames[category] || category;
 
   return (
     <div className={`bg-white border-b border-gray-200 ${className}`}>
@@ -42,7 +45,7 @@ export default function ExamHeader({
               <ArrowLeft className="w-5 h-5" />
               <span className="hidden sm:inline">กลับ</span>
             </Link>
-            <div className="text-lg font-semibold text-gray-900">{categoryName}</div>
+            <div className="text-lg font-semibold text-gray-900"><LatexText text={displayName} /></div>
           </div>
 
           <div className="flex items-center gap-4">

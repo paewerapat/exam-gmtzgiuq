@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
 import { User } from '../users/user.entity';
 
 export enum QuestionCategory {
@@ -121,6 +121,19 @@ export class Question {
 
   @Column()
   authorId: string;
+
+  // Exam relation
+  @Field(() => String, { nullable: true })
+  @Column({ nullable: true })
+  examId: string;
+
+  @ManyToOne('Exam', 'questions', { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'examId' })
+  exam: any;
+
+  @Field(() => Int, { nullable: true })
+  @Column({ type: 'int', nullable: true })
+  orderIndex: number;
 
   @Field()
   @CreateDateColumn()

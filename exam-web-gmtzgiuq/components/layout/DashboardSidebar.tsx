@@ -9,11 +9,17 @@ import {
   Settings,
   ChevronLeft,
   LogOut,
+  ClipboardList,
+  History,
+  BarChart3,
 } from 'lucide-react';
 
 const menuItems = [
   { href: '/dashboard/practice', label: 'ฝึกทำข้อสอบ', icon: BookOpen },
+  { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: History },
   { href: '/dashboard/profile', label: 'โปรไฟล์', icon: User },
+  { href: '/admin/exams', label: 'จัดการข้อสอบ', icon: ClipboardList, adminOnly: true },
+  { href: '/admin/attempts', label: 'ประวัติการสอบ', icon: BarChart3, adminOnly: true },
   { href: '/admin', label: 'จัดการระบบ', icon: Settings, adminOnly: true },
 ];
 
@@ -54,9 +60,7 @@ export default function DashboardSidebar() {
 
         <nav className="space-y-2">
           {menuItems.map((item) => {
-            // Skip admin-only items for non-admins
-            // For now, show to all logged-in users
-            // if (item.adminOnly && user?.role !== 'admin') return null;
+            if (item.adminOnly && user?.role?.toLowerCase() !== 'admin') return null;
 
             const Icon = item.icon;
             const isActive =
