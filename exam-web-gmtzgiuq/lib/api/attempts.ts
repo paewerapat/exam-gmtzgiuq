@@ -56,6 +56,30 @@ export interface AttemptStats {
   byCategory: AttemptCategoryStats[];
 }
 
+export interface UserCategoryStats {
+  category: string;
+  attempts: number;
+  averageScore: number;
+  bestScore: number;
+}
+
+export interface UserAttemptStats {
+  totalAttempts: number;
+  averageScore: number;
+  bestScore: number;
+  totalTime: number;
+  byCategory: UserCategoryStats[];
+}
+
+export interface ExamAttemptStats {
+  totalAttempts: number;
+  averageScore: number;
+  highestScore: number;
+  lowestScore: number;
+  averageTime: number;
+  uniqueUsers: number;
+}
+
 export interface SubmitAttemptInput {
   examId: string;
   examTitle: string;
@@ -220,6 +244,64 @@ export async function getAdminAttempt(id: string): Promise<ExamAttempt> {
 
   if (!response.ok) {
     throw new Error('Attempt not found');
+  }
+
+  return response.json();
+}
+
+// User - Get my stats
+export async function getMyStats(): Promise<UserAttemptStats> {
+  const response = await fetch(`${API_URL}/attempts/my/stats`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch stats');
+  }
+
+  return response.json();
+}
+
+// Admin - Get exam attempt stats
+export async function getAdminExamAttemptStats(examId: string): Promise<ExamAttemptStats> {
+  const response = await fetch(`${API_URL}/attempts/admin/exam/${examId}/stats`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch exam stats');
+  }
+
+  return response.json();
+}
+
+// Admin - Get attempts by user
+export async function getAdminUserAttempts(
+  userId: string,
+  params: GetAttemptsParams = {},
+): Promise<PaginatedAttempts> {
+  const { page = 1, limit = 10, category } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', String(page));
+  queryParams.set('limit', String(limit));
+  if (category) queryParams.set('category', category);
+
+  const response = await fetch(
+    `${API_URL}/attempts/admin/user/${userId}?${queryParams.toString()}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch user attempts');
   }
 
   return response.json();

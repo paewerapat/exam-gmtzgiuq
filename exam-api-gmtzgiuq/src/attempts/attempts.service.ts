@@ -2,7 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExamAttempt } from './attempt.entity';
-import { SubmitAttemptInput, PaginatedAttempts, AttemptStats } from './dto/attempt.dto';
+import {
+  SubmitAttemptInput,
+  PaginatedAttempts,
+  AttemptStats,
+  UserAttemptStats,
+  ExamAttemptStats,
+} from './dto/attempt.dto';
 import { User } from '../users/user.entity';
 import { QuestionCategory } from '../questions/question.entity';
 
@@ -169,6 +175,75 @@ export class AttemptsService {
       averageScore: parseFloat(avgResult.avg) || 0,
       uniqueUsers: parseInt(uniqueUsersResult.count, 10),
       byCategory,
+    };
+  }
+
+  async getMyStats(userId: string): Promise<UserAttemptStats> {
+    const base = this.attemptsRepository
+      .createQueryBuilder('attempt')
+      .where('attempt.userId = :userId', { userId });
+
+    const totalAttempts = await base.clone().getCount();
+
+    const aggResult = await base
+      .clone()
+      .select('AVG(attempt.score)', 'avg')
+      .addSelect('MAX(attempt.score)', 'best')
+      .addSelect('SUM(attempt.totalTime)', 'totalTime')
+      .getRawOne();
+
+    const byCategoryRaw = await base
+      .clone()
+      .select('attempt.category', 'category')
+      .addSelect('COUNT(*)', 'attempts')
+      .addSelect('AVG(attempt.score)', 'averageScore')
+      .addSelect('MAX(attempt.score)', 'bestScore')
+      .groupBy('attempt.category')
+      .getRawMany();
+
+    const byCategory = byCategoryRaw.map((row) => ({
+      category: row.category,
+      attempts: parseInt(row.attempts, 10),
+      averageScore: parseFloat(row.averageScore) || 0,
+      bestScore: parseFloat(row.bestScore) || 0,
+    }));
+
+    return {
+      totalAttempts,
+      averageScore: parseFloat(aggResult?.avg) || 0,
+      bestScore: parseFloat(aggResult?.best) || 0,
+      totalTime: parseInt(aggResult?.totalTime, 10) || 0,
+      byCategory,
+    };
+  }
+
+  async getExamAttemptStats(examId: string): Promise<ExamAttemptStats> {
+    const base = this.attemptsRepository
+      .createQueryBuilder('attempt')
+      .where('attempt.examId = :examId', { examId });
+
+    const totalAttempts = await base.clone().getCount();
+
+    const aggResult = await base
+      .clone()
+      .select('AVG(attempt.score)', 'avg')
+      .addSelect('MAX(attempt.score)', 'highest')
+      .addSelect('MIN(attempt.score)', 'lowest')
+      .addSelect('AVG(attempt.totalTime)', 'avgTime')
+      .getRawOne();
+
+    const uniqueUsersResult = await base
+      .clone()
+      .select('COUNT(DISTINCT attempt.userId)', 'count')
+      .getRawOne();
+
+    return {
+      totalAttempts,
+      averageScore: parseFloat(aggResult?.avg) || 0,
+      highestScore: parseFloat(aggResult?.highest) || 0,
+      lowestScore: parseFloat(aggResult?.lowest) || 0,
+      averageTime: Math.round(parseFloat(aggResult?.avgTime) || 0),
+      uniqueUsers: parseInt(uniqueUsersResult?.count, 10) || 0,
     };
   }
 }

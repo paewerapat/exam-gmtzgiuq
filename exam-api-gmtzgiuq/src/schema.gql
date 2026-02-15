@@ -277,6 +277,13 @@ type User {
   updatedAt: DateTime!
 }
 
+type UserCategoryStats {
+  attempts: Int!
+  averageScore: Float!
+  bestScore: Float!
+  category: String!
+}
+
 enum UserRole {
   ADMIN
   USER

@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import { User, UserRole } from './user.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -187,5 +187,84 @@ export class UsersService {
   async validatePassword(user: User, password: string): Promise<boolean> {
     if (!user.password) return false;
     return bcrypt.compare(password, user.password);
+  }
+
+  // Admin methods
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    role?: string,
+  ): Promise<{
+    items: User[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const qb = this.usersRepository.createQueryBuilder('user');
+
+    // Only select safe fields (exclude password, tokens)
+    qb.select([
+      'user.id',
+      'user.email',
+      'user.firstName',
+      'user.lastName',
+      'user.avatar',
+      'user.isEmailVerified',
+      'user.provider',
+      'user.isActive',
+      'user.role',
+      'user.createdAt',
+      'user.updatedAt',
+    ]);
+
+    if (search) {
+      qb.andWhere(
+        '(user.email LIKE :search OR user.firstName LIKE :search OR user.lastName LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (role) {
+      qb.andWhere('user.role = :role', { role });
+    }
+
+    qb.orderBy('user.createdAt', 'DESC');
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getUserStats(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    adminUsers: number;
+    googleUsers: number;
+  }> {
+    const total = await this.usersRepository.count();
+    const active = await this.usersRepository.count({
+      where: { isActive: true },
+    });
+    const admins = await this.usersRepository.count({
+      where: { role: UserRole.ADMIN },
+    });
+    const google = await this.usersRepository.count({
+      where: { provider: 'google' },
+    });
+
+    return {
+      totalUsers: total,
+      activeUsers: active,
+      adminUsers: admins,
+      googleUsers: google,
+    };
   }
 }

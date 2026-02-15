@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   BookOpen,
   User,
+  Users,
   Settings,
   ChevronLeft,
   LogOut,
@@ -19,6 +20,7 @@ const menuItems = [
   { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: History },
   { href: '/dashboard/profile', label: 'โปรไฟล์', icon: User },
   { href: '/admin/exams', label: 'จัดการข้อสอบ', icon: ClipboardList, adminOnly: true },
+  { href: '/admin/users', label: 'จัดการผู้ใช้', icon: Users, adminOnly: true },
   { href: '/admin/attempts', label: 'ประวัติการสอบ', icon: BarChart3, adminOnly: true },
   { href: '/admin', label: 'จัดการระบบ', icon: Settings, adminOnly: true },
 ];

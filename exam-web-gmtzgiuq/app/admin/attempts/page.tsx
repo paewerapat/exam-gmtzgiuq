@@ -223,9 +223,18 @@ export default function AdminAttemptsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-800">
-                              {attempt.examTitle}
-                            </span>
+                            {attempt.examId ? (
+                              <Link
+                                href={`/admin/attempts/exam/${attempt.examId}`}
+                                className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
+                              >
+                                {attempt.examTitle}
+                              </Link>
+                            ) : (
+                              <span className="text-sm text-gray-800">
+                                {attempt.examTitle}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <span className="text-sm text-gray-600">

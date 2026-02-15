@@ -102,6 +102,60 @@ export class AttemptCategoryStats {
 }
 
 @ObjectType()
+export class UserCategoryStats {
+  @Field()
+  category: string;
+
+  @Field(() => Int)
+  attempts: number;
+
+  @Field(() => Float)
+  averageScore: number;
+
+  @Field(() => Float)
+  bestScore: number;
+}
+
+@ObjectType()
+export class UserAttemptStats {
+  @Field(() => Int)
+  totalAttempts: number;
+
+  @Field(() => Float)
+  averageScore: number;
+
+  @Field(() => Float)
+  bestScore: number;
+
+  @Field(() => Int)
+  totalTime: number;
+
+  @Field(() => [UserCategoryStats])
+  byCategory: UserCategoryStats[];
+}
+
+@ObjectType()
+export class ExamAttemptStats {
+  @Field(() => Int)
+  totalAttempts: number;
+
+  @Field(() => Float)
+  averageScore: number;
+
+  @Field(() => Float)
+  highestScore: number;
+
+  @Field(() => Float)
+  lowestScore: number;
+
+  @Field(() => Int)
+  averageTime: number;
+
+  @Field(() => Int)
+  uniqueUsers: number;
+}
+
+@ObjectType()
 export class AttemptStats {
   @Field(() => Int)
   totalAttempts: number;

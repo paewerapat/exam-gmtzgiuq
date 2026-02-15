@@ -43,6 +43,13 @@ export class AttemptsController {
     );
   }
 
+  // User - Get my stats
+  @Get('my/stats')
+  @UseGuards(JwtAuthGuard)
+  async getMyStats(@Request() req) {
+    return this.attemptsService.getMyStats(req.user.id);
+  }
+
   // User - Get my attempts for a specific exam
   @Get('my/exam/:examId')
   @UseGuards(JwtAuthGuard)
@@ -93,6 +100,25 @@ export class AttemptsController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   async getStats() {
     return this.attemptsService.getStats();
+  }
+
+  // Admin - Get exam attempt stats
+  @Get('admin/exam/:examId/stats')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async getExamAttemptStats(@Param('examId') examId: string) {
+    return this.attemptsService.getExamAttemptStats(examId);
+  }
+
+  // Admin - Get attempts by user
+  @Get('admin/user/:userId')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async adminFindByUser(
+    @Param('userId') userId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('category') category?: QuestionCategory,
+  ) {
+    return this.attemptsService.findAll(+page, +limit, userId, undefined, category);
   }
 
   // Admin - Get single attempt

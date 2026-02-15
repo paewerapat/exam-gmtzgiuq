@@ -8,7 +8,8 @@
       "Bash(dir:*)",
       "Bash(node -e:*)",
       "Bash(npx next build)",
-      "Bash(npx nest build:*)"
+      "Bash(npx nest build:*)",
+      "Bash(curl:*)"
     ],
     "additionalDirectories": [
       "e:\\Fastwork\\559LDU4Z\\exam-web-gmtzgiuq\\app\\api\\auth"
