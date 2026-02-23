@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -18,7 +19,70 @@ import { AdminGuard } from '../common/guards/admin.guard';
 export class AttemptsController {
   constructor(private attemptsService: AttemptsService) {}
 
-  // User - Submit attempt
+  // User - Start in-progress attempt
+  @Post('start')
+  @UseGuards(JwtAuthGuard)
+  async startInProgress(
+    @Body()
+    body: {
+      examId: string;
+      examTitle: string;
+      category: QuestionCategory;
+      totalQuestions: number;
+      questionIds: string[];
+      startedAt: string;
+    },
+    @Request() req,
+  ) {
+    return this.attemptsService.startInProgress(req.user.id, body);
+  }
+
+  // User - Update in-progress attempt
+  @Patch(':id/progress')
+  @UseGuards(JwtAuthGuard)
+  async updateProgress(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      currentIndex: number;
+      answers: Record<string, string>;
+      timePerQuestion: Record<string, number>;
+    },
+    @Request() req,
+  ) {
+    await this.attemptsService.updateProgress(id, req.user.id, body);
+    return { ok: true };
+  }
+
+  // User - Complete an in-progress attempt
+  @Patch(':id/complete')
+  @UseGuards(JwtAuthGuard)
+  async completeAttempt(
+    @Param('id') id: string,
+    @Body() input: SubmitAttemptInput,
+    @Request() req,
+  ) {
+    return this.attemptsService.completeAttempt(id, req.user.id, input);
+  }
+
+  // User - Get in-progress attempts
+  @Get('my/in-progress')
+  @UseGuards(JwtAuthGuard)
+  async findMyInProgress(@Request() req) {
+    return this.attemptsService.findInProgress(req.user.id);
+  }
+
+  // User - Check in-progress for specific exam
+  @Get('my/in-progress/exam/:examId')
+  @UseGuards(JwtAuthGuard)
+  async findMyInProgressForExam(
+    @Param('examId') examId: string,
+    @Request() req,
+  ) {
+    return this.attemptsService.findInProgressForExam(req.user.id, examId);
+  }
+
+  // User - Submit attempt (legacy / direct submit)
   @Post()
   @UseGuards(JwtAuthGuard)
   async submit(@Body() input: SubmitAttemptInput, @Request() req) {

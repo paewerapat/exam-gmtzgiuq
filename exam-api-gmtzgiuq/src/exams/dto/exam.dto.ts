@@ -98,6 +98,11 @@ export class CreateExamInput {
   @IsOptional()
   status?: QuestionStatus;
 
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  topicId?: string;
+
   @Field(() => [CreateExamQuestionInput])
   @IsArray()
   @ValidateNested({ each: true })
@@ -127,6 +132,11 @@ export class UpdateExamInput {
   @IsEnum(QuestionStatus)
   @IsOptional()
   status?: QuestionStatus;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  topicId?: string;
 
   @Field(() => [CreateExamQuestionInput], { nullable: true })
   @IsArray()

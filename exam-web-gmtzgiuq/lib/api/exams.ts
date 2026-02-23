@@ -20,6 +20,7 @@ export interface Exam {
   questionCount: number;
   questions: Question[];
   author: QuestionAuthor;
+  topicId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +57,7 @@ export interface CreateExamInput {
   category: QuestionCategory;
   status?: QuestionStatus;
   questions: ExamQuestionInput[];
+  topicId?: string | null;
 }
 
 export interface UpdateExamInput {
@@ -64,6 +66,7 @@ export interface UpdateExamInput {
   category?: QuestionCategory;
   status?: QuestionStatus;
   questions?: ExamQuestionInput[];
+  topicId?: string | null;
 }
 
 export interface GetExamsParams {
@@ -217,6 +220,24 @@ export async function deleteExam(id: string): Promise<void> {
   if (!response.ok) {
     throw new Error('Failed to delete exam');
   }
+}
+
+// Public - Get exams by topic
+export async function getExamsByTopic(
+  topicId: string,
+  page = 1,
+  limit = 20,
+): Promise<PaginatedExams> {
+  const response = await fetch(
+    `${API_URL}/exams/topic/${topicId}?page=${page}&limit=${limit}`,
+    { cache: 'no-store' },
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch exams by topic');
+  }
+
+  return response.json();
 }
 
 // Admin - Get exam stats

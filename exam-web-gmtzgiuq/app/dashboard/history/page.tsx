@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { History, Search, Loader2, Trophy, Clock, BookOpen } from 'lucide-react';
+import { History, Loader2, Clock, BookOpen, PlayCircle } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
   getMyAttempts,
+  getMyInProgressAttempts,
   type PaginatedAttempts,
+  type ExamAttempt,
 } from '@/lib/api/attempts';
 import {
   categoryDisplayNames,
@@ -32,16 +34,21 @@ export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [data, setData] = useState<PaginatedAttempts | null>(null);
   const [loading, setLoading] = useState(true);
+  const [inProgress, setInProgress] = useState<ExamAttempt[]>([]);
 
   const fetchAttempts = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getMyAttempts({
-        page: currentPage,
-        limit: 10,
-        category: selectedCategory === 'all' ? undefined : (selectedCategory as QuestionCategory),
-      });
+      const [result, ipAttempts] = await Promise.all([
+        getMyAttempts({
+          page: currentPage,
+          limit: 10,
+          category: selectedCategory === 'all' ? undefined : (selectedCategory as QuestionCategory),
+        }),
+        getMyInProgressAttempts().catch(() => []),
+      ]);
       setData(result);
+      setInProgress(ipAttempts);
     } catch (err) {
       console.error('Failed to fetch attempts:', err);
     } finally {
@@ -72,6 +79,53 @@ export default function HistoryPage() {
           ดูผลการทำข้อสอบย้อนหลัง{data ? ` (${data.total} รายการ)` : ''}
         </p>
       </div>
+
+      {/* In-progress section */}
+      {inProgress.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-base font-semibold text-gray-700 flex items-center gap-2 mb-3">
+            <PlayCircle className="w-4 h-4 text-indigo-500" />
+            ข้อสอบที่กำลังทำอยู่
+          </h2>
+          <div className="space-y-2">
+            {inProgress.map((attempt) => (
+              <div
+                key={attempt.id}
+                className="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">
+                    {attempt.examTitle}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    ทำถึงข้อที่{' '}
+                    <span className="font-semibold text-indigo-600">
+                      {attempt.currentIndex + 1}
+                    </span>{' '}
+                    / {attempt.totalQuestions} ข้อ
+                    {' · '}
+                    {new Date(attempt.updatedAt).toLocaleDateString('th-TH', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+                {attempt.examId && (
+                  <Link
+                    href={`/practice/exam/${attempt.examId}`}
+                    className="ml-4 flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition flex-shrink-0"
+                  >
+                    <PlayCircle className="w-4 h-4" />
+                    ทำต่อ
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Category filter */}
       <div className="flex flex-wrap gap-2 mb-6">

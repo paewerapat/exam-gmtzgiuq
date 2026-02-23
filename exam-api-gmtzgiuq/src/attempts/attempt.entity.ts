@@ -76,6 +76,10 @@ export class ExamAttempt {
   @Column({ type: 'json' })
   questionIds: string[];
 
+  @Field(() => Int)
+  @Column({ type: 'int', default: 0 })
+  currentIndex: number;
+
   @Field()
   @Column({ type: 'varchar', length: 20, default: 'completed' })
   status: string;

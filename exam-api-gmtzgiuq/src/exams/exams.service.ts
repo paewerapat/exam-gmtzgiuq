@@ -38,6 +38,7 @@ export class ExamsService {
         category: input.category,
         status: input.status || QuestionStatus.DRAFT,
         questionCount: input.questions.length,
+        topicId: input.topicId ?? null,
         author,
         authorId: author.id,
       });
@@ -156,6 +157,7 @@ export class ExamsService {
       if (input.description !== undefined) exam.description = input.description;
       if (input.category !== undefined) exam.category = input.category;
       if (input.status !== undefined) exam.status = input.status;
+      if (input.topicId !== undefined) exam.topicId = input.topicId ?? null;
 
       // Replace questions if provided
       if (input.questions) {
@@ -210,6 +212,21 @@ export class ExamsService {
 
     await this.examsRepository.remove(exam);
     return true;
+  }
+
+  async findByTopic(topicId: string, page = 1, limit = 20): Promise<PaginatedExams> {
+    const skip = (page - 1) * limit;
+    const [items, total] = await this.examsRepository
+      .createQueryBuilder('exam')
+      .leftJoinAndSelect('exam.author', 'author')
+      .where('exam.topicId = :topicId', { topicId })
+      .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      .orderBy('exam.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async getStats(): Promise<ExamStats> {

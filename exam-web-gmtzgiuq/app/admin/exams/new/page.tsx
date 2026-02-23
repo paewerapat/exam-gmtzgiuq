@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -12,6 +12,7 @@ import {
   Save,
   Loader2,
   GripVertical,
+  BookOpen,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
@@ -21,6 +22,14 @@ import {
   type QuestionStatus,
 } from '@/lib/api/questions';
 import { createExam, type ExamQuestionInput } from '@/lib/api/exams';
+import {
+  getSubjects,
+  getChaptersBySubject,
+  getTopicsByChapter,
+  type Subject,
+  type Chapter,
+  type Topic,
+} from '@/lib/api/curriculum';
 import { toast } from 'react-toastify';
 
 interface QuestionForm {
@@ -64,8 +73,56 @@ export default function NewExamPage() {
   const [category, setCategory] = useState<QuestionCategory | ''>('');
   const [status, setStatus] = useState<QuestionStatus>('draft');
 
+  // Curriculum selector
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [selectedChapterId, setSelectedChapterId] = useState('');
+  const [topicId, setTopicId] = useState('');
+  const [loadingChapters, setLoadingChapters] = useState(false);
+  const [loadingTopics, setLoadingTopics] = useState(false);
+
   // Questions
   const [questions, setQuestions] = useState<QuestionForm[]>([createEmptyQuestion()]);
+
+  useEffect(() => {
+    getSubjects().then(setSubjects).catch(console.error);
+  }, []);
+
+  async function handleSubjectChange(subjectId: string) {
+    setSelectedSubjectId(subjectId);
+    setSelectedChapterId('');
+    setTopicId('');
+    setChapters([]);
+    setTopics([]);
+    if (!subjectId) return;
+    setLoadingChapters(true);
+    try {
+      const data = await getChaptersBySubject(subjectId);
+      setChapters(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingChapters(false);
+    }
+  }
+
+  async function handleChapterChange(chapterId: string) {
+    setSelectedChapterId(chapterId);
+    setTopicId('');
+    setTopics([]);
+    if (!chapterId) return;
+    setLoadingTopics(true);
+    try {
+      const data = await getTopicsByChapter(chapterId);
+      setTopics(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingTopics(false);
+    }
+  }
 
   const addQuestion = () => {
     setQuestions((prev) => {
@@ -186,6 +243,7 @@ export default function NewExamPage() {
         category: category as QuestionCategory,
         status,
         questions: examQuestions,
+        topicId: topicId || null,
       });
 
       toast.success('สร้างชุดข้อสอบสำเร็จ');
@@ -267,6 +325,68 @@ export default function NewExamPage() {
                     <option value="draft">แบบร่าง</option>
                     <option value="published">เผยแพร่</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Curriculum selector */}
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BookOpen className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-medium text-gray-700">
+                    ผูกกับหลักสูตร
+                    <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">วิชา</label>
+                    <select
+                      value={selectedSubjectId}
+                      onChange={(e) => handleSubjectChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">— ไม่ระบุ —</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">บท</label>
+                    <select
+                      value={selectedChapterId}
+                      onChange={(e) => handleChapterChange(e.target.value)}
+                      disabled={!selectedSubjectId || loadingChapters}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+                    >
+                      <option value="">— ไม่ระบุ —</option>
+                      {loadingChapters ? (
+                        <option disabled>กำลังโหลด...</option>
+                      ) : (
+                        chapters.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">หัวข้อ</label>
+                    <select
+                      value={topicId}
+                      onChange={(e) => setTopicId(e.target.value)}
+                      disabled={!selectedChapterId || loadingTopics}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+                    >
+                      <option value="">— ไม่ระบุ —</option>
+                      {loadingTopics ? (
+                        <option disabled>กำลังโหลด...</option>
+                      ) : (
+                        topics.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))
+                      )}
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>

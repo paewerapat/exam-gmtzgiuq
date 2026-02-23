@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExamAttempt } from './attempt.entity';
@@ -18,6 +18,113 @@ export class AttemptsService {
     @InjectRepository(ExamAttempt)
     private attemptsRepository: Repository<ExamAttempt>,
   ) {}
+
+  // ── IN-PROGRESS ────────────────────────────────────────────
+
+  async startInProgress(
+    userId: string,
+    data: {
+      examId: string;
+      examTitle: string;
+      category: QuestionCategory;
+      totalQuestions: number;
+      questionIds: string[];
+      startedAt: string;
+    },
+  ): Promise<ExamAttempt> {
+    // Abandon any existing in-progress attempt for the same exam
+    await this.attemptsRepository.update(
+      { userId, examId: data.examId, status: 'in_progress' },
+      { status: 'abandoned' },
+    );
+
+    const attempt = this.attemptsRepository.create({
+      userId,
+      examId: data.examId,
+      examTitle: data.examTitle,
+      category: data.category,
+      totalQuestions: data.totalQuestions,
+      questionIds: data.questionIds,
+      answers: {},
+      timePerQuestion: {},
+      currentIndex: 0,
+      correctAnswers: 0,
+      incorrectAnswers: 0,
+      unanswered: data.totalQuestions,
+      score: 0,
+      totalTime: 0,
+      status: 'in_progress',
+      startedAt: new Date(data.startedAt),
+    });
+
+    return this.attemptsRepository.save(attempt);
+  }
+
+  async updateProgress(
+    id: string,
+    userId: string,
+    data: {
+      currentIndex: number;
+      answers: Record<string, string>;
+      timePerQuestion: Record<string, number>;
+    },
+  ): Promise<void> {
+    const attempt = await this.attemptsRepository.findOne({ where: { id } });
+    if (!attempt) throw new NotFoundException('Attempt not found');
+    if (attempt.userId !== userId) throw new ForbiddenException();
+    if (attempt.status !== 'in_progress') return; // ignore if already done
+
+    await this.attemptsRepository.update(id, {
+      currentIndex: data.currentIndex,
+      answers: data.answers,
+      timePerQuestion: data.timePerQuestion,
+      totalTime: Object.values(data.timePerQuestion).reduce((a, b) => a + b, 0),
+    });
+  }
+
+  async completeAttempt(
+    id: string,
+    userId: string,
+    input: SubmitAttemptInput,
+  ): Promise<ExamAttempt> {
+    const attempt = await this.attemptsRepository.findOne({ where: { id } });
+    if (!attempt) throw new NotFoundException('Attempt not found');
+    if (attempt.userId !== userId) throw new ForbiddenException();
+
+    await this.attemptsRepository.update(id, {
+      correctAnswers: input.correctAnswers,
+      incorrectAnswers: input.incorrectAnswers,
+      unanswered: input.unanswered,
+      score: input.score,
+      totalTime: input.totalTime,
+      timePerQuestion: input.timePerQuestion,
+      answers: input.answers,
+      questionIds: input.questionIds,
+      currentIndex: input.totalQuestions - 1,
+      status: 'completed',
+      completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
+    });
+
+    return this.findOne(id);
+  }
+
+  async findInProgress(userId: string): Promise<ExamAttempt[]> {
+    return this.attemptsRepository.find({
+      where: { userId, status: 'in_progress' },
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
+  async findInProgressForExam(
+    userId: string,
+    examId: string,
+  ): Promise<ExamAttempt | null> {
+    return this.attemptsRepository.findOne({
+      where: { userId, examId, status: 'in_progress' },
+    });
+  }
+
+  // ── COMPLETED ──────────────────────────────────────────────
 
   async submit(input: SubmitAttemptInput, user: User): Promise<ExamAttempt> {
     const attempt = this.attemptsRepository.create({
@@ -57,6 +164,7 @@ export class AttemptsService {
       .createQueryBuilder('attempt')
       .leftJoinAndSelect('attempt.exam', 'exam')
       .where('attempt.userId = :userId', { userId })
+      .andWhere('attempt.status = :status', { status: 'completed' })
       .orderBy('attempt.createdAt', 'DESC');
 
     if (examId) {

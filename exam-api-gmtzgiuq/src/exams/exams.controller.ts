@@ -81,6 +81,16 @@ export class ExamsController {
     return { success: true };
   }
 
+  // Public - Get exams by topic
+  @Get('topic/:topicId')
+  async findByTopic(
+    @Param('topicId') topicId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.examsService.findByTopic(topicId, +page, +limit);
+  }
+
   // Public - Get single published exam with questions (MUST be after admin routes)
   @Get(':id')
   async findPublishedOne(@Param('id') id: string) {

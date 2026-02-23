@@ -1,252 +1,265 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Play, Loader2, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
-  categoryDisplayNames,
-  categoryIcons,
-  type QuestionCategory,
-} from '@/lib/api/questions';
-import { getPublicExams, type Exam } from '@/lib/api/exams';
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  ArrowLeft,
+  PlayCircle,
+} from 'lucide-react';
+import FadeIn from '@/components/animations/FadeIn';
 import {
-  loadExamSession,
-  clearExamSession,
-} from '@/lib/exam-utils';
-import type { ExamSession } from '@/types/exam';
-import LatexText from '@/components/latex/LatexText';
-
-const categories: (QuestionCategory | 'all')[] = [
-  'all',
-  'general_knowledge',
-  'kor_por',
-  'toeic',
-  'gat_pat',
-  'o_net',
-  'mathematics',
-  'english',
-  'science',
-  'driving_license',
-];
+  getSubjects,
+  getChaptersBySubject,
+  getTopicsByChapter,
+  type Subject,
+  type Chapter,
+  type Topic,
+} from '@/lib/api/curriculum';
 
 export default function PracticePage() {
   const router = useRouter();
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const selectedSubjectId = searchParams.get('subject');
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<QuestionCategory | 'all'>('all');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(true);
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const limit = 12;
+  // When a subject is selected
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [loadingChapters, setLoadingChapters] = useState(false);
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
+  const [topicsByChapter, setTopicsByChapter] = useState<Record<string, Topic[]>>({});
+  const [loadingTopics, setLoadingTopics] = useState<Set<string>>(new Set());
 
-  // Existing session
-  const [existingSession, setExistingSession] = useState<ExamSession | null>(null);
+  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
 
+  // Load subjects on mount
   useEffect(() => {
-    const { session } = loadExamSession();
-    if (session && session.status === 'in_progress') {
-      setExistingSession(session);
-    }
+    getSubjects()
+      .then(setSubjects)
+      .catch(console.error)
+      .finally(() => setLoadingSubjects(false));
   }, []);
 
-  // Debounce search
+  // Load chapters when subject changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+    if (!selectedSubjectId) return;
+    setLoadingChapters(true);
+    setChapters([]);
+    setExpandedChapters(new Set());
+    setTopicsByChapter({});
+    getChaptersBySubject(selectedSubjectId)
+      .then(setChapters)
+      .catch(console.error)
+      .finally(() => setLoadingChapters(false));
+  }, [selectedSubjectId]);
 
-  const fetchExams = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getPublicExams({
-        page,
-        limit,
-        category: selectedCategory === 'all' ? undefined : selectedCategory,
-        search: debouncedSearch || undefined,
-      });
-      setExams(result.items);
-      setTotalPages(result.totalPages);
-      setTotal(result.total);
-    } catch (error) {
-      console.error('Failed to fetch exams:', error);
-    } finally {
-      setLoading(false);
+  async function toggleChapter(chapterId: string) {
+    const isExpanding = !expandedChapters.has(chapterId);
+    setExpandedChapters((prev) => {
+      const next = new Set(prev);
+      next.has(chapterId) ? next.delete(chapterId) : next.add(chapterId);
+      return next;
+    });
+
+    if (isExpanding && !topicsByChapter[chapterId]) {
+      setLoadingTopics((prev) => new Set([...prev, chapterId]));
+      try {
+        const topics = await getTopicsByChapter(chapterId);
+        setTopicsByChapter((prev) => ({ ...prev, [chapterId]: topics }));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingTopics((prev) => {
+          const next = new Set(prev);
+          next.delete(chapterId);
+          return next;
+        });
+      }
     }
-  }, [page, debouncedSearch, selectedCategory]);
+  }
 
-  useEffect(() => {
-    fetchExams();
-  }, [fetchExams]);
+  if (loadingSubjects) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    setPage(1);
-  }, [selectedCategory]);
+  // ── Subject List ──────────────────────────────────────────
+  if (!selectedSubjectId) {
+    return (
+      <FadeIn>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <BookOpen className="w-7 h-7 text-indigo-600" />
+            เลือกวิชาที่ต้องการฝึก
+          </h1>
+          <p className="text-gray-500 mt-1">เลือกวิชาเพื่อดูบทและหัวข้อข้อสอบ</p>
+        </div>
 
-  const handleStartExam = (exam: Exam) => {
-    router.push(`/practice/exam/${exam.id}`);
-  };
-
-  const handleResumeExam = () => {
-    if (existingSession) {
-      router.push(`/practice/exam/${existingSession.examId}`);
-    }
-  };
-
-  const handleClearSession = () => {
-    clearExamSession();
-    setExistingSession(null);
-  };
-
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">ฝึกทำข้อสอบ</h1>
-
-      {/* Resume session banner */}
-      {existingSession && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-yellow-800">
-                มีข้อสอบค้างอยู่ — <LatexText text={existingSession.examTitle} />
-              </h3>
-              <p className="text-sm text-yellow-700">
-                ทำไปแล้ว {Object.keys(existingSession.answers).length} / {existingSession.questionIds.length} ข้อ
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleResumeExam}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                ทำต่อ
-              </button>
-              <button
-                onClick={handleClearSession}
-                className="px-4 py-2 border border-yellow-600 text-yellow-700 rounded-lg hover:bg-yellow-100"
-              >
-                ยกเลิก
-              </button>
-            </div>
+        {subjects.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+            <BookOpen className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-gray-500 mb-2">
+              ยังไม่มีหลักสูตร
+            </h2>
+            <p className="text-gray-400 text-sm">
+              ผู้ดูแลระบบยังไม่ได้เพิ่มวิชาไว้
+            </p>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {subjects.map((subject) => (
+              <button
+                key={subject.id}
+                onClick={() => router.push(`/dashboard/practice?subject=${subject.id}`)}
+                className="group relative bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow text-left"
+              >
+                {/* Color bar */}
+                <div
+                  className="h-2 w-full"
+                  style={{ backgroundColor: subject.color }}
+                />
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                      style={{ backgroundColor: subject.color + '20' }}
+                    >
+                      {subject.iconEmoji || '📚'}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-gray-500 mt-1 transition-colors" />
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-lg">{subject.name}</h3>
+                  {subject.description && (
+                    <p className="text-gray-500 text-sm mt-1 line-clamp-2">
+                      {subject.description}
+                    </p>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </FadeIn>
+    );
+  }
 
-      {/* Search + Category filter */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="ค้นหาชุดข้อสอบ..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
-                selectedCategory === cat
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {cat === 'all' ? 'ทั้งหมด' : `${categoryIcons[cat]} ${categoryDisplayNames[cat]}`}
-            </button>
-          ))}
+  // ── Chapter & Topic List ───────────────────────────────────
+  return (
+    <FadeIn>
+      <div className="mb-6">
+        <button
+          onClick={() => router.push('/dashboard/practice')}
+          className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-3"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          เลือกวิชาอื่น
+        </button>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+            style={{ backgroundColor: (selectedSubject?.color || '#6366f1') + '20' }}
+          >
+            {selectedSubject?.iconEmoji || '📚'}
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {selectedSubject?.name || 'วิชา'}
+            </h1>
+            <p className="text-gray-500 text-sm">เลือกบทที่ต้องการฝึก</p>
+          </div>
         </div>
       </div>
 
-      {/* Exam cards */}
-      {loading ? (
-        <div className="p-8 text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-2" />
-          <p className="text-gray-500">กำลังโหลด...</p>
+      {loadingChapters ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
         </div>
-      ) : exams.length === 0 ? (
-        <div className="p-8 text-center text-gray-500 bg-white rounded-lg shadow-sm">
-          <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p>ไม่พบชุดข้อสอบ</p>
+      ) : chapters.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <BookOpen className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+          <p className="text-gray-400">ยังไม่มีบทในวิชานี้</p>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            {exams.map((exam) => (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          {chapters.map((chapter, idx) => {
+            const isExpanded = expandedChapters.has(chapter.id);
+            const topics = topicsByChapter[chapter.id] || [];
+            const isLoadingTopics = loadingTopics.has(chapter.id);
+
+            return (
               <div
-                key={exam.id}
-                className="bg-white rounded-xl shadow-sm hover:shadow-md transition overflow-hidden group"
+                key={chapter.id}
+                className={idx > 0 ? 'border-t border-gray-100' : ''}
               >
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
-                      {categoryIcons[exam.category as QuestionCategory]}{' '}
-                      {categoryDisplayNames[exam.category as QuestionCategory] || exam.category}
+                {/* Chapter header */}
+                <button
+                  onClick={() => toggleChapter(chapter.id)}
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                      style={{ backgroundColor: selectedSubject?.color || '#6366f1' }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <span className="font-semibold text-gray-900 text-left">
+                      {chapter.name}
                     </span>
-                    <span className="text-xs text-gray-400">{exam.questionCount} ข้อ</span>
                   </div>
-
-                  <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-indigo-600 transition">
-                    <LatexText text={exam.title} />
-                  </h3>
-
-                  {exam.description && (
-                    <p className="text-sm text-gray-500 mb-4 line-clamp-2">
-                      <LatexText text={exam.description} />
-                    </p>
+                  {isExpanded ? (
+                    <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   )}
-
-                  <button
-                    onClick={() => handleStartExam(exam)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium text-sm"
-                  >
-                    <Play className="w-4 h-4" />
-                    เริ่มทำข้อสอบ
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-white rounded-lg shadow-sm p-4">
-              <p className="text-sm text-gray-500">
-                หน้า {page} จาก {totalPages} (ทั้งหมด {total} ชุด)
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="w-5 h-5" />
                 </button>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
+
+                {/* Topics */}
+                {isExpanded && (
+                  <div className="bg-gray-50 border-t border-gray-100">
+                    {isLoadingTopics ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                      </div>
+                    ) : topics.length === 0 ? (
+                      <p className="text-center text-gray-400 text-sm py-6">
+                        ยังไม่มีหัวข้อในบทนี้
+                      </p>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {topics.map((topic) => (
+                          <Link
+                            key={topic.id}
+                            href={`/practice/topic/${topic.id}`}
+                            className="flex items-center justify-between px-5 py-3 pl-16 hover:bg-indigo-50 transition group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-300 flex-shrink-0" />
+                              <span className="text-sm text-gray-700 group-hover:text-indigo-700">
+                                {topic.name}
+                              </span>
+                            </div>
+                            <PlayCircle className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 flex-shrink-0 transition" />
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
-        </>
+            );
+          })}
+        </div>
       )}
-    </div>
+    </FadeIn>
   );
 }

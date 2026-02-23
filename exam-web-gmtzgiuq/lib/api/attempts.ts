@@ -18,7 +18,8 @@ export interface ExamAttempt {
   timePerQuestion: Record<string, number>;
   answers: Record<string, string>;
   questionIds: string[];
-  status: string;
+  currentIndex: number;
+  status: string; // 'in_progress' | 'completed' | 'abandoned'
   startedAt: string;
   completedAt: string | null;
   createdAt: string;
@@ -95,6 +96,21 @@ export interface SubmitAttemptInput {
   questionIds: string[];
   startedAt: string;
   completedAt?: string;
+}
+
+export interface StartInProgressInput {
+  examId: string;
+  examTitle: string;
+  category: QuestionCategory;
+  totalQuestions: number;
+  questionIds: string[];
+  startedAt: string;
+}
+
+export interface UpdateProgressInput {
+  currentIndex: number;
+  answers: Record<string, string>;
+  timePerQuestion: Record<string, number>;
 }
 
 export interface GetAttemptsParams {
@@ -319,5 +335,80 @@ export async function getAttemptStats(): Promise<AttemptStats> {
     throw new Error('Failed to fetch attempt stats');
   }
 
+  return response.json();
+}
+
+// ── IN-PROGRESS ────────────────────────────────────────────
+
+// User - Start in-progress attempt
+export async function startInProgressAttempt(
+  input: StartInProgressInput,
+): Promise<ExamAttempt> {
+  const response = await fetch(`${API_URL}/attempts/start`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) throw new Error('Failed to start attempt');
+  return response.json();
+}
+
+// User - Update in-progress attempt
+export async function updateAttemptProgress(
+  id: string,
+  input: UpdateProgressInput,
+): Promise<void> {
+  const response = await fetch(`${API_URL}/attempts/${id}/progress`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) throw new Error('Failed to update attempt progress');
+}
+
+// User - Complete an in-progress attempt
+export async function completeAttempt(
+  id: string,
+  input: SubmitAttemptInput,
+): Promise<ExamAttempt> {
+  const response = await fetch(`${API_URL}/attempts/${id}/complete`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) throw new Error('Failed to complete attempt');
+  return response.json();
+}
+
+// User - Get all my in-progress attempts
+export async function getMyInProgressAttempts(): Promise<ExamAttempt[]> {
+  const response = await fetch(`${API_URL}/attempts/my/in-progress`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) throw new Error('Failed to fetch in-progress attempts');
+  return response.json();
+}
+
+// User - Get in-progress attempt for a specific exam (null if none)
+export async function getMyInProgressForExam(
+  examId: string,
+): Promise<ExamAttempt | null> {
+  const response = await fetch(
+    `${API_URL}/attempts/my/in-progress/exam/${examId}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+      cache: 'no-store',
+    },
+  );
+
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error('Failed to check in-progress attempt');
   return response.json();
 }
