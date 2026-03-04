@@ -38,6 +38,11 @@ export class CurriculumController {
     return this.curriculumService.findTopic(id);
   }
 
+  @Get('public/tree')
+  async getPublicTree() {
+    return this.curriculumService.getPublicTreeWithCounts();
+  }
+
   // ── ADMIN — SUBJECTS ──────────────────────────────────────
 
   @Get('admin/tree')

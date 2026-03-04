@@ -170,7 +170,7 @@ export default function BlogsPage() {
   }, []);
 
   const featuredPost = recentData?.items?.[0];
-  const recentBlogs = recentData?.items?.slice(1) || [];
+  const recentBlogs = recentData?.items || [];
 
   return (
     <div className="min-h-screen bg-gray-50">

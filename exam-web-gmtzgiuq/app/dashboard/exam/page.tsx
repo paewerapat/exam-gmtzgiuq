@@ -8,10 +8,8 @@ import {
   PlayCircle,
   Loader2,
   BookOpen,
-  Settings,
-  Bell,
-  LogOut,
   Clock,
+  GraduationCap,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { getPublicExams, type Exam } from '@/lib/api/exams';
@@ -19,13 +17,9 @@ import {
   categoryDisplayNames,
   type QuestionCategory,
 } from '@/lib/api/questions';
-import { useAuth } from '@/contexts/AuthContext';
-import {
-  getMyInProgressAttempts,
-  type ExamAttempt,
-} from '@/lib/api/attempts';
+import { getMyInProgressAttempts, type ExamAttempt } from '@/lib/api/attempts';
 
-// ── Category banner gradients ───────────────────────────────
+// ── Category banner gradients ────────────────────────────────
 const categoryGradients: Record<string, [string, string]> = {
   mathematics:       ['#FF6B35', '#F7931E'],
   science:           ['#11998e', '#43e97b'],
@@ -43,7 +37,6 @@ function getBannerGradient(category: string): [string, string] {
   return categoryGradients[category] ?? defaultGradient;
 }
 
-// ── Decorative SVG shapes on banner ────────────────────────
 function BannerShapes() {
   return (
     <svg
@@ -52,27 +45,28 @@ function BannerShapes() {
       fill="none"
       preserveAspectRatio="xMidYMid slice"
     >
-      <circle cx="230" cy="20"  r="55" fill="white" fillOpacity="0.08" />
-      <circle cx="260" cy="90"  r="38" fill="white" fillOpacity="0.06" />
-      <circle cx="20"  cy="110" r="30" fill="white" fillOpacity="0.06" />
-      <circle cx="-10" cy="20"  r="40" fill="white" fillOpacity="0.07" />
+      <circle cx="230" cy="20" r="55" fill="white" fillOpacity="0.08" />
+      <circle cx="260" cy="90" r="38" fill="white" fillOpacity="0.06" />
+      <circle cx="20" cy="110" r="30" fill="white" fillOpacity="0.06" />
+      <circle cx="-10" cy="20" r="40" fill="white" fillOpacity="0.07" />
     </svg>
   );
 }
 
-// ── In-progress banner ──────────────────────────────────────
+// ── In-progress banner (real exam mode) ─────────────────────
 function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
-  if (attempts.length === 0) return null;
+  const examAttempts = attempts.filter((a) => a.mode === 'exam');
+  if (examAttempts.length === 0) return null;
   return (
-    <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+    <div className="mb-6 bg-rose-50 border border-rose-200 rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-        <p className="text-sm font-semibold text-indigo-700">
-          คุณมีข้อสอบที่ยังทำค้างอยู่ {attempts.length} ชุด
+        <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+        <p className="text-sm font-semibold text-rose-700">
+          คุณมีข้อสอบจริงที่ยังทำค้างอยู่ {examAttempts.length} ชุด
         </p>
       </div>
       <div className="space-y-2">
-        {attempts.map((attempt) => (
+        {examAttempts.map((attempt) => (
           <div
             key={attempt.id}
             className="flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm"
@@ -84,7 +78,7 @@ function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
               <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 ทำถึงข้อที่{' '}
-                <span className="font-semibold text-indigo-600">
+                <span className="font-semibold text-rose-600">
                   {attempt.currentIndex + 1}
                 </span>{' '}
                 / {attempt.totalQuestions} ข้อ
@@ -92,8 +86,8 @@ function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
             </div>
             {attempt.examId && (
               <Link
-                href={`/practice/exam/${attempt.examId}`}
-                className="ml-4 flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-full transition flex-shrink-0"
+                href={`/exam/${attempt.examId}`}
+                className="ml-4 flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-full transition flex-shrink-0"
               >
                 <PlayCircle className="w-3.5 h-3.5" />
                 ทำต่อ
@@ -106,7 +100,7 @@ function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
   );
 }
 
-// ── Exam card ───────────────────────────────────────────────
+// ── Exam card (links to /exam/[id]) ─────────────────────────
 function ExamCard({ exam }: { exam: Exam }) {
   const [from, to] = getBannerGradient(exam.category);
   const catName =
@@ -119,7 +113,6 @@ function ExamCard({ exam }: { exam: Exam }) {
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
-      {/* Gradient banner */}
       <div
         className="relative h-36 p-4 flex flex-col justify-between overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
@@ -132,8 +125,6 @@ function ExamCard({ exam }: { exam: Exam }) {
           {exam.title}
         </h3>
       </div>
-
-      {/* Card body */}
       <div className="p-4 flex flex-col flex-1">
         <p className="font-semibold text-gray-800 text-sm truncate">
           {catName}: {exam.title}
@@ -143,11 +134,11 @@ function ExamCard({ exam }: { exam: Exam }) {
         </p>
         <div className="mt-auto">
           <Link
-            href={`/practice/exam/${exam.id}`}
-            className="flex items-center justify-center gap-2 w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-full transition"
+            href={`/exam/${exam.id}`}
+            className="flex items-center justify-center gap-2 w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-full transition"
           >
             <PlayCircle className="w-4 h-4" />
-            เริ่มทำข้อสอบ
+            เริ่มสอบจริง
           </Link>
         </div>
       </div>
@@ -155,7 +146,7 @@ function ExamCard({ exam }: { exam: Exam }) {
   );
 }
 
-// ── Category dropdown ───────────────────────────────────────
+// ── Category dropdown ────────────────────────────────────────
 function CategoryDropdown({
   value,
   onChange,
@@ -178,7 +169,10 @@ function CategoryDropdown({
 
   const options = [
     { value: '', label: 'เลือกสนามสอบ' },
-    ...Object.entries(categoryDisplayNames).map(([k, v]) => ({ value: k, label: v })),
+    ...Object.entries(categoryDisplayNames).map(([k, v]) => ({
+      value: k,
+      label: v,
+    })),
   ];
   const selectedLabel =
     options.find((o) => o.value === value)?.label ?? 'เลือกสนามสอบ';
@@ -218,15 +212,14 @@ function CategoryDropdown({
   );
 }
 
-// ── Page ────────────────────────────────────────────────────
+// ── Page ─────────────────────────────────────────────────────
 const LIMIT = 8;
 
 function isLoggedIn() {
   return typeof window !== 'undefined' && !!localStorage.getItem('token');
 }
 
-export default function PracticePage() {
-  const { logout } = useAuth();
+export default function RealExamPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
@@ -238,10 +231,11 @@ export default function PracticePage() {
   const [loading, setLoading] = useState(true);
   const [inProgress, setInProgress] = useState<ExamAttempt[]>([]);
 
-  // Fetch in-progress attempts (only if logged in)
   useEffect(() => {
     if (!isLoggedIn()) return;
-    getMyInProgressAttempts().then(setInProgress).catch(() => {});
+    getMyInProgressAttempts()
+      .then(setInProgress)
+      .catch(() => {});
   }, []);
 
   const fetchExams = useCallback(async () => {
@@ -276,7 +270,6 @@ export default function PracticePage() {
     setPage(1);
   }
 
-  // Build pagination range (max 5 pages shown)
   const totalPages = data?.totalPages ?? 1;
   const paginationPages: number[] = [];
   const rangeStart = Math.max(1, Math.min(page - 2, totalPages - 4));
@@ -285,30 +278,20 @@ export default function PracticePage() {
 
   return (
     <FadeIn>
-      {/* Top header row */}
       <div className="flex items-center justify-between mb-6">
         <p className="text-sm text-gray-400">
           Dashboard /{' '}
-          <span className="text-gray-600 font-medium">Practices</span>
+          <span className="text-gray-600 font-medium">ทำข้อสอบจริง</span>
         </p>
-        <div className="flex items-center gap-1">
-          <button className="p-2 rounded-xl text-gray-400 hover:bg-white hover:text-gray-600 transition">
-            <Settings className="w-5 h-5" />
-          </button>
-          <button className="p-2 rounded-xl text-gray-400 hover:bg-white hover:text-gray-600 transition">
-            <Bell className="w-5 h-5" />
-          </button>
-          <button
-            onClick={logout}
-            title="ออกจากระบบ"
-            className="p-2 rounded-xl text-gray-400 hover:bg-white hover:text-gray-600 transition"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
       </div>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">ฝึกทำข้อสอบ</h1>
+      <div className="flex items-center gap-3 mb-2">
+        <GraduationCap className="w-7 h-7 text-rose-600" />
+        <h1 className="text-3xl font-bold text-gray-900">ทำข้อสอบจริง</h1>
+      </div>
+      <p className="text-sm text-gray-500 mb-6">
+        ไม่มีคำใบ้ ไม่มีการตรวจคำตอบระหว่างทำ เหมือนสอบจริง
+      </p>
 
       {/* In-progress banner */}
       <InProgressBanner attempts={inProgress} />
@@ -317,46 +300,35 @@ export default function PracticePage() {
       <div className="bg-white rounded-2xl shadow-sm p-6">
         {/* Toolbar */}
         <div className="flex items-center gap-3 mb-4 flex-wrap">
-          {/* Search */}
           <div className="relative flex-1 min-w-52">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search practice tests..."
+              placeholder="ค้นหาข้อสอบ..."
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-11 pr-5 py-2.5 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition"
+              className="w-full pl-11 pr-5 py-2.5 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition"
             />
           </div>
-
           <CategoryDropdown value={category} onChange={handleCategory} />
-
-          {/* Subject placeholder */}
-          <button className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 bg-white rounded-full text-sm text-gray-500 whitespace-nowrap cursor-default">
-            เลือกวิชา
-            <ChevronDown className="w-4 h-4" />
-          </button>
         </div>
 
-        {/* Sort / count row */}
         <div className="flex items-center justify-between mb-5">
-          <button className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition">
-            <ChevronDown className="w-3.5 h-3.5" />
-            เรียงจากล่าสุด
-          </button>
-          {data && (
-            <span className="text-sm text-gray-400">
-              ข้อสอบทั้งหมด{' '}
-              <span className="font-semibold text-gray-600">{data.total}</span>{' '}
-              ชุด
-            </span>
-          )}
+          <span className="text-sm text-gray-500">
+            {data ? (
+              <>
+                ข้อสอบทั้งหมด{' '}
+                <span className="font-semibold text-gray-700">{data.total}</span>{' '}
+                ชุด
+              </>
+            ) : null}
+          </span>
         </div>
 
         {/* Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <Loader2 className="w-9 h-9 animate-spin text-indigo-500" />
+            <Loader2 className="w-9 h-9 animate-spin text-rose-500" />
           </div>
         ) : !data || data.items.length === 0 ? (
           <div className="py-24 text-center">
@@ -364,8 +336,12 @@ export default function PracticePage() {
             <p className="text-gray-400 font-medium">ไม่พบข้อสอบที่ตรงกับการค้นหา</p>
             {(search || category) && (
               <button
-                onClick={() => { setSearch(''); setCategory(''); setPage(1); }}
-                className="mt-3 text-sm text-indigo-600 hover:underline"
+                onClick={() => {
+                  setSearch('');
+                  setCategory('');
+                  setPage(1);
+                }}
+                className="mt-3 text-sm text-rose-600 hover:underline"
               >
                 ล้างตัวกรอง
               </button>
@@ -389,21 +365,19 @@ export default function PracticePage() {
             >
               &lt; Previous
             </button>
-
             {paginationPages.map((p) => (
               <button
                 key={p}
                 onClick={() => setPage(p)}
                 className={`w-9 h-9 rounded-full text-sm font-medium transition ${
                   page === p
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-rose-600 text-white shadow-sm'
                     : 'text-gray-500 hover:bg-gray-100'
                 }`}
               >
                 {p}
               </button>
             ))}
-
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}

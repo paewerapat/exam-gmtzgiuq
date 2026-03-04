@@ -1,71 +1,72 @@
 'use client';
 
-import { ArrowLeft, Flag } from 'lucide-react';
+import { ChevronLeft, Timer, Pause } from 'lucide-react';
 import Link from 'next/link';
-import { categoryDisplayNames, type QuestionCategory } from '@/lib/api/questions';
-import ExamTimer from './ExamTimer';
-import ExamProgress from './ExamProgress';
-import LatexText from '@/components/latex/LatexText';
+import { formatTime } from '@/lib/exam-utils';
 
 interface ExamHeaderProps {
-  category: QuestionCategory;
-  examTitle?: string;
   timer: number;
-  currentIndex: number;
-  totalQuestions: number;
   answeredCount: number;
-  onFinish: () => void;
+  totalQuestions: number;
+  onPause?: () => void;
   backUrl?: string;
   className?: string;
 }
 
 export default function ExamHeader({
-  category,
-  examTitle,
   timer,
-  currentIndex,
-  totalQuestions,
   answeredCount,
-  onFinish,
+  totalQuestions,
+  onPause,
   backUrl = '/dashboard/practice',
   className = '',
 }: ExamHeaderProps) {
-  const displayName = examTitle || categoryDisplayNames[category] || category;
+  const progress = totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0;
 
   return (
-    <div className={`bg-white border-b border-gray-200 ${className}`}>
-      <div className="max-w-7xl mx-auto px-4 py-3">
-        {/* Top row */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-4">
-            <Link
-              href={backUrl}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="hidden sm:inline">กลับ</span>
-            </Link>
-            <div className="text-lg font-semibold text-gray-900"><LatexText text={displayName} /></div>
-          </div>
+    <div className={`bg-white sticky top-0 z-20 ${className}`}>
+      {/* Top bar */}
+      <div className="flex items-center px-6 py-3">
+        {/* Back link */}
+        <Link
+          href={backUrl}
+          className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 transition text-sm font-medium min-w-[90px]"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Go back
+        </Link>
 
-          <div className="flex items-center gap-4">
-            <ExamTimer seconds={timer} />
+        {/* Center: timer + pause */}
+        <div className="flex-1 flex flex-col items-center">
+          <div className="flex items-center gap-2">
+            <Timer className="w-5 h-5 text-gray-600" />
+            <span className="font-bold text-gray-900 text-2xl tabular-nums tracking-tight">
+              {formatTime(timer)}
+            </span>
+          </div>
+          {onPause && (
             <button
               type="button"
-              onClick={onFinish}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              onClick={onPause}
+              className="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 transition text-xs mt-0.5"
             >
-              <Flag className="w-4 h-4" />
-              <span className="hidden sm:inline">ส่งข้อสอบ</span>
+              <span className="w-4 h-4 rounded-full border border-gray-300 flex items-center justify-center flex-shrink-0">
+                <Pause className="w-2 h-2" />
+              </span>
+              หยุดชั่วคราว
             </button>
-          </div>
+          )}
         </div>
 
-        {/* Progress bar */}
-        <ExamProgress
-          current={currentIndex + 1}
-          total={totalQuestions}
-          answeredCount={answeredCount}
+        {/* Right spacer to balance */}
+        <div className="min-w-[90px]" />
+      </div>
+
+      {/* Green progress bar */}
+      <div className="h-1.5 bg-gray-100">
+        <div
+          className="h-full bg-green-500 transition-all duration-500"
+          style={{ width: `${progress}%` }}
         />
       </div>
     </div>

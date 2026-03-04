@@ -166,4 +166,62 @@ export class CurriculumService {
       order: { orderIndex: 'ASC' },
     });
   }
+
+  // ── PUBLIC TREE WITH EXAM COUNTS ─────────────────────────
+
+  async getPublicTreeWithCounts(): Promise<any[]> {
+    const subjects = await this.subjectsRepo.find({
+      where: { isActive: true },
+      relations: ['chapters', 'chapters.topics'],
+      order: { orderIndex: 'ASC' },
+    });
+
+    subjects.forEach((s) => {
+      s.chapters = (s.chapters || [])
+        .filter((c) => c.isActive)
+        .sort((a, b) => a.orderIndex - b.orderIndex);
+      s.chapters.forEach((c) => {
+        c.topics = (c.topics || [])
+          .filter((t) => t.isActive)
+          .sort((a, b) => a.orderIndex - b.orderIndex);
+      });
+    });
+
+    const allTopicIds = subjects.flatMap((s) =>
+      s.chapters.flatMap((c) => c.topics.map((t) => t.id)),
+    );
+
+    if (allTopicIds.length === 0) return subjects;
+
+    const rows: { topicId: string; cnt: string }[] = await this.topicsRepo
+      .createQueryBuilder('topic')
+      .leftJoin(
+        'exams',
+        'exam',
+        'exam.topicId = topic.id AND exam.status = :status',
+        { status: 'published' },
+      )
+      .select('topic.id', 'topicId')
+      .addSelect('COUNT(exam.id)', 'cnt')
+      .where('topic.id IN (:...ids)', { ids: allTopicIds })
+      .groupBy('topic.id')
+      .getRawMany();
+
+    const countMap = new Map(rows.map((r) => [r.topicId, parseInt(r.cnt, 10)]));
+
+    return subjects.map((s) => {
+      let subjectTotal = 0;
+      const chapters = s.chapters.map((c) => {
+        let chapterTotal = 0;
+        const topics = c.topics.map((t) => {
+          const examCount = countMap.get(t.id) ?? 0;
+          chapterTotal += examCount;
+          return { ...t, examCount };
+        });
+        subjectTotal += chapterTotal;
+        return { ...c, topics, examCount: chapterTotal };
+      });
+      return { ...s, chapters, examCount: subjectTotal };
+    });
+  }
 }

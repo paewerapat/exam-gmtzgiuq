@@ -85,6 +85,10 @@ export class ExamAttempt {
   status: string;
 
   @Field()
+  @Column({ type: 'varchar', length: 20, default: 'practice' })
+  mode: string; // 'practice' | 'exam'
+
+  @Field()
   @Column({ type: 'timestamp' })
   startedAt: Date;
 

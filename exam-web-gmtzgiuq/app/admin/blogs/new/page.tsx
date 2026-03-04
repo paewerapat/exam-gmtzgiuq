@@ -7,6 +7,7 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import RichTextEditor from '@/components/editor/RichTextEditor';
 import ImageUpload from '@/components/upload/ImageUpload';
+import { createBlog, type BlogCategory } from '@/lib/api/blogs';
 
 export default function NewBlogPage() {
   const router = useRouter();
@@ -16,7 +17,8 @@ export default function NewBlogPage() {
     excerpt: '',
     content: '',
     featuredImage: '',
-    status: 'draft',
+    status: 'draft' as 'draft' | 'published',
+    category: 'notes' as BlogCategory,
     metaTitle: '',
     metaDescription: '',
   });
@@ -49,16 +51,25 @@ export default function NewBlogPage() {
     }
 
     setLoading(true);
-
-    // In production, this would call the API
-    console.log('Creating blog:', formData);
-
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await createBlog({
+        title: formData.title,
+        slug: formData.slug || undefined,
+        excerpt: formData.excerpt || undefined,
+        content: formData.content,
+        featuredImage: formData.featuredImage || undefined,
+        status: formData.status,
+        category: formData.category,
+        metaTitle: formData.metaTitle || undefined,
+        metaDescription: formData.metaDescription || undefined,
+      });
       toast.success('สร้างบทความสำเร็จ!');
       router.push('/admin/blogs');
-    }, 1000);
+    } catch (err: any) {
+      toast.error(err.message || 'สร้างบทความไม่สำเร็จ');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -177,11 +188,25 @@ export default function NewBlogPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                    หมวดหมู่ *
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value as BlogCategory })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="notes">Notes — บันทึกสั้นๆ เคล็ดลับ</option>
+                    <option value="essays">Essays — บทความเชิงลึก</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     สถานะ
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="draft">แบบร่าง</option>

@@ -7,7 +7,6 @@ import {
   FileText,
   FileQuestion,
   Users,
-  Settings,
   ChevronLeft,
   BookOpen,
   ClipboardList,
@@ -20,7 +19,6 @@ const menuItems = [
   { href: '/admin/blogs', label: 'บทความ', icon: FileText },
   { href: '/admin/questions', label: 'โจทย์สอบ', icon: FileQuestion },
   { href: '/admin/users', label: 'ผู้ใช้งาน', icon: Users },
-  { href: '/admin/settings', label: 'ตั้งค่า', icon: Settings },
 ];
 
 export default function AdminSidebar() {

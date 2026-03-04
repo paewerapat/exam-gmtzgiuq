@@ -100,10 +100,12 @@ type ExamAttempt {
   completedAt: DateTime
   correctAnswers: Int!
   createdAt: DateTime!
+  currentIndex: Int!
   exam: Exam!
   examTitle: String!
   id: ID!
   incorrectAnswers: Int!
+  mode: String!
   score: Float!
   startedAt: DateTime!
   status: String!

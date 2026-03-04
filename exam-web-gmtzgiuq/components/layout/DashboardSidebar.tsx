@@ -4,96 +4,107 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  LayoutDashboard,
+  ClipboardList,
+  Clock,
   BookOpen,
   User,
   Users,
   Settings,
-  ChevronLeft,
   LogOut,
-  ClipboardList,
-  History,
   BarChart3,
+  Library,
+  GraduationCap,
 } from 'lucide-react';
 
 const menuItems = [
-  { href: '/dashboard/practice', label: 'ฝึกทำข้อสอบ', icon: BookOpen },
-  { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: History },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/practice', label: 'ฝึกทำข้อสอบ', icon: ClipboardList },
+  { href: '/dashboard/library', label: 'คลังข้อสอบ', icon: Library },
+  { href: '/dashboard/exam', label: 'ทำข้อสอบจริง', icon: GraduationCap },
+  { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: Clock },
+  { href: '/blogs', label: 'บทความ', icon: BookOpen },
   { href: '/dashboard/profile', label: 'โปรไฟล์', icon: User },
   { href: '/admin/exams', label: 'จัดการข้อสอบ', icon: ClipboardList, adminOnly: true },
   { href: '/admin/users', label: 'จัดการผู้ใช้', icon: Users, adminOnly: true },
-  { href: '/admin/attempts', label: 'ประวัติการสอบ', icon: BarChart3, adminOnly: true },
-  { href: '/admin', label: 'จัดการระบบ', icon: Settings, adminOnly: true },
+  { href: '/admin/attempts', label: 'ประวัติ (Admin)', icon: BarChart3, adminOnly: true },
+  { href: '/admin', label: 'จัดการระบบ', icon: Settings, adminOnly: true, exact: true },
 ];
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
+  const initial = (user?.firstName?.[0] || user?.email?.[0] || 'U').toUpperCase();
+
   return (
-    <aside className="w-64 bg-gray-900 min-h-screen text-white flex flex-col">
-      <div className="p-6 flex-1">
-        <Link href="/" className="flex items-center text-gray-400 hover:text-white mb-8">
-          <ChevronLeft className="w-4 h-4 mr-2" />
-          กลับหน้าเว็บ
+    <aside className="w-64 bg-white min-h-screen flex flex-col border-r border-gray-100 flex-shrink-0">
+      {/* Logo */}
+      <div className="px-6 pt-7 pb-5">
+        <Link href="/" className="text-2xl font-extrabold text-indigo-600 tracking-tight">
+          ExamPrep
         </Link>
-
-        {/* User info */}
-        <div className="mb-8 pb-6 border-b border-gray-700">
-          <div className="flex items-center gap-3">
-            {user?.avatar ? (
-              <img
-                src={user.avatar}
-                alt="avatar"
-                className="w-10 h-10 rounded-full"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium">
-                {user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="text-white font-medium truncate">
-                {user?.firstName || user?.email?.split('@')[0]}
-              </div>
-              <div className="text-gray-400 text-sm truncate">{user?.email}</div>
-            </div>
-          </div>
-        </div>
-
-        <nav className="space-y-2">
-          {menuItems.map((item) => {
-            if (item.adminOnly && user?.role?.toLowerCase() !== 'admin') return null;
-
-            const Icon = item.icon;
-            const isActive =
-              pathname === item.href ||
-              (item.href !== '/dashboard' && pathname?.startsWith(item.href));
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center px-4 py-3 rounded-lg transition ${
-                  isActive
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                }`}
-              >
-                <Icon className="w-5 h-5 mr-3" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
       </div>
 
-      {/* Logout button at bottom */}
-      <div className="p-6 border-t border-gray-700">
+      <div className="h-px bg-gray-100 mx-4" />
+
+      {/* User info */}
+      <div className="px-5 py-5 flex items-center gap-3">
+        {user?.avatar ? (
+          <img src={user.avatar} alt="avatar" className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+        ) : (
+          <div className="w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+            {initial}
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900 text-sm truncate leading-tight">
+            {user?.firstName
+              ? `${user.firstName} ${user.lastName || ''}`.trim()
+              : user?.email?.split('@')[0]}
+          </p>
+          <p className="text-xs text-gray-400 truncate mt-0.5">
+            {user?.email || 'user'}
+          </p>
+        </div>
+      </div>
+
+      <div className="h-px bg-gray-100 mx-4 mb-3" />
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
+        {menuItems.map((item) => {
+          if (item.adminOnly && user?.role?.toLowerCase() !== 'admin') return null;
+
+          const Icon = item.icon;
+          const isActive = item.exact
+            ? pathname === item.href
+            : pathname === item.href || pathname?.startsWith(item.href + '/');
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+              }`}
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Logout */}
+      <div className="p-4 border-t border-gray-100">
         <button
           onClick={logout}
-          className="flex items-center w-full px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition"
+          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-all"
         >
-          <LogOut className="w-5 h-5 mr-3" />
+          <LogOut className="w-5 h-5" />
           ออกจากระบบ
         </button>
       </div>

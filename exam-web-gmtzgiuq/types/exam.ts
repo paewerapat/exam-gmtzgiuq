@@ -20,6 +20,7 @@ export interface ExamState {
   session: ExamSession;
   questions: Question[];
   currentTimer: number; // seconds for current question
+  isPaused: boolean;
   showHint: boolean;
   showExplanation: boolean;
   answerChecked: boolean;
@@ -39,6 +40,8 @@ export type ExamAction =
   | { type: 'SHOW_EXPLANATION' }
   | { type: 'HIDE_EXPLANATION' }
   | { type: 'TICK_TIMER' }
+  | { type: 'PAUSE_TIMER' }
+  | { type: 'RESUME_TIMER' }
   | { type: 'COMPLETE_EXAM' }
   | { type: 'RESET_QUESTION_STATE' };
 

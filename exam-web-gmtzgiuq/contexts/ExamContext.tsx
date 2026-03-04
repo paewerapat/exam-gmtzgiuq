@@ -34,6 +34,7 @@ const initialState: ExamState = {
   },
   questions: [],
   currentTimer: 0,
+  isPaused: false,
   showHint: false,
   showExplanation: false,
   answerChecked: false,
@@ -171,6 +172,12 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
       };
     }
 
+    case 'PAUSE_TIMER':
+      return { ...state, isPaused: true };
+
+    case 'RESUME_TIMER':
+      return { ...state, isPaused: false };
+
     case 'SHOW_HINT':
       return { ...state, showHint: true };
 
@@ -237,6 +244,8 @@ interface ExamContextType {
   jumpToQuestion: (index: number) => void;
   toggleMarkReview: (questionId: string) => void;
   checkAnswer: () => void;
+  pauseTimer: () => void;
+  resumeTimer: () => void;
   showHint: () => void;
   hideHint: () => void;
   showExplanation: () => void;
@@ -251,19 +260,27 @@ const ExamContext = createContext<ExamContextType | undefined>(undefined);
 export function ExamProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(examReducer, initialState);
 
-  // Auto-save session to localStorage
+  // Auto-save session to localStorage (includes current question timer so resume is accurate)
   useEffect(() => {
     if (state.session.id && state.session.status === 'in_progress') {
       const timeoutId = setTimeout(() => {
-        saveExamSession(state.session, state.questions);
-      }, 500); // Debounce 500ms
+        const currentQId = state.session.questionIds[state.session.currentIndex];
+        const sessionToSave = {
+          ...state.session,
+          timePerQuestion: {
+            ...state.session.timePerQuestion,
+            ...(currentQId ? { [currentQId]: state.currentTimer } : {}),
+          },
+        };
+        saveExamSession(sessionToSave, state.questions);
+      }, 500);
       return () => clearTimeout(timeoutId);
     }
-  }, [state.session, state.questions]);
+  }, [state.session, state.questions, state.currentTimer]);
 
-  // Timer tick
+  // Timer tick — stops when paused
   useEffect(() => {
-    if (state.session.status !== 'in_progress' || !state.session.id) {
+    if (state.session.status !== 'in_progress' || !state.session.id || state.isPaused) {
       return;
     }
 
@@ -272,7 +289,7 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [state.session.status, state.session.id]);
+  }, [state.session.status, state.session.id, state.isPaused]);
 
   // Helper values
   const currentQuestionId = state.session.questionIds[state.session.currentIndex] || null;
@@ -314,6 +331,14 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
 
   const checkAnswer = useCallback(() => {
     dispatch({ type: 'CHECK_ANSWER' });
+  }, []);
+
+  const pauseTimer = useCallback(() => {
+    dispatch({ type: 'PAUSE_TIMER' });
+  }, []);
+
+  const resumeTimer = useCallback(() => {
+    dispatch({ type: 'RESUME_TIMER' });
   }, []);
 
   const showHintAction = useCallback(() => {
@@ -374,6 +399,8 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     jumpToQuestion,
     toggleMarkReview,
     checkAnswer,
+    pauseTimer,
+    resumeTimer,
     showHint: showHintAction,
     hideHint: hideHintAction,
     showExplanation: showExplanationAction,

@@ -7,6 +7,7 @@ import {
   IsBoolean,
   IsNumber,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
@@ -98,10 +99,11 @@ export class CreateExamInput {
   @IsOptional()
   status?: QuestionStatus;
 
-  @Field({ nullable: true })
-  @IsString()
+  @Field(() => String, { nullable: true })
   @IsOptional()
-  topicId?: string;
+  @ValidateIf((o) => o.topicId !== null)
+  @IsString()
+  topicId?: string | null;
 
   @Field(() => [CreateExamQuestionInput])
   @IsArray()
@@ -133,10 +135,11 @@ export class UpdateExamInput {
   @IsOptional()
   status?: QuestionStatus;
 
-  @Field({ nullable: true })
-  @IsString()
+  @Field(() => String, { nullable: true })
   @IsOptional()
-  topicId?: string;
+  @ValidateIf((o) => o.topicId !== null)
+  @IsString()
+  topicId?: string | null;
 
   @Field(() => [CreateExamQuestionInput], { nullable: true })
   @IsArray()

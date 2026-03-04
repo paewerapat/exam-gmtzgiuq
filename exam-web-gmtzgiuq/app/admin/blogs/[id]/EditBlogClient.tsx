@@ -3,108 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save, Trash2, Eye } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
-
-// Mock data for demo
-const mockBlogs: Record<string, {
-  id: string;
-  title: string;
-  slug: string;
-  excerpt: string;
-  content: string;
-  featuredImage: string;
-  status: string;
-  metaTitle: string;
-  metaDescription: string;
-}> = {
-  '1': {
-    id: '1',
-    title: 'Getting Started with Our Exam Platform',
-    slug: 'getting-started-exam-platform',
-    excerpt: 'Learn how to make the most of our exam preparation platform...',
-    content: `# Getting Started with Our Exam Platform
-
-Welcome to our comprehensive exam preparation platform! This guide will walk you through all the features and help you get started on your learning journey.
-
-## Creating Your Account
-
-First, you'll need to create an account to access all the features. Click the "Register" button and fill in your details.
-
-## Exploring Practice Exams
-
-Once logged in, you can browse through our extensive library of practice exams. Each exam is carefully curated to match the format and difficulty of real exams.
-
-## Tracking Your Progress
-
-Our platform provides detailed analytics to help you understand your strengths and areas for improvement.
-
-## Tips for Success
-
-1. Take practice exams regularly
-2. Review your incorrect answers
-3. Focus on weak areas
-4. Stay consistent with your study schedule`,
-    featuredImage: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800',
-    status: 'published',
-    metaTitle: 'Getting Started Guide - Exam Platform',
-    metaDescription: 'Complete guide on how to use our exam preparation platform effectively.',
-  },
-  '2': {
-    id: '2',
-    title: '10 Tips for Effective Exam Preparation',
-    slug: '10-tips-effective-exam-preparation',
-    excerpt: 'Discover proven strategies to boost your exam scores...',
-    content: `# 10 Tips for Effective Exam Preparation
-
-Preparing for exams can be challenging, but with the right strategies, you can maximize your chances of success.
-
-## 1. Start Early
-
-Don't wait until the last minute. Begin your preparation well in advance.
-
-## 2. Create a Study Schedule
-
-Plan your study sessions and stick to them consistently.
-
-## 3. Use Active Learning Techniques
-
-Engage with the material through practice questions and discussions.
-
-## 4. Take Regular Breaks
-
-The Pomodoro technique (25 minutes study, 5 minutes break) works well.
-
-## 5. Get Enough Sleep
-
-Rest is crucial for memory consolidation.`,
-    featuredImage: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800',
-    status: 'published',
-    metaTitle: '',
-    metaDescription: '',
-  },
-  '3': {
-    id: '3',
-    title: 'Understanding Question Patterns',
-    slug: 'understanding-question-patterns',
-    excerpt: 'A draft article about question patterns...',
-    content: `# Understanding Question Patterns
-
-This is a draft article about recognizing and understanding different question patterns in exams.
-
-## Multiple Choice Questions
-
-Learn how to approach MCQs effectively.
-
-## Short Answer Questions
-
-Tips for concise and accurate answers.`,
-    featuredImage: '',
-    status: 'draft',
-    metaTitle: '',
-    metaDescription: '',
-  },
-};
+import { getAdminBlog, updateBlog, deleteBlog, type BlogCategory } from '@/lib/api/blogs';
 
 interface EditBlogClientProps {
   blogId: string;
@@ -119,7 +20,8 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
     excerpt: '',
     content: '',
     featuredImage: '',
-    status: 'draft',
+    status: 'draft' as 'draft' | 'published',
+    category: 'notes' as BlogCategory,
     metaTitle: '',
     metaDescription: '',
   });
@@ -128,23 +30,22 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    // In production, fetch blog data from API
-    const blog = mockBlogs[blogId];
-    if (blog) {
-      setFormData({
-        title: blog.title,
-        slug: blog.slug,
-        excerpt: blog.excerpt,
-        content: blog.content,
-        featuredImage: blog.featuredImage,
-        status: blog.status,
-        metaTitle: blog.metaTitle,
-        metaDescription: blog.metaDescription,
-      });
-    } else {
-      setNotFound(true);
-    }
-    setLoading(false);
+    getAdminBlog(blogId)
+      .then((blog) => {
+        setFormData({
+          title: blog.title,
+          slug: blog.slug,
+          excerpt: blog.excerpt || '',
+          content: blog.content,
+          featuredImage: blog.featuredImage || '',
+          status: blog.status,
+          category: blog.category,
+          metaTitle: '',
+          metaDescription: '',
+        });
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
   }, [blogId]);
 
   const generateSlug = (title: string) => {
@@ -158,40 +59,45 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const title = e.target.value;
-    setFormData({
-      ...formData,
-      title,
-      slug: generateSlug(title),
-    });
+    setFormData({ ...formData, title, slug: generateSlug(title) });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-
-    // In production, this would call the API
-    console.log('Updating blog:', formData);
-
-    // Simulate API call
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      await updateBlog(blogId, {
+        title: formData.title,
+        slug: formData.slug || undefined,
+        excerpt: formData.excerpt || undefined,
+        content: formData.content,
+        featuredImage: formData.featuredImage || undefined,
+        status: formData.status,
+        category: formData.category,
+      });
       toast.success('อัปเดตบทความสำเร็จ!');
-    }, 1000);
+    } catch (err: any) {
+      toast.error(err.message || 'อัปเดตบทความไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
-    if (confirm('คุณแน่ใจหรือไม่ที่จะลบบทความนี้? การกระทำนี้ไม่สามารถยกเลิกได้')) {
-      // In production, this would call the API
-      console.log('Deleting blog:', blogId);
+    if (!confirm('ลบบทความนี้ใช่หรือไม่? ไม่สามารถยกเลิกได้')) return;
+    try {
+      await deleteBlog(blogId);
       toast.success('ลบบทความสำเร็จ!');
       router.push('/admin/blogs');
+    } catch {
+      toast.error('ลบบทความไม่สำเร็จ');
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
   }
@@ -199,14 +105,14 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
   if (notFound) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Blog Not Found</h2>
-        <p className="text-gray-600 mb-6">The blog you are looking for does not exist.</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">ไม่พบบทความ</h2>
+        <p className="text-gray-600 mb-6">บทความที่คุณค้นหาไม่มีอยู่</p>
         <Link
           href="/admin/blogs"
           className="inline-flex items-center text-indigo-600 hover:text-indigo-700"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Blogs
+          กลับไปหน้ารายการ
         </Link>
       </div>
     );
@@ -221,9 +127,9 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
             className="flex items-center text-gray-600 hover:text-indigo-600 mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Blogs
+            กลับไปหน้ารายการ
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Edit Blog</h1>
+          <h1 className="text-3xl font-bold text-gray-900">แก้ไขบทความ</h1>
         </div>
         <div className="flex items-center space-x-3">
           <Link
@@ -232,14 +138,14 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
             className="flex items-center text-gray-600 hover:text-indigo-600 px-4 py-2 border border-gray-300 rounded-lg"
           >
             <Eye className="w-4 h-4 mr-2" />
-            Preview
+            ดูตัวอย่าง
           </Link>
           <button
             onClick={handleDelete}
             className="flex items-center text-red-600 hover:text-red-700 px-4 py-2 border border-red-300 rounded-lg hover:bg-red-50"
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            Delete
+            ลบ
           </button>
         </div>
       </div>
@@ -249,12 +155,12 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Content</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">เนื้อหา</h2>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Title *
+                    หัวข้อ *
                   </label>
                   <input
                     type="text"
@@ -262,13 +168,13 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                     value={formData.title}
                     onChange={handleTitleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter blog title"
+                    placeholder="ใส่หัวข้อบทความ"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Slug
+                    Slug (URL)
                   </label>
                   <input
                     type="text"
@@ -281,28 +187,28 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Excerpt
+                    คำอธิบายย่อ
                   </label>
                   <textarea
                     rows={3}
                     value={formData.excerpt}
                     onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Brief summary of the blog post"
+                    placeholder="สรุปเนื้อหาบทความสั้นๆ"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Content *
+                    เนื้อหา *
                   </label>
                   <textarea
-                    rows={15}
+                    rows={20}
                     required
                     value={formData.content}
                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
-                    placeholder="Write your blog content here... (Markdown supported)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                    placeholder="เขียนเนื้อหาบทความที่นี่... (รองรับ Markdown)"
                   />
                 </div>
               </div>
@@ -310,7 +216,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
             {/* SEO Settings */}
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">SEO Settings</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">ตั้งค่า SEO</h2>
 
               <div className="space-y-4">
                 <div>
@@ -322,7 +228,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                     value={formData.metaTitle}
                     onChange={(e) => setFormData({ ...formData, metaTitle: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="SEO title (leave empty to use blog title)"
+                    placeholder="ชื่อสำหรับ SEO (เว้นว่างใช้หัวข้อบทความ)"
                   />
                 </div>
 
@@ -335,7 +241,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                     value={formData.metaDescription}
                     onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="SEO description (leave empty to use excerpt)"
+                    placeholder="คำอธิบายสำหรับ SEO (เว้นว่างใช้คำอธิบายย่อ)"
                   />
                 </div>
               </div>
@@ -345,20 +251,34 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
           {/* Sidebar */}
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Publish</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">เผยแพร่</h2>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
+                    หมวดหมู่ *
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value as BlogCategory })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="notes">Notes — บันทึกสั้นๆ เคล็ดลับ</option>
+                    <option value="essays">Essays — บทความเชิงลึก</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    สถานะ
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
+                    <option value="draft">แบบร่าง</option>
+                    <option value="published">เผยแพร่</option>
                   </select>
                 </div>
 
@@ -367,18 +287,27 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                   disabled={saving}
                   className="w-full flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  {saving ? 'Saving...' : 'Update Blog'}
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      กำลังบันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      บันทึกการแก้ไข
+                    </>
+                  )}
                 </button>
               </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Featured Image</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">รูปภาพปก</h2>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Image URL
+                  URL รูปภาพ
                 </label>
                 <input
                   type="url"

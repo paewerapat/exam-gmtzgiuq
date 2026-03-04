@@ -30,6 +30,7 @@ export class AttemptsService {
       totalQuestions: number;
       questionIds: string[];
       startedAt: string;
+      mode?: string;
     },
   ): Promise<ExamAttempt> {
     // Abandon any existing in-progress attempt for the same exam
@@ -54,6 +55,7 @@ export class AttemptsService {
       score: 0,
       totalTime: 0,
       status: 'in_progress',
+      mode: data.mode ?? 'practice',
       startedAt: new Date(data.startedAt),
     });
 
@@ -142,6 +144,7 @@ export class AttemptsService {
       answers: input.answers,
       questionIds: input.questionIds,
       status: 'completed',
+      mode: (input as any).mode ?? 'practice',
       startedAt: new Date(input.startedAt),
       completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
     });

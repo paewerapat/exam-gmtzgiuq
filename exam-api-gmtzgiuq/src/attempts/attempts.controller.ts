@@ -31,6 +31,7 @@ export class AttemptsController {
       totalQuestions: number;
       questionIds: string[];
       startedAt: string;
+      mode?: string;
     },
     @Request() req,
   ) {

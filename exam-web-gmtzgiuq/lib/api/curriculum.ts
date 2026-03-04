@@ -10,6 +10,7 @@ export interface Subject {
   orderIndex: number;
   isActive: boolean;
   chapterCount?: number;
+  examCount?: number;
   chapters?: Chapter[];
   createdAt: string;
 }
@@ -21,6 +22,7 @@ export interface Chapter {
   description: string | null;
   orderIndex: number;
   isActive: boolean;
+  examCount?: number;
   topics?: Topic[];
   createdAt: string;
 }
@@ -84,6 +86,14 @@ export async function getTopic(topicId: string): Promise<Topic> {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error('Topic not found');
+  return res.json();
+}
+
+export async function getPublicCurriculumTree(): Promise<Subject[]> {
+  const res = await fetch(`${API_URL}/curriculum/public/tree`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch curriculum tree');
   return res.json();
 }
 

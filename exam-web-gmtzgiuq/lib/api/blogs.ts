@@ -106,6 +106,92 @@ export function calculateReadTime(content: string) {
   return Math.max(1, readTime);
 }
 
+// ── Admin API ─────────────────────────────────────────────────
+
+function getAuthHeaders(): HeadersInit {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+export interface CreateBlogInput {
+  title: string;
+  slug?: string;
+  excerpt?: string;
+  content: string;
+  featuredImage?: string;
+  status: 'draft' | 'published';
+  category: BlogCategory;
+  metaTitle?: string;
+  metaDescription?: string;
+}
+
+export async function getAdminBlogs(params: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  category?: string;
+  search?: string;
+} = {}): Promise<PaginatedBlogs> {
+  const { page = 1, limit = 20, status, category, search } = params;
+  const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) q.set('status', status);
+  if (category) q.set('category', category);
+  if (search) q.set('search', search);
+
+  const res = await fetch(`${API_URL}/blogs/admin/all?${q.toString()}`, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Failed to fetch admin blogs');
+  return res.json();
+}
+
+export async function getAdminBlog(id: string): Promise<Blog> {
+  const res = await fetch(`${API_URL}/blogs/admin/${id}`, {
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Blog not found');
+  return res.json();
+}
+
+export async function createBlog(data: CreateBlogInput): Promise<Blog> {
+  const res = await fetch(`${API_URL}/blogs/admin`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Failed to create blog');
+  }
+  return res.json();
+}
+
+export async function updateBlog(id: string, data: Partial<CreateBlogInput>): Promise<Blog> {
+  const res = await fetch(`${API_URL}/blogs/admin/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Failed to update blog');
+  }
+  return res.json();
+}
+
+export async function deleteBlog(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/blogs/admin/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to delete blog');
+}
+
 // Category display info
 export const categoryInfo = {
   notes: {

@@ -25,25 +25,22 @@ export default function ChoiceButton({
 }: ChoiceButtonProps) {
   const letter = getChoiceLetter(index);
 
-  // Determine styles based on state
-  let buttonStyles = 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50';
-  let letterStyles = 'bg-gray-100 text-gray-600';
-  let icon = null;
+  let cardStyle = 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40';
+  let circleStyle = 'bg-gray-100 text-gray-600';
+  let icon: React.ReactNode = null;
 
   if (isSelected && !showResult) {
-    buttonStyles = 'border-indigo-500 bg-indigo-50';
-    letterStyles = 'bg-indigo-600 text-white';
+    cardStyle = 'border-indigo-400 bg-indigo-50';
+    circleStyle = 'bg-indigo-600 text-white';
   } else if (showResult) {
     if (isCorrect === true) {
-      // This is the correct answer
-      buttonStyles = 'border-green-500 bg-green-50';
-      letterStyles = 'bg-green-600 text-white';
-      icon = <Check className="w-5 h-5 text-green-600" />;
+      cardStyle = 'border-green-400 bg-green-50';
+      circleStyle = 'bg-green-600 text-white';
+      icon = <Check className="w-4 h-4 text-green-600 flex-shrink-0" />;
     } else if (isSelected && isCorrect === false) {
-      // User selected this but it's wrong
-      buttonStyles = 'border-red-500 bg-red-50';
-      letterStyles = 'bg-red-600 text-white';
-      icon = <X className="w-5 h-5 text-red-600" />;
+      cardStyle = 'border-red-400 bg-red-50';
+      circleStyle = 'bg-red-600 text-white';
+      icon = <X className="w-4 h-4 text-red-600 flex-shrink-0" />;
     }
   }
 
@@ -53,8 +50,8 @@ export default function ChoiceButton({
       onClick={onClick}
       disabled={disabled || showResult}
       className={`
-        w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all
-        ${buttonStyles}
+        w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all
+        ${cardStyle}
         ${disabled || showResult ? 'cursor-not-allowed' : 'cursor-pointer'}
       `}
     >
@@ -62,15 +59,15 @@ export default function ChoiceButton({
         className={`
           flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full
           font-semibold text-sm transition-colors
-          ${letterStyles}
+          ${circleStyle}
         `}
       >
         {letter}
       </span>
-      <span className="flex-1 text-left text-gray-700">
+      <span className="flex-1 text-left text-gray-700 text-sm leading-relaxed">
         <LatexText text={text} />
       </span>
-      {icon && <span className="flex-shrink-0">{icon}</span>}
+      {icon}
     </button>
   );
 }

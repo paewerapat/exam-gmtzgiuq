@@ -20,6 +20,7 @@ export interface ExamAttempt {
   questionIds: string[];
   currentIndex: number;
   status: string; // 'in_progress' | 'completed' | 'abandoned'
+  mode: string; // 'practice' | 'exam'
   startedAt: string;
   completedAt: string | null;
   createdAt: string;
@@ -96,6 +97,7 @@ export interface SubmitAttemptInput {
   questionIds: string[];
   startedAt: string;
   completedAt?: string;
+  mode?: 'practice' | 'exam';
 }
 
 export interface StartInProgressInput {
@@ -105,6 +107,7 @@ export interface StartInProgressInput {
   totalQuestions: number;
   questionIds: string[];
   startedAt: string;
+  mode?: 'practice' | 'exam';
 }
 
 export interface UpdateProgressInput {
