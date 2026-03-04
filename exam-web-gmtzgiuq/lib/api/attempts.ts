@@ -1,5 +1,6 @@
 // Attempts API Service
 import type { QuestionCategory } from './questions';
+import { fetchWithAuth } from './authFetch';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -125,19 +126,10 @@ export interface GetAttemptsParams {
   search?: string;
 }
 
-function getAuthHeaders(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 // User - Submit attempt
 export async function submitAttempt(input: SubmitAttemptInput): Promise<ExamAttempt> {
-  const response = await fetch(`${API_URL}/attempts`, {
+  const response = await fetchWithAuth(`${API_URL}/attempts`, {
     method: 'POST',
-    headers: getAuthHeaders(),
     body: JSON.stringify(input),
   });
 
@@ -165,19 +157,12 @@ export async function getMyAttempts(
   queryParams.set('limit', String(limit));
   if (category) queryParams.set('category', category);
 
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_URL}/attempts/my?${queryParams.toString()}`,
-    {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      cache: 'no-store',
-    },
+    { cache: 'no-store' },
   );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch attempts');
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch attempts');
   return response.json();
 }
 
@@ -192,34 +177,22 @@ export async function getMyExamAttempts(
   queryParams.set('page', String(page));
   queryParams.set('limit', String(limit));
 
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_URL}/attempts/my/exam/${examId}?${queryParams.toString()}`,
-    {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      cache: 'no-store',
-    },
+    { cache: 'no-store' },
   );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch exam attempts');
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch exam attempts');
   return response.json();
 }
 
 // User - Get single attempt detail
 export async function getMyAttempt(id: string): Promise<ExamAttempt> {
-  const response = await fetch(`${API_URL}/attempts/my/${id}`, {
-    method: 'GET',
-    headers: getAuthHeaders(),
+  const response = await fetchWithAuth(`${API_URL}/attempts/my/${id}`, {
     cache: 'no-store',
   });
 
-  if (!response.ok) {
-    throw new Error('Attempt not found');
-  }
-
+  if (!response.ok) throw new Error('Attempt not found');
   return response.json();
 }
 
@@ -237,64 +210,43 @@ export async function getAdminAttempts(
   if (category) queryParams.set('category', category);
   if (search) queryParams.set('search', search);
 
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_URL}/attempts/admin/all?${queryParams.toString()}`,
-    {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      cache: 'no-store',
-    },
+    { cache: 'no-store' },
   );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch attempts');
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch attempts');
   return response.json();
 }
 
 // Admin - Get single attempt
 export async function getAdminAttempt(id: string): Promise<ExamAttempt> {
-  const response = await fetch(`${API_URL}/attempts/admin/${id}`, {
-    method: 'GET',
-    headers: getAuthHeaders(),
+  const response = await fetchWithAuth(`${API_URL}/attempts/admin/${id}`, {
     cache: 'no-store',
   });
 
-  if (!response.ok) {
-    throw new Error('Attempt not found');
-  }
-
+  if (!response.ok) throw new Error('Attempt not found');
   return response.json();
 }
 
 // User - Get my stats
 export async function getMyStats(): Promise<UserAttemptStats> {
-  const response = await fetch(`${API_URL}/attempts/my/stats`, {
-    method: 'GET',
-    headers: getAuthHeaders(),
+  const response = await fetchWithAuth(`${API_URL}/attempts/my/stats`, {
     cache: 'no-store',
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch stats');
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch stats');
   return response.json();
 }
 
 // Admin - Get exam attempt stats
 export async function getAdminExamAttemptStats(examId: string): Promise<ExamAttemptStats> {
-  const response = await fetch(`${API_URL}/attempts/admin/exam/${examId}/stats`, {
-    method: 'GET',
-    headers: getAuthHeaders(),
-    cache: 'no-store',
-  });
+  const response = await fetchWithAuth(
+    `${API_URL}/attempts/admin/exam/${examId}/stats`,
+    { cache: 'no-store' },
+  );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch exam stats');
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch exam stats');
   return response.json();
 }
 
@@ -310,34 +262,22 @@ export async function getAdminUserAttempts(
   queryParams.set('limit', String(limit));
   if (category) queryParams.set('category', category);
 
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_URL}/attempts/admin/user/${userId}?${queryParams.toString()}`,
-    {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      cache: 'no-store',
-    },
+    { cache: 'no-store' },
   );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch user attempts');
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch user attempts');
   return response.json();
 }
 
 // Admin - Get stats
 export async function getAttemptStats(): Promise<AttemptStats> {
-  const response = await fetch(`${API_URL}/attempts/admin/stats`, {
-    method: 'GET',
-    headers: getAuthHeaders(),
+  const response = await fetchWithAuth(`${API_URL}/attempts/admin/stats`, {
     cache: 'no-store',
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch attempt stats');
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch attempt stats');
   return response.json();
 }
 
@@ -347,9 +287,8 @@ export async function getAttemptStats(): Promise<AttemptStats> {
 export async function startInProgressAttempt(
   input: StartInProgressInput,
 ): Promise<ExamAttempt> {
-  const response = await fetch(`${API_URL}/attempts/start`, {
+  const response = await fetchWithAuth(`${API_URL}/attempts/start`, {
     method: 'POST',
-    headers: getAuthHeaders(),
     body: JSON.stringify(input),
   });
 
@@ -362,9 +301,8 @@ export async function updateAttemptProgress(
   id: string,
   input: UpdateProgressInput,
 ): Promise<void> {
-  const response = await fetch(`${API_URL}/attempts/${id}/progress`, {
+  const response = await fetchWithAuth(`${API_URL}/attempts/${id}/progress`, {
     method: 'PATCH',
-    headers: getAuthHeaders(),
     body: JSON.stringify(input),
   });
 
@@ -376,9 +314,8 @@ export async function completeAttempt(
   id: string,
   input: SubmitAttemptInput,
 ): Promise<ExamAttempt> {
-  const response = await fetch(`${API_URL}/attempts/${id}/complete`, {
+  const response = await fetchWithAuth(`${API_URL}/attempts/${id}/complete`, {
     method: 'PATCH',
-    headers: getAuthHeaders(),
     body: JSON.stringify(input),
   });
 
@@ -388,9 +325,7 @@ export async function completeAttempt(
 
 // User - Get all my in-progress attempts
 export async function getMyInProgressAttempts(): Promise<ExamAttempt[]> {
-  const response = await fetch(`${API_URL}/attempts/my/in-progress`, {
-    method: 'GET',
-    headers: getAuthHeaders(),
+  const response = await fetchWithAuth(`${API_URL}/attempts/my/in-progress`, {
     cache: 'no-store',
   });
 
@@ -402,13 +337,9 @@ export async function getMyInProgressAttempts(): Promise<ExamAttempt[]> {
 export async function getMyInProgressForExam(
   examId: string,
 ): Promise<ExamAttempt | null> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_URL}/attempts/my/in-progress/exam/${examId}`,
-    {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      cache: 'no-store',
-    },
+    { cache: 'no-store' },
   );
 
   if (response.status === 404) return null;

@@ -163,8 +163,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(freshUser);
         }
       }).catch((err) => {
-        // Don't clear session on network errors - keep existing data
-        console.error('Failed to refresh user:', err);
+        // If token is expired/invalid, clear session silently
+        const isAuthError =
+          err?.graphQLErrors?.some(
+            (e: any) =>
+              e.extensions?.code === 'UNAUTHENTICATED' ||
+              e.message === 'Unauthorized',
+          ) || err?.networkError?.statusCode === 401;
+
+        if (isAuthError) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+        } else {
+          // Network or other error — keep existing session data
+          console.error('Failed to refresh user:', err);
+        }
       });
     }
     setLoading(false);
