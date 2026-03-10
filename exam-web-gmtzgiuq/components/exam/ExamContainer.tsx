@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Swal from 'sweetalert2';
 import {
   Lightbulb,
   Bookmark,
@@ -19,7 +20,7 @@ import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
 
 interface ExamContainerProps {
-  onComplete: () => void;
+  onComplete: () => void | Promise<void>;
   mode?: 'practice' | 'exam';
   backUrl?: string;
 }
@@ -66,11 +67,27 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
   const correctChoiceId = getCorrectChoiceId(currentQuestion);
   const isFirst = currentIndex === 0;
 
-  const handleFinish = () => {
-    if (confirm('คุณต้องการส่งข้อสอบหรือไม่?')) {
+  const handleFinish = async () => {
+    const unanswered = session.questionIds.filter((id) => !session.answers[id]).length;
+
+    const result = await Swal.fire({
+      title: 'ส่งข้อสอบ?',
+      html: unanswered > 0
+        ? `<p class="text-gray-600">คุณยังมี <strong class="text-red-500">${unanswered} ข้อ</strong> ที่ยังไม่ได้ตอบ<br/>ต้องการส่งข้อสอบหรือไม่?</p>`
+        : `<p class="text-gray-600">ตอบครบทุกข้อแล้ว พร้อมส่งข้อสอบหรือไม่?</p>`,
+      icon: unanswered > 0 ? 'warning' : 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ส่งข้อสอบ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#4f46e5',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true,
+    });
+
+    if (result.isConfirmed) {
       const { session: finalSession, questions } = completeExam();
       saveExamSession(finalSession, questions);
-      onComplete();
+      await onComplete();
     }
   };
 

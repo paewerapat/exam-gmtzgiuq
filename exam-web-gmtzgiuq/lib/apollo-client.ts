@@ -1,6 +1,7 @@
 import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
 
 const httpLink = createHttpLink({
   uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql',
@@ -17,16 +18,18 @@ const authLink = setContext((_, { headers }) => {
 });
 
 // Handle token expiry — clear session and redirect to /login on 401/UNAUTHENTICATED
-const errorLink = onError(({ graphQLErrors, networkError }) => {
-  const isUnauth =
-    graphQLErrors?.some(
+const errorLink = onError(({ error }) => {
+  let isUnauth = false;
+
+  if (CombinedGraphQLErrors.is(error)) {
+    isUnauth = error.errors.some(
       (e) =>
         e.extensions?.code === 'UNAUTHENTICATED' ||
         e.message === 'Unauthorized',
-    ) ||
-    (networkError &&
-      'statusCode' in networkError &&
-      (networkError as any).statusCode === 401);
+    );
+  } else if (error && 'statusCode' in error && (error as any).statusCode === 401) {
+    isUnauth = true;
+  }
 
   if (isUnauth && typeof window !== 'undefined') {
     if (window.location.pathname !== '/login') {

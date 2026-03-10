@@ -114,7 +114,11 @@ export default function HistoryPage() {
                 </div>
                 {attempt.examId && (
                   <Link
-                    href={`/practice/exam/${attempt.examId}`}
+                    href={
+                      attempt.mode === 'exam'
+                        ? `/exam/${attempt.examId}`
+                        : `/practice/exam/${attempt.examId}`
+                    }
                     className="ml-4 flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition flex-shrink-0"
                   >
                     <PlayCircle className="w-4 h-4" />

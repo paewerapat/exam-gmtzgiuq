@@ -444,7 +444,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
   }
 
   // ── Complete ─────────────────────────────────────────────────
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
     const { session: savedSession, questions: savedQuestions } =
@@ -471,17 +471,23 @@ function RealExamPageContent({ examId }: { examId: string }) {
       mode: 'exam' as const,
     };
 
+    // Clear local session first
+    clearRealExamSession(examId);
     const storedAttemptId = attemptIdRef.current;
-    if (storedAttemptId) {
-      completeAttempt(storedAttemptId, payload).catch(console.error);
-      clearBackendAttemptId(examId);
-    } else {
-      submitAttempt(payload).catch(console.error);
+    clearBackendAttemptId(examId);
+
+    // Await the API so status is 'completed' before user navigates back
+    try {
+      if (storedAttemptId) {
+        await completeAttempt(storedAttemptId, payload);
+      } else {
+        await submitAttempt(payload);
+      }
+    } catch (err) {
+      console.error('Failed to submit attempt:', err);
+      // Still show result even if submit fails
     }
 
-    clearRealExamSession(examId);
-
-    // Show result inline
     setResult({
       examTitle: savedSession.examTitle,
       ...examResult,
