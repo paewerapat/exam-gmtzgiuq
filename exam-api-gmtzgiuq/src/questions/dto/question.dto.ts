@@ -42,11 +42,17 @@ export class CreateQuestionInput {
   @IsOptional()
   questionImage?: string;
 
-  @Field(() => [ChoiceInput])
+  @Field(() => [ChoiceInput], { nullable: true })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ChoiceInput)
-  choices: ChoiceInput[];
+  @IsOptional()
+  choices?: ChoiceInput[];
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  correctAnswer?: string;
 
   @Field({ nullable: true })
   @IsString()
@@ -57,6 +63,21 @@ export class CreateQuestionInput {
   @IsString()
   @IsOptional()
   hint?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  chapter?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  chapterId?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  topicId?: string;
 
   @Field(() => QuestionCategory)
   @IsEnum(QuestionCategory)
@@ -105,12 +126,32 @@ export class UpdateQuestionInput {
   @Field({ nullable: true })
   @IsString()
   @IsOptional()
+  correctAnswer?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
   explanation?: string;
 
   @Field({ nullable: true })
   @IsString()
   @IsOptional()
   hint?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  chapter?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  chapterId?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  topicId?: string;
 
   @Field(() => QuestionCategory, { nullable: true })
   @IsEnum(QuestionCategory)

@@ -76,6 +76,16 @@ export class CreateExamQuestionInput {
   @IsNumber()
   @IsOptional()
   orderIndex?: number;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  topicId?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  chapterId?: string;
 }
 
 // Create exam input

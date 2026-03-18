@@ -49,6 +49,8 @@ export interface ExamQuestionInput {
   difficulty?: QuestionDifficulty;
   type?: QuestionType;
   orderIndex?: number;
+  topicId?: string | null;
+  chapterId?: string | null;
 }
 
 export interface CreateExamInput {

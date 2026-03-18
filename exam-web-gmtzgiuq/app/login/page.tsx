@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/';
   const { user, loading: authLoading, login, loginWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -21,9 +23,9 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace('/');
+      router.replace(redirectTo);
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, redirectTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +34,7 @@ export default function LoginPage() {
     try {
       await login(formData.email, formData.password);
       toast.success('เข้าสู่ระบบสำเร็จ!');
+      router.replace(redirectTo);
     } catch {
       toast.error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     } finally {
@@ -49,6 +52,7 @@ export default function LoginPage() {
     try {
       await loginWithGoogle(credentialResponse.credential);
       toast.success('เข้าสู่ระบบด้วย Google สำเร็จ!');
+      router.replace(redirectTo);
     } catch {
       toast.error('เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google');
     } finally {
@@ -185,5 +189,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

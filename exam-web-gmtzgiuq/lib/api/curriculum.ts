@@ -72,6 +72,14 @@ export async function getChaptersBySubject(subjectId: string): Promise<Chapter[]
   return res.json();
 }
 
+export async function getChapter(chapterId: string): Promise<Chapter & { subject?: Subject }> {
+  const res = await fetch(`${API_URL}/curriculum/chapters/${chapterId}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error('Chapter not found');
+  return res.json();
+}
+
 export async function getTopicsByChapter(chapterId: string): Promise<Topic[]> {
   const res = await fetch(
     `${API_URL}/curriculum/chapters/${chapterId}/topics`,

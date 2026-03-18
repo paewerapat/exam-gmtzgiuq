@@ -87,23 +87,17 @@ export default function Home() {
               และวิเคราะห์ผลอย่างละเอียดเพื่อติดตามความก้าวหน้าของคุณ
             </motion.p>
             <motion.div
-              className="flex flex-col sm:flex-row gap-4 justify-center"
+              className="flex justify-center"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.5 }}
             >
               <Link
-                href="/register"
-                className="bg-white text-indigo-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                href="/practice"
+                className="bg-white text-indigo-600 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
               >
-                เริ่มต้นฟรี
-              </Link>
-              <Link
-                href="/blogs"
-                className="bg-transparent text-white px-8 py-4 rounded-xl text-lg font-semibold border-2 border-white/50 hover:bg-white/10 transition flex items-center justify-center"
-              >
-                <Play className="w-5 h-5 mr-2" />
-                ดูรายละเอียด
+                <Play className="w-5 h-5" />
+                เริ่มทำโจทย์
               </Link>
             </motion.div>
           </div>
@@ -321,7 +315,7 @@ export default function Home() {
             <StaggerItem direction="up">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/register"
+                  href="/practice"
                   className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
                   <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition">
@@ -340,7 +334,7 @@ export default function Home() {
             <StaggerItem direction="up">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/register"
+                  href="/practice"
                   className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
                   <div className="p-4 bg-purple-100 rounded-xl mr-4 group-hover:bg-purple-600 transition">
@@ -359,7 +353,7 @@ export default function Home() {
             <StaggerItem direction="up">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/register"
+                  href="/practice"
                   className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
                   <div className="p-4 bg-green-100 rounded-xl mr-4 group-hover:bg-green-600 transition">
@@ -378,7 +372,7 @@ export default function Home() {
             <StaggerItem direction="up">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/register"
+                  href="/practice"
                   className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
                   <div className="p-4 bg-orange-100 rounded-xl mr-4 group-hover:bg-orange-600 transition">
@@ -397,7 +391,7 @@ export default function Home() {
             <StaggerItem direction="up">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/register"
+                  href="/practice"
                   className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
                   <div className="p-4 bg-red-100 rounded-xl mr-4 group-hover:bg-red-600 transition">
@@ -416,7 +410,7 @@ export default function Home() {
             <StaggerItem direction="up">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/register"
+                  href="/practice"
                   className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
                   <div className="p-4 bg-gray-100 rounded-xl mr-4 group-hover:bg-gray-600 transition">

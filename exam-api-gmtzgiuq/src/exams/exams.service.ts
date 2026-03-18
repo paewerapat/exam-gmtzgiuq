@@ -59,6 +59,8 @@ export class ExamsService {
           examId: savedExam.id,
           author,
           authorId: author.id,
+          topicId: q.topicId ?? null,
+          chapterId: q.chapterId ?? null,
         }),
       );
       await manager.save(questions);
@@ -187,6 +189,8 @@ export class ExamsService {
             orderIndex: q.orderIndex ?? index,
             examId: id,
             authorId: exam.authorId,
+            topicId: q.topicId ?? null,
+            chapterId: q.chapterId ?? null,
           }),
         );
         await manager.save(questions);

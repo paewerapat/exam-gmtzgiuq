@@ -63,7 +63,8 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
   const currentIndex = session.currentIndex;
   const userAnswer = session.answers[currentQuestionId];
   const isMarked = session.markedForReview.includes(currentQuestionId);
-  const hasAnswered = !!userAnswer;
+  const isShortAnswer = currentQuestion.type === 'short_answer';
+  const hasAnswered = isShortAnswer ? userAnswer?.trim().length > 0 : !!userAnswer;
   const correctChoiceId = getCorrectChoiceId(currentQuestion);
   const isFirst = currentIndex === 0;
 
@@ -234,22 +235,51 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                 )}
               </div>
 
-              {/* ── RIGHT: choices + check button ── */}
+              {/* ── RIGHT: choices / short-answer input + check button ── */}
               <div className="flex-1 px-6 pb-6 lg:pt-0 pt-4 border-t lg:border-t-0 border-gray-100">
-                <div className="space-y-2.5 mb-5">
-                  {currentQuestion.choices.map((choice, index) => (
-                    <ChoiceButton
-                      key={choice.id}
-                      index={index}
-                      text={choice.text}
-                      isSelected={userAnswer === choice.id}
-                      isCorrect={answerChecked ? choice.id === correctChoiceId : null}
-                      showResult={answerChecked}
+                {isShortAnswer ? (
+                  /* Short-answer text input */
+                  <div className="mb-5">
+                    <label className="block text-sm font-medium text-gray-600 mb-2">
+                      พิมพ์คำตอบ
+                    </label>
+                    <input
+                      type="text"
+                      value={userAnswer ?? ''}
+                      onChange={(e) => selectAnswer(currentQuestionId, e.target.value)}
                       disabled={answerChecked}
-                      onClick={() => selectAnswer(currentQuestionId, choice.id)}
+                      placeholder="พิมพ์คำตอบที่นี่..."
+                      className={`w-full px-4 py-3 border-2 rounded-xl text-base font-medium focus:outline-none transition ${
+                        answerChecked
+                          ? isCorrect
+                            ? 'border-green-400 bg-green-50 text-green-800'
+                            : 'border-red-400 bg-red-50 text-red-800'
+                          : 'border-gray-200 focus:border-indigo-400 bg-white'
+                      }`}
                     />
-                  ))}
-                </div>
+                    {answerChecked && !isCorrect && currentQuestion.correctAnswer && (
+                      <p className="mt-2 text-sm text-gray-500">
+                        คำตอบที่ถูกต้อง: <span className="font-semibold text-gray-800">{currentQuestion.correctAnswer}</span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* Multiple-choice buttons */
+                  <div className="space-y-2.5 mb-5">
+                    {(currentQuestion.choices ?? []).map((choice, index) => (
+                      <ChoiceButton
+                        key={choice.id}
+                        index={index}
+                        text={choice.text}
+                        isSelected={userAnswer === choice.id}
+                        isCorrect={answerChecked ? choice.id === correctChoiceId : null}
+                        showResult={answerChecked}
+                        disabled={answerChecked}
+                        onClick={() => selectAnswer(currentQuestionId, choice.id)}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 {/* ตรวจคำตอบ button — practice mode only */}
                 {mode === 'practice' && (

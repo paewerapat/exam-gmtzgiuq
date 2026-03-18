@@ -31,6 +31,7 @@ export enum QuestionDifficulty {
 export enum QuestionType {
   MULTIPLE_CHOICE = 'multiple_choice',
   TRUE_FALSE = 'true_false',
+  SHORT_ANSWER = 'short_answer',
 }
 
 export enum QuestionStatus {
@@ -70,8 +71,8 @@ export class Question {
   @Column({ nullable: true })
   questionImage: string;
 
-  @Field(() => [QuestionChoice])
-  @Column({ type: 'json' })
+  @Field(() => [QuestionChoice], { nullable: true })
+  @Column({ type: 'json', nullable: true })
   choices: QuestionChoice[];
 
   @Field({ nullable: true })
@@ -81,6 +82,22 @@ export class Question {
   @Field({ nullable: true })
   @Column({ type: 'text', nullable: true })
   hint: string;
+
+  @Field({ nullable: true })
+  @Column({ nullable: true })
+  chapter: string;
+
+  @Field({ nullable: true })
+  @Column({ nullable: true })
+  chapterId: string;
+
+  @Field({ nullable: true })
+  @Column({ nullable: true })
+  topicId: string;
+
+  @Field({ nullable: true })
+  @Column({ nullable: true })
+  correctAnswer: string;
 
   @Field(() => QuestionCategory)
   @Column({ type: 'enum', enum: QuestionCategory })

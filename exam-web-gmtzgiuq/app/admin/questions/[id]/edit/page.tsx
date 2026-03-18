@@ -27,6 +27,12 @@ import {
   type QuestionType as QType,
   type QuestionStatus,
 } from '@/lib/api/questions';
+import {
+  getAdminCurriculumTree,
+  type Subject,
+  type Chapter,
+  type Topic,
+} from '@/lib/api/curriculum';
 
 interface Choice {
   id: string;
@@ -52,15 +58,42 @@ export default function EditQuestionPage() {
     type: 'multiple_choice' as QType,
     status: 'draft' as QuestionStatus,
     tags: '',
+    chapterId: '',
+    topicId: '',
+    correctAnswer: '',
   });
 
   const [choices, setChoices] = useState<Choice[]>([]);
 
-  // Load question data
+  // Curriculum cascade state
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+
+  function handleSubjectChange(subjectId: string) {
+    setSelectedSubjectId(subjectId);
+    const subject = subjects.find((s) => s.id === subjectId);
+    setChapters(subject?.chapters || []);
+    setTopics([]);
+    setFormData((prev) => ({ ...prev, chapterId: '', topicId: '' }));
+  }
+
+  function handleChapterChange(chapterId: string) {
+    const chapter = chapters.find((c) => c.id === chapterId);
+    setTopics(chapter?.topics || []);
+    setFormData((prev) => ({ ...prev, chapterId, topicId: '' }));
+  }
+
+  // Load question data + curriculum tree
   useEffect(() => {
-    async function loadQuestion() {
+    async function loadAll() {
       try {
-        const question = await getAdminQuestion(questionId);
+        const [question, tree] = await Promise.all([
+          getAdminQuestion(questionId),
+          getAdminCurriculumTree(),
+        ]);
+        setSubjects(tree);
         setFormData({
           question: question.question,
           questionImage: question.questionImage || '',
@@ -70,14 +103,31 @@ export default function EditQuestionPage() {
           type: question.type,
           status: question.status,
           tags: question.tags?.join(', ') || '',
+          chapterId: question.chapterId || '',
+          topicId: question.topicId || '',
+          correctAnswer: question.correctAnswer || '',
         });
         setChoices(
-          question.choices.map((c) => ({
+          (question.choices ?? []).map((c) => ({
             id: c.id,
             text: c.text,
             isCorrect: c.isCorrect,
           })),
         );
+
+        // Pre-fill cascade dropdowns from existing chapterId
+        if (question.chapterId) {
+          // Find which subject owns this chapter
+          for (const subject of tree) {
+            const chapter = (subject.chapters || []).find((c) => c.id === question.chapterId);
+            if (chapter) {
+              setSelectedSubjectId(subject.id);
+              setChapters(subject.chapters || []);
+              setTopics(chapter.topics || []);
+              break;
+            }
+          }
+        }
       } catch (err) {
         console.error('Failed to load question:', err);
         toast.error('ไม่สามารถโหลดข้อมูลโจทย์ได้');
@@ -86,7 +136,7 @@ export default function EditQuestionPage() {
         setLoading(false);
       }
     }
-    loadQuestion();
+    loadAll();
   }, [questionId, router]);
 
   const handleAddChoice = () => {
@@ -129,16 +179,22 @@ export default function EditQuestionPage() {
       return;
     }
 
-    const emptyChoices = choices.filter((c) => !c.text.trim());
-    if (emptyChoices.length > 0) {
-      toast.error('กรุณากรอกตัวเลือกให้ครบทุกข้อ');
-      return;
-    }
-
-    const correctChoice = choices.find((c) => c.isCorrect);
-    if (!correctChoice) {
-      toast.error('กรุณาเลือกคำตอบที่ถูกต้อง');
-      return;
+    if (formData.type === 'short_answer') {
+      if (!formData.correctAnswer.trim()) {
+        toast.error('กรุณาใส่คำตอบที่ถูกต้องสำหรับข้อสอบอัตนัย');
+        return;
+      }
+    } else {
+      const emptyChoices = choices.filter((c) => !c.text.trim());
+      if (emptyChoices.length > 0) {
+        toast.error('กรุณากรอกตัวเลือกให้ครบทุกข้อ');
+        return;
+      }
+      const correctChoice = choices.find((c) => c.isCorrect);
+      if (!correctChoice) {
+        toast.error('กรุณาเลือกคำตอบที่ถูกต้อง');
+        return;
+      }
     }
 
     setSaving(true);
@@ -148,6 +204,8 @@ export default function EditQuestionPage() {
         question: formData.question,
         questionImage: formData.questionImage || undefined,
         explanation: formData.explanation || undefined,
+        chapterId: formData.chapterId || undefined,
+        topicId: formData.topicId || undefined,
         category: formData.category as QuestionCategory,
         difficulty: formData.difficulty,
         type: formData.type,
@@ -155,7 +213,9 @@ export default function EditQuestionPage() {
         tags: formData.tags
           ? formData.tags.split(',').map((t) => t.trim()).filter(Boolean)
           : undefined,
-        choices,
+        ...(formData.type === 'short_answer'
+          ? { choices: [], correctAnswer: formData.correctAnswer }
+          : { choices }),
       });
       toast.success('บันทึกโจทย์สำเร็จ!');
       router.push('/admin/questions');
@@ -227,7 +287,8 @@ export default function EditQuestionPage() {
               </div>
             </FadeIn>
 
-            {/* Choices */}
+            {/* Choices (hidden for short_answer) */}
+            {formData.type !== 'short_answer' && (
             <FadeIn delay={0.2}>
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="flex justify-between items-center mb-4">
@@ -315,6 +376,7 @@ export default function EditQuestionPage() {
                 </p>
               </div>
             </FadeIn>
+            )}
 
             {/* Explanation */}
             <FadeIn delay={0.3}>
@@ -426,8 +488,76 @@ export default function EditQuestionPage() {
                     >
                       <option value="multiple_choice">ปรนัย (เลือกตอบ)</option>
                       <option value="true_false">ถูก/ผิด</option>
+                      <option value="short_answer">อัตนัย (พิมพ์คำตอบ)</option>
                     </select>
                   </div>
+
+                  {formData.type === 'short_answer' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        คำตอบที่ถูกต้อง *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.correctAnswer}
+                        onChange={(e) => setFormData({ ...formData, correctAnswer: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="เช่น 42, 3.14, กรุงเทพ"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      วิชา (จากหลักสูตร)
+                    </label>
+                    <select
+                      value={selectedSubjectId}
+                      onChange={(e) => handleSubjectChange(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">— ไม่ระบุวิชา —</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {chapters.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        บท
+                      </label>
+                      <select
+                        value={formData.chapterId}
+                        onChange={(e) => handleChapterChange(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value="">— ไม่ระบุบท —</option>
+                        {chapters.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {topics.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        หัวข้อ
+                      </label>
+                      <select
+                        value={formData.topicId}
+                        onChange={(e) => setFormData({ ...formData, topicId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value="">— ไม่ระบุหัวข้อ —</option>
+                        {topics.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

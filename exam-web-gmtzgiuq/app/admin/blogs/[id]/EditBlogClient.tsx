@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Save, Trash2, Eye, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { getAdminBlog, updateBlog, deleteBlog, type BlogCategory } from '@/lib/api/blogs';
+import ImageUpload from '@/components/upload/ImageUpload';
 
 interface EditBlogClientProps {
   blogId: string;
@@ -304,29 +305,10 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">รูปภาพปก</h2>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  URL รูปภาพ
-                </label>
-                <input
-                  type="url"
-                  value={formData.featuredImage}
-                  onChange={(e) => setFormData({ ...formData, featuredImage: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="https://example.com/image.jpg"
-                />
-              </div>
-
-              {formData.featuredImage && (
-                <div className="mt-4">
-                  <img
-                    src={formData.featuredImage}
-                    alt="Preview"
-                    className="w-full h-40 object-cover rounded-lg"
-                  />
-                </div>
-              )}
+              <ImageUpload
+                value={formData.featuredImage}
+                onChange={(url) => setFormData({ ...formData, featuredImage: url })}
+              />
             </div>
           </div>
         </div>

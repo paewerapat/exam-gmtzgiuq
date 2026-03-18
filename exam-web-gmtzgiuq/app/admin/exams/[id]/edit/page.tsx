@@ -13,6 +13,7 @@ import {
   Loader2,
   GripVertical,
   BookOpen,
+  Tag,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
@@ -23,10 +24,7 @@ import {
 } from '@/lib/api/questions';
 import { getAdminExam, updateExam, type ExamQuestionInput } from '@/lib/api/exams';
 import {
-  getSubjects,
-  getChaptersBySubject,
-  getTopicsByChapter,
-  getTopic,
+  getPublicCurriculumTree,
   type Subject,
   type Chapter,
   type Topic,
@@ -45,6 +43,9 @@ interface QuestionForm {
   explanation: string;
   hint: string;
   expanded: boolean;
+  subjectId: string;
+  chapterId: string;
+  topicId: string;
 }
 
 function generateTempId() {
@@ -65,7 +66,96 @@ function createEmptyQuestion(): QuestionForm {
     explanation: '',
     hint: '',
     expanded: true,
+    subjectId: '',
+    chapterId: '',
+    topicId: '',
   };
+}
+
+// ── Per-question topic selector ─────────────────────────────
+function QuestionTopicSelector({
+  subjects,
+  subjectId,
+  chapterId,
+  topicId,
+  onChange,
+}: {
+  subjects: Subject[];
+  subjectId: string;
+  chapterId: string;
+  topicId: string;
+  onChange: (field: 'subjectId' | 'chapterId' | 'topicId', value: string) => void;
+}) {
+  const selectedSubject = subjects.find((s) => s.id === subjectId);
+  const chapters: Chapter[] = selectedSubject?.chapters ?? [];
+  const selectedChapter = chapters.find((c) => c.id === chapterId);
+  const topics: Topic[] = selectedChapter?.topics ?? [];
+
+  function handleSubjectChange(val: string) {
+    onChange('subjectId', val);
+    onChange('chapterId', '');
+    onChange('topicId', '');
+  }
+
+  function handleChapterChange(val: string) {
+    onChange('chapterId', val);
+    onChange('topicId', '');
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Tag className="w-4 h-4 text-indigo-400" />
+        <span className="text-sm font-medium text-gray-600">
+          บท / หัวข้อของข้อนี้
+          <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">วิชา</label>
+          <select
+            value={subjectId}
+            onChange={(e) => handleSubjectChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          >
+            <option value="">— ไม่ระบุ —</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">บท</label>
+          <select
+            value={chapterId}
+            onChange={(e) => handleChapterChange(e.target.value)}
+            disabled={!subjectId}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+          >
+            <option value="">— ไม่ระบุ —</option>
+            {chapters.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">หัวข้อ</label>
+          <select
+            value={topicId}
+            onChange={(e) => onChange('topicId', e.target.value)}
+            disabled={!chapterId}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+          >
+            <option value="">— ไม่ระบุ —</option>
+            {topics.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function EditExamPage({ params }: PageProps) {
@@ -80,65 +170,74 @@ export default function EditExamPage({ params }: PageProps) {
   const [status, setStatus] = useState<QuestionStatus>('draft');
   const [questions, setQuestions] = useState<QuestionForm[]>([]);
 
-  // Curriculum selector
+  // Curriculum tree (loaded once)
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [selectedSubjectId, setSelectedSubjectId] = useState('');
-  const [selectedChapterId, setSelectedChapterId] = useState('');
-  const [topicId, setTopicId] = useState('');
-  const [loadingChapters, setLoadingChapters] = useState(false);
-  const [loadingTopics, setLoadingTopics] = useState(false);
+
+  // Exam-level curriculum
+  const [examSubjectId, setExamSubjectId] = useState('');
+  const [examChapterId, setExamChapterId] = useState('');
+  const [examTopicId, setExamTopicId] = useState('');
 
   useEffect(() => {
     params.then((p) => setExamId(p.id));
   }, [params]);
 
-  // Load subjects
   useEffect(() => {
-    getSubjects().then(setSubjects).catch(console.error);
+    getPublicCurriculumTree().then(setSubjects).catch(console.error);
   }, []);
 
   useEffect(() => {
-    if (!examId) return;
+    if (!examId || subjects.length === 0) return;
 
     getAdminExam(examId)
-      .then(async (exam) => {
+      .then((exam) => {
         setTitle(exam.title);
         setDescription(exam.description || '');
         setCategory(exam.category as QuestionCategory);
         setStatus(exam.status as QuestionStatus);
+
+        // Build question forms — restore per-question topic from tree
         setQuestions(
-          exam.questions.map((q) => ({
-            tempId: q.id || generateTempId(),
-            question: q.question,
-            questionImage: q.questionImage || '',
-            choices: q.choices,
-            explanation: q.explanation || '',
-            hint: q.hint || '',
-            expanded: false,
-          })),
+          exam.questions.map((q) => {
+            // Find subjectId and chapterId from the tree using q.topicId / q.chapterId
+            let subjectId = '';
+            let chapterId = q.chapterId || '';
+            const topicId = q.topicId || '';
+
+            if (chapterId) {
+              const subj = subjects.find((s) =>
+                s.chapters?.some((c) => c.id === chapterId),
+              );
+              if (subj) subjectId = subj.id;
+            }
+
+            return {
+              tempId: q.id || generateTempId(),
+              question: q.question,
+              questionImage: q.questionImage || '',
+              choices: q.choices,
+              explanation: q.explanation || '',
+              hint: q.hint || '',
+              expanded: false,
+              subjectId,
+              chapterId,
+              topicId,
+            };
+          }),
         );
 
-        // Pre-populate curriculum selector if exam has topicId
+        // Restore exam-level curriculum
         if (exam.topicId) {
-          setTopicId(exam.topicId);
-          try {
-            const topic = await getTopic(exam.topicId);
-            const chapterId = topic.chapterId;
-            const subjectId = topic.chapter?.subjectId;
-            if (subjectId) {
-              setSelectedSubjectId(subjectId);
-              const chs = await getChaptersBySubject(subjectId);
-              setChapters(chs);
+          setExamTopicId(exam.topicId);
+          // Find chapterId and subjectId from tree
+          for (const subj of subjects) {
+            for (const ch of subj.chapters ?? []) {
+              if (ch.topics?.some((t) => t.id === exam.topicId)) {
+                setExamSubjectId(subj.id);
+                setExamChapterId(ch.id);
+                break;
+              }
             }
-            if (chapterId) {
-              setSelectedChapterId(chapterId);
-              const tps = await getTopicsByChapter(chapterId);
-              setTopics(tps);
-            }
-          } catch (e) {
-            console.error('Failed to load curriculum chain:', e);
           }
         }
 
@@ -148,40 +247,21 @@ export default function EditExamPage({ params }: PageProps) {
         console.error('Failed to load exam:', err);
         router.push('/admin/exams');
       });
-  }, [examId, router]);
+  }, [examId, subjects, router]);
 
-  async function handleSubjectChange(subjectId: string) {
-    setSelectedSubjectId(subjectId);
-    setSelectedChapterId('');
-    setTopicId('');
-    setChapters([]);
-    setTopics([]);
-    if (!subjectId) return;
-    setLoadingChapters(true);
-    try {
-      const data = await getChaptersBySubject(subjectId);
-      setChapters(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingChapters(false);
-    }
+  // Exam-level subject/chapter helpers
+  const examChapters: Chapter[] = subjects.find((s) => s.id === examSubjectId)?.chapters ?? [];
+  const examTopics: Topic[] = examChapters.find((c) => c.id === examChapterId)?.topics ?? [];
+
+  function handleExamSubjectChange(val: string) {
+    setExamSubjectId(val);
+    setExamChapterId('');
+    setExamTopicId('');
   }
 
-  async function handleChapterChange(chapterId: string) {
-    setSelectedChapterId(chapterId);
-    setTopicId('');
-    setTopics([]);
-    if (!chapterId) return;
-    setLoadingTopics(true);
-    try {
-      const data = await getTopicsByChapter(chapterId);
-      setTopics(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingTopics(false);
-    }
+  function handleExamChapterChange(val: string) {
+    setExamChapterId(val);
+    setExamTopicId('');
   }
 
   const addQuestion = () => {
@@ -208,15 +288,23 @@ export default function EditExamPage({ params }: PageProps) {
     );
   };
 
+  const updateQuestionTopic = (
+    tempId: string,
+    field: 'subjectId' | 'chapterId' | 'topicId',
+    value: string,
+  ) => {
+    setQuestions((prev) =>
+      prev.map((q) => (q.tempId === tempId ? { ...q, [field]: value } : q)),
+    );
+  };
+
   const updateChoice = (tempId: string, choiceIndex: number, field: keyof QuestionChoice, value: any) => {
     setQuestions((prev) =>
       prev.map((q) => {
         if (q.tempId !== tempId) return q;
         const newChoices = q.choices.map((c, i) => {
           if (i !== choiceIndex) {
-            if (field === 'isCorrect' && value === true) {
-              return { ...c, isCorrect: false };
-            }
+            if (field === 'isCorrect' && value === true) return { ...c, isCorrect: false };
             return c;
           }
           return { ...c, [field]: value };
@@ -231,10 +319,7 @@ export default function EditExamPage({ params }: PageProps) {
       prev.map((q) => {
         if (q.tempId !== tempId || q.choices.length >= 6) return q;
         const nextId = String.fromCharCode(97 + q.choices.length);
-        return {
-          ...q,
-          choices: [...q.choices, { id: nextId, text: '', isCorrect: false }],
-        };
+        return { ...q, choices: [...q.choices, { id: nextId, text: '', isCorrect: false }] };
       }),
     );
   };
@@ -243,40 +328,21 @@ export default function EditExamPage({ params }: PageProps) {
     setQuestions((prev) =>
       prev.map((q) => {
         if (q.tempId !== tempId || q.choices.length <= 2) return q;
-        return {
-          ...q,
-          choices: q.choices.filter((_, i) => i !== choiceIndex),
-        };
+        return { ...q, choices: q.choices.filter((_, i) => i !== choiceIndex) };
       }),
     );
   };
 
   const handleSave = async () => {
     if (!examId) return;
-
-    if (!title.trim()) {
-      toast.error('กรุณากรอกชื่อชุดข้อสอบ');
-      return;
-    }
-    if (!category) {
-      toast.error('กรุณาเลือกหมวดหมู่');
-      return;
-    }
+    if (!title.trim()) { toast.error('กรุณากรอกชื่อชุดข้อสอบ'); return; }
+    if (!category) { toast.error('กรุณาเลือกหมวดหมู่'); return; }
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q.question.trim()) {
-        toast.error(`ข้อที่ ${i + 1}: กรุณากรอกคำถาม`);
-        return;
-      }
-      if (!q.choices.some((c) => c.isCorrect)) {
-        toast.error(`ข้อที่ ${i + 1}: กรุณาเลือกคำตอบที่ถูกต้อง`);
-        return;
-      }
-      if (q.choices.find((c) => !c.text.trim())) {
-        toast.error(`ข้อที่ ${i + 1}: กรุณากรอกตัวเลือกให้ครบ`);
-        return;
-      }
+      if (!q.question.trim()) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกคำถาม`); return; }
+      if (!q.choices.some((c) => c.isCorrect)) { toast.error(`ข้อที่ ${i + 1}: กรุณาเลือกคำตอบที่ถูกต้อง`); return; }
+      if (q.choices.find((c) => !c.text.trim())) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกตัวเลือกให้ครบ`); return; }
     }
 
     setSaving(true);
@@ -288,6 +354,8 @@ export default function EditExamPage({ params }: PageProps) {
         explanation: q.explanation || undefined,
         hint: q.hint || undefined,
         orderIndex: index,
+        topicId: q.topicId || null,
+        chapterId: q.chapterId || null,
       }));
 
       await updateExam(examId, {
@@ -296,7 +364,7 @@ export default function EditExamPage({ params }: PageProps) {
         category: category as QuestionCategory,
         status,
         questions: examQuestions,
-        topicId: topicId || null,
+        topicId: examTopicId || null,
       });
 
       toast.success('อัพเดทชุดข้อสอบสำเร็จ');
@@ -308,6 +376,14 @@ export default function EditExamPage({ params }: PageProps) {
       setSaving(false);
     }
   };
+
+  function getTopicLabel(q: QuestionForm) {
+    if (!q.topicId) return null;
+    const subject = subjects.find((s) => s.id === q.subjectId);
+    const chapter = subject?.chapters?.find((c) => c.id === q.chapterId);
+    const topic = chapter?.topics?.find((t) => t.id === q.topicId);
+    return topic?.name ?? null;
+  }
 
   if (loading) {
     return (
@@ -368,9 +444,7 @@ export default function EditExamPage({ params }: PageProps) {
                   >
                     <option value="">เลือกหมวดหมู่</option>
                     {Object.entries(categoryDisplayNames).map(([key, name]) => (
-                      <option key={key} value={key}>
-                        {name}
-                      </option>
+                      <option key={key} value={key}>{name}</option>
                     ))}
                   </select>
                 </div>
@@ -387,12 +461,12 @@ export default function EditExamPage({ params }: PageProps) {
                 </div>
               </div>
 
-              {/* Curriculum selector */}
+              {/* Exam-level curriculum */}
               <div className="border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-2 mb-3">
                   <BookOpen className="w-4 h-4 text-indigo-500" />
                   <span className="text-sm font-medium text-gray-700">
-                    ผูกกับหลักสูตร
+                    หัวข้อของชุดข้อสอบ (สำหรับคลังข้อสอบ)
                     <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
                   </span>
                 </div>
@@ -400,8 +474,8 @@ export default function EditExamPage({ params }: PageProps) {
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">วิชา</label>
                     <select
-                      value={selectedSubjectId}
-                      onChange={(e) => handleSubjectChange(e.target.value)}
+                      value={examSubjectId}
+                      onChange={(e) => handleExamSubjectChange(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     >
                       <option value="">— ไม่ระบุ —</option>
@@ -413,37 +487,29 @@ export default function EditExamPage({ params }: PageProps) {
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">บท</label>
                     <select
-                      value={selectedChapterId}
-                      onChange={(e) => handleChapterChange(e.target.value)}
-                      disabled={!selectedSubjectId || loadingChapters}
+                      value={examChapterId}
+                      onChange={(e) => handleExamChapterChange(e.target.value)}
+                      disabled={!examSubjectId}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
                     >
                       <option value="">— ไม่ระบุ —</option>
-                      {loadingChapters ? (
-                        <option disabled>กำลังโหลด...</option>
-                      ) : (
-                        chapters.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))
-                      )}
+                      {examChapters.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">หัวข้อ</label>
                     <select
-                      value={topicId}
-                      onChange={(e) => setTopicId(e.target.value)}
-                      disabled={!selectedChapterId || loadingTopics}
+                      value={examTopicId}
+                      onChange={(e) => setExamTopicId(e.target.value)}
+                      disabled={!examChapterId}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
                     >
                       <option value="">— ไม่ระบุ —</option>
-                      {loadingTopics ? (
-                        <option disabled>กำลังโหลด...</option>
-                      ) : (
-                        topics.map((t) => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
-                        ))
-                      )}
+                      {examTopics.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -457,116 +523,147 @@ export default function EditExamPage({ params }: PageProps) {
               คำถาม ({questions.length} ข้อ)
             </h2>
 
-            {questions.map((q, qIndex) => (
-              <div key={q.tempId} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div
-                  className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
-                  onClick={() => toggleExpand(q.tempId)}
-                >
-                  <div className="flex items-center gap-3">
-                    <GripVertical className="w-4 h-4 text-gray-400" />
-                    <span className="font-medium text-gray-900">ข้อที่ {qIndex + 1}</span>
-                    {!q.expanded && q.question && (
-                      <span className="text-sm text-gray-500 truncate max-w-md">
-                        — {q.question.substring(0, 60)}{q.question.length > 60 ? '...' : ''}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {questions.length > 1 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeQuestion(q.tempId); }}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                    {q.expanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                  </div>
-                </div>
-
-                {q.expanded && (
-                  <div className="px-6 py-5 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">คำถาม <span className="text-red-500">*</span></label>
-                      <textarea
-                        value={q.question}
-                        onChange={(e) => updateQuestion(q.tempId, 'question', e.target.value)}
-                        placeholder="พิมพ์คำถาม..."
-                        rows={3}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">URL รูปภาพ</label>
-                      <input
-                        type="text"
-                        value={q.questionImage}
-                        onChange={(e) => updateQuestion(q.tempId, 'questionImage', e.target.value)}
-                        placeholder="https://..."
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">ตัวเลือก <span className="text-red-500">*</span></label>
-                      <div className="space-y-2">
-                        {q.choices.map((choice, cIndex) => (
-                          <div key={cIndex} className="flex items-center gap-3">
-                            <input
-                              type="radio"
-                              name={`correct-${q.tempId}`}
-                              checked={choice.isCorrect}
-                              onChange={() => updateChoice(q.tempId, cIndex, 'isCorrect', true)}
-                              className="w-4 h-4 text-green-600 focus:ring-green-500"
-                            />
-                            <span className="text-sm font-medium text-gray-500 w-6">{String.fromCharCode(65 + cIndex)}.</span>
-                            <input
-                              type="text"
-                              value={choice.text}
-                              onChange={(e) => updateChoice(q.tempId, cIndex, 'text', e.target.value)}
-                              placeholder={`ตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
-                              className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${choice.isCorrect ? 'border-green-300 bg-green-50' : 'border-gray-300'}`}
-                            />
-                            {q.choices.length > 2 && (
-                              <button onClick={() => removeChoice(q.tempId, cIndex)} className="p-1 text-gray-400 hover:text-red-500 transition">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {q.choices.length < 6 && (
-                        <button onClick={() => addChoice(q.tempId)} className="mt-2 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
-                          <Plus className="w-3 h-3" /> เพิ่มตัวเลือก
-                        </button>
+            {questions.map((q, qIndex) => {
+              const topicLabel = getTopicLabel(q);
+              return (
+                <div key={q.tempId} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div
+                    className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
+                    onClick={() => toggleExpand(q.tempId)}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span className="font-medium text-gray-900 flex-shrink-0">ข้อที่ {qIndex + 1}</span>
+                      {!q.expanded && q.question && (
+                        <span className="text-sm text-gray-500 truncate">
+                          — {q.question.substring(0, 60)}{q.question.length > 60 ? '...' : ''}
+                        </span>
+                      )}
+                      {!q.expanded && topicLabel && (
+                        <span className="flex-shrink-0 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">
+                          {topicLabel}
+                        </span>
                       )}
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">คำอธิบายเฉลย</label>
-                      <textarea
-                        value={q.explanation}
-                        onChange={(e) => updateQuestion(q.tempId, 'explanation', e.target.value)}
-                        rows={2}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">คำใบ้</label>
-                      <input
-                        type="text"
-                        value={q.hint}
-                        onChange={(e) => updateQuestion(q.tempId, 'hint', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      />
+                    <div className="flex items-center gap-2">
+                      {questions.length > 1 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeQuestion(q.tempId); }}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      {q.expanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {q.expanded && (
+                    <div className="px-6 py-5 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          คำถาม <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          value={q.question}
+                          onChange={(e) => updateQuestion(q.tempId, 'question', e.target.value)}
+                          placeholder="พิมพ์คำถาม..."
+                          rows={3}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">URL รูปภาพ</label>
+                        <input
+                          type="text"
+                          value={q.questionImage}
+                          onChange={(e) => updateQuestion(q.tempId, 'questionImage', e.target.value)}
+                          placeholder="https://..."
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          ตัวเลือก <span className="text-red-500">*</span>
+                        </label>
+                        <div className="space-y-2">
+                          {q.choices.map((choice, cIndex) => (
+                            <div key={cIndex} className="flex items-center gap-3">
+                              <input
+                                type="radio"
+                                name={`correct-${q.tempId}`}
+                                checked={choice.isCorrect}
+                                onChange={() => updateChoice(q.tempId, cIndex, 'isCorrect', true)}
+                                className="w-4 h-4 text-green-600 focus:ring-green-500"
+                              />
+                              <span className="text-sm font-medium text-gray-500 w-6">
+                                {String.fromCharCode(65 + cIndex)}.
+                              </span>
+                              <input
+                                type="text"
+                                value={choice.text}
+                                onChange={(e) => updateChoice(q.tempId, cIndex, 'text', e.target.value)}
+                                placeholder={`ตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
+                                className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                                  choice.isCorrect ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                                }`}
+                              />
+                              {q.choices.length > 2 && (
+                                <button
+                                  onClick={() => removeChoice(q.tempId, cIndex)}
+                                  className="p-1 text-gray-400 hover:text-red-500 transition"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {q.choices.length < 6 && (
+                          <button
+                            onClick={() => addChoice(q.tempId)}
+                            className="mt-2 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> เพิ่มตัวเลือก
+                          </button>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">คำอธิบายเฉลย</label>
+                        <textarea
+                          value={q.explanation}
+                          onChange={(e) => updateQuestion(q.tempId, 'explanation', e.target.value)}
+                          rows={2}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">คำใบ้</label>
+                        <input
+                          type="text"
+                          value={q.hint}
+                          onChange={(e) => updateQuestion(q.tempId, 'hint', e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      {/* Per-question topic selector */}
+                      <QuestionTopicSelector
+                        subjects={subjects}
+                        subjectId={q.subjectId}
+                        chapterId={q.chapterId}
+                        topicId={q.topicId}
+                        onChange={(field, value) => updateQuestionTopic(q.tempId, field, value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <button
@@ -577,7 +674,10 @@ export default function EditExamPage({ params }: PageProps) {
           </button>
 
           <div className="flex justify-end gap-4">
-            <Link href="/admin/exams" className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+            <Link
+              href="/admin/exams"
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+            >
               ยกเลิก
             </Link>
             <button

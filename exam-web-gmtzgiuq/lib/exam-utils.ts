@@ -47,18 +47,26 @@ export function formatTimeReadable(seconds: number): string {
 }
 
 /**
- * Get the correct choice ID for a question
+ * Get the correct choice ID for a multiple-choice question
  */
 export function getCorrectChoiceId(question: Question): string | undefined {
-  const correctChoice = question.choices.find((c) => c.isCorrect);
-  return correctChoice?.id;
+  return question.choices?.find((c) => c.isCorrect)?.id;
 }
 
 /**
- * Check if an answer is correct
+ * Check if an answer is correct (handles both MC and short_answer)
  */
-export function isAnswerCorrect(question: Question, choiceId: string): boolean {
-  return getCorrectChoiceId(question) === choiceId;
+export function isAnswerCorrect(question: Question, userAnswer: string): boolean {
+  if (question.type === 'short_answer') {
+    if (!question.correctAnswer) return false;
+    const normalize = (s: string) => s.trim().toLowerCase();
+    // Try numeric comparison first
+    const ua = parseFloat(userAnswer.trim());
+    const ca = parseFloat(question.correctAnswer.trim());
+    if (!isNaN(ua) && !isNaN(ca)) return ua === ca;
+    return normalize(userAnswer) === normalize(question.correctAnswer);
+  }
+  return getCorrectChoiceId(question) === userAnswer;
 }
 
 /**

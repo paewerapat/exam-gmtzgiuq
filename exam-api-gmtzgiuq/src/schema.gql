@@ -66,7 +66,10 @@ input CreateBlogInput {
 
 input CreateQuestionInput {
   category: QuestionCategory!
-  choices: [ChoiceInput!]!
+  chapter: String
+  chapterId: String
+  choices: [ChoiceInput!]
+  correctAnswer: String
   difficulty: QuestionDifficulty
   explanation: String
   hint: String
@@ -74,6 +77,7 @@ input CreateQuestionInput {
   questionImage: String
   status: QuestionStatus
   tags: [String!]
+  topicId: String
   type: QuestionType
 }
 
@@ -170,7 +174,10 @@ type Query {
 type Question {
   author: User!
   category: QuestionCategory!
-  choices: [QuestionChoice!]!
+  chapter: String
+  chapterId: String
+  choices: [QuestionChoice!]
+  correctAnswer: String
   createdAt: DateTime!
   difficulty: QuestionDifficulty!
   examId: String
@@ -182,6 +189,7 @@ type Question {
   questionImage: String
   status: QuestionStatus!
   tags: [String!]
+  topicId: String
   type: QuestionType!
   updatedAt: DateTime!
 }
@@ -224,6 +232,7 @@ enum QuestionStatus {
 
 enum QuestionType {
   MULTIPLE_CHOICE
+  SHORT_ANSWER
   TRUE_FALSE
 }
 
@@ -253,7 +262,10 @@ input UpdateBlogInput {
 
 input UpdateQuestionInput {
   category: QuestionCategory
+  chapter: String
+  chapterId: String
   choices: [ChoiceInput!]
+  correctAnswer: String
   difficulty: QuestionDifficulty
   explanation: String
   hint: String
@@ -261,6 +273,7 @@ input UpdateQuestionInput {
   questionImage: String
   status: QuestionStatus
   tags: [String!]
+  topicId: String
   type: QuestionType
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,6 +26,12 @@ import {
   type QuestionType as QType,
   type QuestionStatus,
 } from '@/lib/api/questions';
+import {
+  getAdminCurriculumTree,
+  type Subject,
+  type Chapter,
+  type Topic,
+} from '@/lib/api/curriculum';
 
 interface Choice {
   id: string;
@@ -47,7 +53,34 @@ export default function NewQuestionPage() {
     type: 'multiple_choice' as QType,
     status: 'draft' as QuestionStatus,
     tags: '',
+    chapterId: '',
+    topicId: '',
+    correctAnswer: '',
   });
+
+  // Curriculum cascade state
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+
+  useEffect(() => {
+    getAdminCurriculumTree().then((data) => setSubjects(data)).catch(() => {});
+  }, []);
+
+  function handleSubjectChange(subjectId: string) {
+    setSelectedSubjectId(subjectId);
+    const subject = subjects.find((s) => s.id === subjectId);
+    setChapters(subject?.chapters || []);
+    setTopics([]);
+    setFormData((prev) => ({ ...prev, chapterId: '', topicId: '' }));
+  }
+
+  function handleChapterChange(chapterId: string) {
+    const chapter = chapters.find((c) => c.id === chapterId);
+    setTopics(chapter?.topics || []);
+    setFormData((prev) => ({ ...prev, chapterId, topicId: '' }));
+  }
 
   const [choices, setChoices] = useState<Choice[]>([
     { id: '1', text: '', isCorrect: true },
@@ -96,16 +129,22 @@ export default function NewQuestionPage() {
       return;
     }
 
-    const emptyChoices = choices.filter((c) => !c.text.trim());
-    if (emptyChoices.length > 0) {
-      toast.error('กรุณากรอกตัวเลือกให้ครบทุกข้อ');
-      return;
-    }
-
-    const correctChoice = choices.find((c) => c.isCorrect);
-    if (!correctChoice) {
-      toast.error('กรุณาเลือกคำตอบที่ถูกต้อง');
-      return;
+    if (formData.type === 'short_answer') {
+      if (!formData.correctAnswer.trim()) {
+        toast.error('กรุณาใส่คำตอบที่ถูกต้องสำหรับข้อสอบอัตนัย');
+        return;
+      }
+    } else {
+      const emptyChoices = choices.filter((c) => !c.text.trim());
+      if (emptyChoices.length > 0) {
+        toast.error('กรุณากรอกตัวเลือกให้ครบทุกข้อ');
+        return;
+      }
+      const correctChoice = choices.find((c) => c.isCorrect);
+      if (!correctChoice) {
+        toast.error('กรุณาเลือกคำตอบที่ถูกต้อง');
+        return;
+      }
     }
 
     setLoading(true);
@@ -115,6 +154,8 @@ export default function NewQuestionPage() {
         question: formData.question,
         questionImage: formData.questionImage || undefined,
         explanation: formData.explanation || undefined,
+        chapterId: formData.chapterId || undefined,
+        topicId: formData.topicId || undefined,
         category: formData.category as QuestionCategory,
         difficulty: formData.difficulty,
         type: formData.type,
@@ -122,7 +163,9 @@ export default function NewQuestionPage() {
         tags: formData.tags
           ? formData.tags.split(',').map((t) => t.trim()).filter(Boolean)
           : undefined,
-        choices,
+        ...(formData.type === 'short_answer'
+          ? { choices: [], correctAnswer: formData.correctAnswer }
+          : { choices }),
       });
       toast.success('สร้างโจทย์สำเร็จ!');
       router.push('/admin/questions');
@@ -186,7 +229,8 @@ export default function NewQuestionPage() {
               </div>
             </FadeIn>
 
-            {/* Choices */}
+            {/* Choices (hidden for short_answer) */}
+            {formData.type !== 'short_answer' && (
             <FadeIn delay={0.2}>
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="flex justify-between items-center mb-4">
@@ -274,6 +318,7 @@ export default function NewQuestionPage() {
                 </p>
               </div>
             </FadeIn>
+            )}
 
             {/* Explanation */}
             <FadeIn delay={0.3}>
@@ -380,13 +425,81 @@ export default function NewQuestionPage() {
                     </label>
                     <select
                       value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as QType })}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value as QType, correctAnswer: '' })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     >
                       <option value="multiple_choice">ปรนัย (เลือกตอบ)</option>
                       <option value="true_false">ถูก/ผิด</option>
+                      <option value="short_answer">อัตนัย (พิมพ์คำตอบ)</option>
                     </select>
                   </div>
+
+                  {formData.type === 'short_answer' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        คำตอบที่ถูกต้อง *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.correctAnswer}
+                        onChange={(e) => setFormData({ ...formData, correctAnswer: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="เช่น 42, 3.14, กรุงเทพ"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      วิชา (จากหลักสูตร)
+                    </label>
+                    <select
+                      value={selectedSubjectId}
+                      onChange={(e) => handleSubjectChange(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">— ไม่ระบุวิชา —</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {chapters.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        บท
+                      </label>
+                      <select
+                        value={formData.chapterId}
+                        onChange={(e) => handleChapterChange(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value="">— ไม่ระบุบท —</option>
+                        {chapters.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {topics.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        หัวข้อ
+                      </label>
+                      <select
+                        value={formData.topicId}
+                        onChange={(e) => setFormData({ ...formData, topicId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value="">— ไม่ระบุหัวข้อ —</option>
+                        {topics.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

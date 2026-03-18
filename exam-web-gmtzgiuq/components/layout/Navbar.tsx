@@ -26,6 +26,9 @@ export default function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-8">
+            <Link href="/practice" className="text-gray-700 hover:text-indigo-600 transition font-medium">
+              ฝึกทำข้อสอบ
+            </Link>
             <Link href="/blogs" className="text-gray-700 hover:text-indigo-600 transition">
               บทความ
             </Link>
@@ -83,6 +86,13 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t">
           <div className="px-2 pt-2 pb-3 space-y-1">
+            <Link
+              href="/practice"
+              className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              ฝึกทำข้อสอบ
+            </Link>
             <Link
               href="/blogs"
               className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"

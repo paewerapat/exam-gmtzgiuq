@@ -13,7 +13,7 @@ export type QuestionCategory =
   | 'driving_license';
 
 export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
-export type QuestionType = 'multiple_choice' | 'true_false';
+export type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer';
 export type QuestionStatus = 'draft' | 'published';
 
 export interface QuestionChoice {
@@ -35,6 +35,10 @@ export interface Question {
   choices: QuestionChoice[];
   explanation?: string;
   hint?: string;
+  chapter?: string;
+  chapterId?: string;
+  topicId?: string;
+  correctAnswer?: string;
   category: QuestionCategory;
   difficulty: QuestionDifficulty;
   type: QuestionType;

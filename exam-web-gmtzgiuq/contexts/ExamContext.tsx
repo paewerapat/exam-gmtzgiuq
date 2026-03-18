@@ -15,6 +15,7 @@ import {
   clearExamSession,
   calculateExamResult,
   getCorrectChoiceId,
+  isAnswerCorrect,
 } from '@/lib/exam-utils';
 
 // Initial state
@@ -162,8 +163,7 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
         return state;
       }
 
-      const correctChoiceId = getCorrectChoiceId(currentQuestion);
-      const isCorrect = userAnswer === correctChoiceId;
+      const isCorrect = isAnswerCorrect(currentQuestion, userAnswer);
 
       return {
         ...state,

@@ -69,23 +69,30 @@ function SubjectCard({ subject }: { subject: Subject }) {
             return (
               <div key={chapter.id}>
                 {/* Chapter row */}
-                <button
-                  type="button"
-                  onClick={() => toggleChapter(chapter.id)}
-                  className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition text-left"
-                >
-                  <span className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-                    {isOpen ? (
-                      <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    )}
-                    {chapter.name}
-                  </span>
+                <div className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleChapter(chapter.id)}
+                      className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                    >
+                      {isOpen ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                    <Link
+                      href={`/dashboard/library/chapter/${chapter.id}`}
+                      className="font-semibold text-gray-800 text-sm hover:text-indigo-600 transition truncate"
+                    >
+                      {chapter.name}
+                    </Link>
+                  </div>
                   <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
                     {chapter.examCount ?? 0} ชุด
                   </span>
-                </button>
+                </div>
 
                 {/* Topics */}
                 {isOpen && (

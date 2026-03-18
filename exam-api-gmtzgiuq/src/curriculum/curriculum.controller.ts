@@ -28,6 +28,11 @@ export class CurriculumController {
     return this.curriculumService.findChaptersBySubject(id);
   }
 
+  @Get('chapters/:id')
+  async getChapter(@Param('id') id: string) {
+    return this.curriculumService.findChapterWithTopics(id);
+  }
+
   @Get('chapters/:id/topics')
   async getTopicsByChapter(@Param('id') id: string) {
     return this.curriculumService.findTopicsByChapter(id);

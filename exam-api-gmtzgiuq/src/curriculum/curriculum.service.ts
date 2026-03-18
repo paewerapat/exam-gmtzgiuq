@@ -77,7 +77,7 @@ export class CurriculumService {
   async findChapterWithTopics(id: string): Promise<Chapter> {
     const chapter = await this.chaptersRepo.findOne({
       where: { id },
-      relations: ['topics'],
+      relations: ['topics', 'subject'],
     });
     if (!chapter) throw new NotFoundException('Chapter not found');
     return chapter;
