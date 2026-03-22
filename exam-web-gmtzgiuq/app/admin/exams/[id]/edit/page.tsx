@@ -526,7 +526,7 @@ export default function EditExamPage({ params }: PageProps) {
                       </div>
 
                       {/* Topic selector per question */}
-                      {examSubjectId && subjectTopics.length > 0 && (
+                      {examSubjectId && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             หัวข้อ
@@ -536,8 +536,11 @@ export default function EditExamPage({ params }: PageProps) {
                             value={q.topicId}
                             onChange={(e) => updateQuestion(q.tempId, 'topicId', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            disabled={subjectTopics.length === 0}
                           >
-                            <option value="">— ไม่ระบุหัวข้อ —</option>
+                            <option value="">
+                              {subjectTopics.length === 0 ? '— ยังไม่มีหัวข้อในวิชานี้ —' : '— ไม่ระบุหัวข้อ —'}
+                            </option>
                             {subjectTopics.map((t) => (
                               <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
