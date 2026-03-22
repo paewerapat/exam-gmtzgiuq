@@ -20,7 +20,7 @@ export interface Exam {
   questionCount: number;
   questions: Question[];
   author: QuestionAuthor;
-  topicId?: string | null;
+  subjectId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -25,7 +25,6 @@ import { getAdminExam, updateExam, type ExamQuestionInput } from '@/lib/api/exam
 import {
   getPublicCurriculumTree,
   type Subject,
-  type Chapter,
   type Topic,
 } from '@/lib/api/curriculum';
 import { toast } from 'react-toastify';
@@ -42,6 +41,7 @@ interface QuestionForm {
   questionImage: string;
   choices: QuestionChoice[];
   correctAnswer: string;
+  topicId: string;
   explanation: string;
   hint: string;
   expanded: boolean;
@@ -68,6 +68,7 @@ function createEmptyQuestion(): QuestionForm {
     questionImage: '',
     choices: defaultChoices(),
     correctAnswer: '',
+    topicId: '',
     explanation: '',
     hint: '',
     expanded: true,
@@ -86,13 +87,11 @@ export default function EditExamPage({ params }: PageProps) {
   const [status, setStatus] = useState<QuestionStatus>('draft');
   const [questions, setQuestions] = useState<QuestionForm[]>([]);
 
-  // Curriculum tree (for exam-level selector)
+  // Curriculum tree
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
-  // Exam-level curriculum
+  // Exam-level: subject only
   const [examSubjectId, setExamSubjectId] = useState('');
-  const [examChapterId, setExamChapterId] = useState('');
-  const [examTopicId, setExamTopicId] = useState('');
 
   useEffect(() => {
     params.then((p) => setExamId(p.id));
@@ -120,24 +119,16 @@ export default function EditExamPage({ params }: PageProps) {
             questionImage: q.questionImage || '',
             choices: q.type === 'short_answer' ? [] : (q.choices?.length ? q.choices : defaultChoices()),
             correctAnswer: q.correctAnswer || '',
+            topicId: q.topicId || '',
             explanation: q.explanation || '',
             hint: q.hint || '',
             expanded: false,
           })),
         );
 
-        // Restore exam-level curriculum
-        if (exam.topicId) {
-          setExamTopicId(exam.topicId);
-          for (const subj of subjects) {
-            for (const ch of subj.chapters ?? []) {
-              if (ch.topics?.some((t) => t.id === exam.topicId)) {
-                setExamSubjectId(subj.id);
-                setExamChapterId(ch.id);
-                break;
-              }
-            }
-          }
+        // Restore exam-level subject
+        if (exam.subjectId) {
+          setExamSubjectId(exam.subjectId);
         }
 
         setLoading(false);
@@ -148,19 +139,13 @@ export default function EditExamPage({ params }: PageProps) {
       });
   }, [examId, subjects, router]);
 
-  // Exam-level subject/chapter helpers
-  const examChapters: Chapter[] = subjects.find((s) => s.id === examSubjectId)?.chapters ?? [];
-  const examTopics: Topic[] = examChapters.find((c) => c.id === examChapterId)?.topics ?? [];
+  // Topics for per-question selection (all topics under selected subject)
+  const subjectTopics: Topic[] = (subjects.find((s) => s.id === examSubjectId)?.chapters ?? [])
+    .flatMap((c) => c.topics ?? []);
 
   function handleExamSubjectChange(val: string) {
     setExamSubjectId(val);
-    setExamChapterId('');
-    setExamTopicId('');
-  }
-
-  function handleExamChapterChange(val: string) {
-    setExamChapterId(val);
-    setExamTopicId('');
+    setQuestions((prev) => prev.map((q) => ({ ...q, topicId: '' })));
   }
 
   const addQuestion = () => {
@@ -250,6 +235,7 @@ export default function EditExamPage({ params }: PageProps) {
         type: q.type,
         choices: q.type === 'short_answer' ? [] : q.choices,
         correctAnswer: q.type === 'short_answer' ? q.correctAnswer : undefined,
+        topicId: q.topicId || null,
         explanation: q.explanation || undefined,
         hint: q.hint || undefined,
         orderIndex: index,
@@ -261,7 +247,7 @@ export default function EditExamPage({ params }: PageProps) {
         category: category as QuestionCategory,
         status,
         questions: examQuestions,
-        topicId: examTopicId || null,
+        subjectId: examSubjectId || null,
       });
 
       toast.success('อัพเดทชุดข้อสอบสำเร็จ');
@@ -354,54 +340,19 @@ export default function EditExamPage({ params }: PageProps) {
               <div className="border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-2 mb-3">
                   <BookOpen className="w-4 h-4 text-indigo-500" />
-                  <span className="text-sm font-medium text-gray-700">
-                    หัวข้อของชุดข้อสอบ (สำหรับคลังข้อสอบ)
-                    <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
-                  </span>
+                  <span className="text-sm font-medium text-gray-700">วิชา</span>
+                  <span className="text-xs text-gray-400">(ใช้กำหนดหัวข้อที่เลือกได้ในแต่ละข้อ)</span>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">วิชา</label>
-                    <select
-                      value={examSubjectId}
-                      onChange={(e) => handleExamSubjectChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      <option value="">— ไม่ระบุ —</option>
-                      {subjects.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">บท</label>
-                    <select
-                      value={examChapterId}
-                      onChange={(e) => handleExamChapterChange(e.target.value)}
-                      disabled={!examSubjectId}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
-                    >
-                      <option value="">— ไม่ระบุ —</option>
-                      {examChapters.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">หัวข้อ</label>
-                    <select
-                      value={examTopicId}
-                      onChange={(e) => setExamTopicId(e.target.value)}
-                      disabled={!examChapterId}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
-                    >
-                      <option value="">— ไม่ระบุ —</option>
-                      {examTopics.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                <select
+                  value={examSubjectId}
+                  onChange={(e) => handleExamSubjectChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">— ไม่ระบุวิชา —</option>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -573,6 +524,26 @@ export default function EditExamPage({ params }: PageProps) {
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
                       </div>
+
+                      {/* Topic selector per question */}
+                      {examSubjectId && subjectTopics.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            หัวข้อ
+                            <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
+                          </label>
+                          <select
+                            value={q.topicId}
+                            onChange={(e) => updateQuestion(q.tempId, 'topicId', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          >
+                            <option value="">— ไม่ระบุหัวข้อ —</option>
+                            {subjectTopics.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">คำใบ้</label>
