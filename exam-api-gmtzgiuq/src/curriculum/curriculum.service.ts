@@ -196,41 +196,26 @@ export class CurriculumService {
     // Count distinct published exams per topic via EITHER exam.topicId OR any question.topicId
     const placeholders = allTopicIds.map(() => '?').join(',');
 
-    // Count distinct published exam sets per topic
+    // Count distinct published exam sets per topic (via question.topicId)
     const examRows: { topicId: string; cnt: string }[] =
       await this.topicsRepo.manager.query(
-        `SELECT topic_id AS topicId, COUNT(DISTINCT exam_id) AS cnt
-         FROM (
-           SELECT e.topicId AS topic_id, e.id AS exam_id
-           FROM exams e
-           WHERE e.topicId IN (${placeholders}) AND e.status = 'published'
-           UNION ALL
-           SELECT q.topicId AS topic_id, e.id AS exam_id
-           FROM questions q
-           INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
-           WHERE q.topicId IN (${placeholders})
-         ) combined
-         GROUP BY topic_id`,
-        [...allTopicIds, ...allTopicIds],
+        `SELECT q.topicId AS topicId, COUNT(DISTINCT e.id) AS cnt
+         FROM questions q
+         INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
+         WHERE q.topicId IN (${placeholders})
+         GROUP BY q.topicId`,
+        allTopicIds,
       );
 
-    // Count distinct questions per topic
+    // Count distinct questions per topic (via question.topicId)
     const questionRows: { topicId: string; cnt: string }[] =
       await this.topicsRepo.manager.query(
-        `SELECT topic_id AS topicId, COUNT(DISTINCT question_id) AS cnt
-         FROM (
-           SELECT q.topicId AS topic_id, q.id AS question_id
-           FROM questions q
-           INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
-           WHERE q.topicId IN (${placeholders})
-           UNION
-           SELECT e.topicId AS topic_id, q.id AS question_id
-           FROM questions q
-           INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
-           WHERE e.topicId IN (${placeholders})
-         ) combined
-         GROUP BY topic_id`,
-        [...allTopicIds, ...allTopicIds],
+        `SELECT q.topicId AS topicId, COUNT(DISTINCT q.id) AS cnt
+         FROM questions q
+         INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
+         WHERE q.topicId IN (${placeholders})
+         GROUP BY q.topicId`,
+        allTopicIds,
       );
 
     const examCountMap = new Map(examRows.map((r) => [r.topicId, parseInt(r.cnt, 10)]));
