@@ -1,7 +1,6 @@
 // Exam API Service
 import type {
   Question,
-  QuestionCategory,
   QuestionChoice,
   QuestionDifficulty,
   QuestionType,
@@ -15,7 +14,7 @@ export interface Exam {
   id: string;
   title: string;
   description?: string;
-  category: QuestionCategory;
+  category: string;
   status: QuestionStatus;
   questionCount: number;
   questions: Question[];
@@ -56,7 +55,7 @@ export interface ExamQuestionInput {
 export interface CreateExamInput {
   title: string;
   description?: string;
-  category: QuestionCategory;
+  category: string;
   status?: QuestionStatus;
   questions: ExamQuestionInput[];
   subjectId?: string | null;
@@ -65,7 +64,7 @@ export interface CreateExamInput {
 export interface UpdateExamInput {
   title?: string;
   description?: string;
-  category?: QuestionCategory;
+  category?: string;
   status?: QuestionStatus;
   questions?: ExamQuestionInput[];
   subjectId?: string | null;
@@ -75,7 +74,7 @@ export interface GetExamsParams {
   page?: number;
   limit?: number;
   status?: QuestionStatus;
-  category?: QuestionCategory;
+  category?: string;
   search?: string;
 }
 

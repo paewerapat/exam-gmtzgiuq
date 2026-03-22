@@ -28,9 +28,9 @@ export class Exam {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Field(() => QuestionCategory)
-  @Column({ type: 'enum', enum: QuestionCategory })
-  category: QuestionCategory;
+  @Field()
+  @Column({ type: 'varchar', length: 100 })
+  category: string;
 
   @Field(() => QuestionStatus)
   @Column({

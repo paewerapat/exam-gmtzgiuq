@@ -24,11 +24,11 @@ import {
   type ExamStats,
 } from '@/lib/api/exams';
 import {
-  categoryDisplayNames,
   categoryIcons,
   type QuestionCategory,
   type QuestionStatus,
 } from '@/lib/api/questions';
+import { getCategories, type Category } from '@/lib/api/categories';
 import { toast } from 'react-toastify';
 
 export default function AdminExamsPage() {
@@ -42,6 +42,12 @@ export default function AdminExamsPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [apiCategories, setApiCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    getCategories().then(setApiCategories).catch(console.error);
+    getExamStats().then(setStats).catch(console.error);
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -73,10 +79,6 @@ export default function AdminExamsPage() {
   useEffect(() => {
     fetchExams();
   }, [fetchExams]);
-
-  useEffect(() => {
-    getExamStats().then(setStats).catch(console.error);
-  }, []);
 
   const handleDelete = async (id: string) => {
     if (!confirm('ต้องการลบชุดข้อสอบนี้?')) return;
@@ -112,11 +114,11 @@ export default function AdminExamsPage() {
 
   const categories = [
     { id: 'all', name: 'ทั้งหมด', icon: FileQuestion, count: stats?.total || 0 },
-    ...Object.entries(categoryDisplayNames).map(([key, name]) => ({
-      id: key,
-      name,
+    ...apiCategories.map((cat) => ({
+      id: cat.slug,
+      name: cat.name,
       icon: BookOpen,
-      count: stats?.byCategory.find((c) => c.category === key)?.count || 0,
+      count: stats?.byCategory.find((c) => c.category === cat.slug)?.count || 0,
     })),
   ];
 
@@ -243,7 +245,7 @@ export default function AdminExamsPage() {
                             <td className="px-4 py-4">
                               <span className="text-sm text-gray-600">
                                 {categoryIcons[exam.category as QuestionCategory]}{' '}
-                                {categoryDisplayNames[exam.category as QuestionCategory] || exam.category}
+                                {apiCategories.find((c) => c.slug === exam.category)?.name ?? exam.category}
                               </span>
                             </td>
                             <td className="px-4 py-4">

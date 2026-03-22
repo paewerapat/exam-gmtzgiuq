@@ -106,9 +106,9 @@ export class CreateExamInput {
   @IsOptional()
   description?: string;
 
-  @Field(() => QuestionCategory)
-  @IsEnum(QuestionCategory)
-  category: QuestionCategory;
+  @Field()
+  @IsString()
+  category: string;
 
   @Field(() => QuestionStatus, { nullable: true })
   @IsEnum(QuestionStatus)
@@ -140,10 +140,10 @@ export class UpdateExamInput {
   @IsOptional()
   description?: string;
 
-  @Field(() => QuestionCategory, { nullable: true })
-  @IsEnum(QuestionCategory)
+  @Field({ nullable: true })
+  @IsString()
   @IsOptional()
-  category?: QuestionCategory;
+  category?: string;
 
   @Field(() => QuestionStatus, { nullable: true })
   @IsEnum(QuestionStatus)

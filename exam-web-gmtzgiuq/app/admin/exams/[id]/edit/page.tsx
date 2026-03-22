@@ -16,12 +16,11 @@ import {
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
-  categoryDisplayNames,
-  type QuestionCategory,
   type QuestionChoice,
   type QuestionStatus,
 } from '@/lib/api/questions';
 import { getAdminExam, updateExam, type ExamQuestionInput } from '@/lib/api/exams';
+import { getCategories, type Category } from '@/lib/api/categories';
 import {
   getPublicCurriculumTree,
   type Subject,
@@ -83,9 +82,12 @@ export default function EditExamPage({ params }: PageProps) {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<QuestionCategory | ''>('');
+  const [category, setCategory] = useState('');
   const [status, setStatus] = useState<QuestionStatus>('draft');
   const [questions, setQuestions] = useState<QuestionForm[]>([]);
+
+  // Categories
+  const [categories, setCategories] = useState<Category[]>([]);
 
   // Curriculum tree
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -98,17 +100,18 @@ export default function EditExamPage({ params }: PageProps) {
   }, [params]);
 
   useEffect(() => {
+    getCategories().then(setCategories).catch(console.error);
     getPublicCurriculumTree().then(setSubjects).catch(console.error);
   }, []);
 
   useEffect(() => {
-    if (!examId || subjects.length === 0) return;
+    if (!examId) return;
 
     getAdminExam(examId)
       .then((exam) => {
         setTitle(exam.title);
         setDescription(exam.description || '');
-        setCategory(exam.category as QuestionCategory);
+        setCategory(exam.category);
         setStatus(exam.status as QuestionStatus);
 
         setQuestions(
@@ -137,7 +140,7 @@ export default function EditExamPage({ params }: PageProps) {
         console.error('Failed to load exam:', err);
         router.push('/admin/exams');
       });
-  }, [examId, subjects, router]);
+  }, [examId, router]);
 
   // Topics for per-question selection (all topics under selected subject)
   const subjectTopics: Topic[] = (subjects.find((s) => s.id === examSubjectId)?.chapters ?? [])
@@ -244,7 +247,7 @@ export default function EditExamPage({ params }: PageProps) {
       await updateExam(examId, {
         title,
         description: description || undefined,
-        category: category as QuestionCategory,
+        category,
         status,
         questions: examQuestions,
         subjectId: examSubjectId || null,
@@ -314,12 +317,12 @@ export default function EditExamPage({ params }: PageProps) {
                   </label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as QuestionCategory)}
+                    onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="">เลือกหมวดหมู่</option>
-                    {Object.entries(categoryDisplayNames).map(([key, name]) => (
-                      <option key={key} value={key}>{name}</option>
+                    {categories.map((cat) => (
+                      <option key={cat.slug} value={cat.slug}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
@@ -393,6 +396,29 @@ export default function EditExamPage({ params }: PageProps) {
 
                   {q.expanded && (
                     <div className="px-6 py-5 space-y-4">
+                      {/* Topic selector per question */}
+                      {examSubjectId && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            หัวข้อ
+                            <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
+                          </label>
+                          <select
+                            value={q.topicId}
+                            onChange={(e) => updateQuestion(q.tempId, 'topicId', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            disabled={subjectTopics.length === 0}
+                          >
+                            <option value="">
+                              {subjectTopics.length === 0 ? '— ยังไม่มีหัวข้อในวิชานี้ —' : '— ไม่ระบุหัวข้อ —'}
+                            </option>
+                            {subjectTopics.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
                       {/* Question type toggle */}
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-700">ประเภท:</span>
@@ -524,29 +550,6 @@ export default function EditExamPage({ params }: PageProps) {
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
                       </div>
-
-                      {/* Topic selector per question */}
-                      {examSubjectId && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            หัวข้อ
-                            <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
-                          </label>
-                          <select
-                            value={q.topicId}
-                            onChange={(e) => updateQuestion(q.tempId, 'topicId', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            disabled={subjectTopics.length === 0}
-                          >
-                            <option value="">
-                              {subjectTopics.length === 0 ? '— ยังไม่มีหัวข้อในวิชานี้ —' : '— ไม่ระบุหัวข้อ —'}
-                            </option>
-                            {subjectTopics.map((t) => (
-                              <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">คำใบ้</label>

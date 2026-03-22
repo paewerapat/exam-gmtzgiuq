@@ -449,10 +449,15 @@ function RealExamPageContent({ examId }: { examId: string }) {
   const handleComplete = async () => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
-    const { session: savedSession, questions: savedQuestions } =
-      loadRealExamSession(examId);
+    // Try real-exam session first; fall back to generic session saved by ExamContainer
+    let { session: savedSession, questions: savedQuestions } = loadRealExamSession(examId);
+    if (!savedSession) {
+      const fallback = loadExamSession(true);
+      savedSession = fallback.session;
+      savedQuestions = fallback.questions ?? [];
+    }
 
-    if (!savedSession || !savedQuestions) return;
+    if (!savedSession) return;
 
     const examResult = calculateExamResult(savedSession, savedQuestions);
     const payload = {

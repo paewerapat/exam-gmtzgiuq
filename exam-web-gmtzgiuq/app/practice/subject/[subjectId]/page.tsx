@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, RotateCcw, BookOpen } from 'lucide-react';
+import { Loader2, RotateCcw, BookOpen, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
 import { ExamProvider, useExam } from '@/contexts/ExamContext';
 import { ExamContainer } from '@/components/exam';
 import {
@@ -10,11 +10,21 @@ import {
   saveExamSession,
   clearExamSession,
   generateSessionId,
+  calculateExamResult,
 } from '@/lib/exam-utils';
 import { getQuestionsBySubject } from '@/lib/api/questions';
 import { getPublicCurriculumTree } from '@/lib/api/curriculum';
 import type { ExamSession } from '@/types/exam';
 import type { Question } from '@/lib/api/questions';
+
+interface ExamResult {
+  totalQuestions: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unanswered: number;
+  score: number;
+  examTitle: string;
+}
 
 function SubjectExamContent({ subjectId }: { subjectId: string }) {
   const router = useRouter();
@@ -24,6 +34,7 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
   const [showResume, setShowResume] = useState(false);
   const [pendingSession, setPendingSession] = useState<ExamSession | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<Question[]>([]);
+  const [result, setResult] = useState<ExamResult | null>(null);
 
   const sessionKey = `subject_${subjectId}`;
 
@@ -123,8 +134,12 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
 
   useEffect(() => {
     if (!loading && !showResume && state.session.status === 'completed' && state.session.examId === sessionKey) {
+      const { session: savedSession, questions: savedQuestions } = loadExamSession(true);
+      if (savedSession && savedQuestions) {
+        const r = calculateExamResult(savedSession, savedQuestions);
+        setResult({ ...r, examTitle: savedSession.examTitle });
+      }
       clearExamSession();
-      router.push('/dashboard/library');
     }
   }, [loading, showResume, state.session.status, state.session.examId]);
 
@@ -189,12 +204,64 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
     );
   }
 
+  if (result) {
+    const passed = result.score >= 60;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${passed ? 'bg-green-100' : 'bg-red-100'}`}>
+            <BookOpen className={`w-10 h-10 ${passed ? 'text-green-600' : 'text-red-600'}`} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">ผลการทำข้อสอบ</h2>
+          <p className="text-gray-500 text-sm mb-5">{result.examTitle}</p>
+          <div className={`inline-flex items-center justify-center w-28 h-28 rounded-full border-4 mb-6 ${passed ? 'border-green-500' : 'border-red-400'}`}>
+            <div>
+              <p className={`text-3xl font-bold leading-none ${passed ? 'text-green-600' : 'text-red-500'}`}>
+                {Math.round(result.score)}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">คะแนน</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-8">
+            <div className="bg-green-50 rounded-xl p-3">
+              <CheckCircle className="w-5 h-5 text-green-500 mx-auto mb-1" />
+              <p className="text-xl font-bold text-green-700">{result.correctAnswers}</p>
+              <p className="text-xs text-gray-500">ถูก</p>
+            </div>
+            <div className="bg-red-50 rounded-xl p-3">
+              <XCircle className="w-5 h-5 text-red-400 mx-auto mb-1" />
+              <p className="text-xl font-bold text-red-600">{result.incorrectAnswers}</p>
+              <p className="text-xs text-gray-500">ผิด</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <MinusCircle className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+              <p className="text-xl font-bold text-gray-600">{result.unanswered}</p>
+              <p className="text-xs text-gray-500">ไม่ตอบ</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => { setResult(null); handleStartFresh(); }}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition flex items-center justify-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              ทำอีกครั้ง
+            </button>
+            <button
+              onClick={() => router.push('/dashboard/library')}
+              className="w-full py-3 border border-gray-300 text-gray-600 rounded-xl font-medium hover:bg-gray-50 transition"
+            >
+              กลับคลังข้อสอบ
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ExamContainer
-      onComplete={() => {
-        clearExamSession();
-        router.push('/dashboard/library');
-      }}
+      onComplete={() => { /* handled by useEffect */ }}
       mode="practice"
       backUrl="/dashboard/library"
     />

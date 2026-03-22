@@ -99,9 +99,9 @@ export class Question {
   @Column({ nullable: true })
   correctAnswer: string;
 
-  @Field(() => QuestionCategory)
-  @Column({ type: 'enum', enum: QuestionCategory })
-  category: QuestionCategory;
+  @Field()
+  @Column({ type: 'varchar', length: 100 })
+  category: string;
 
   @Field(() => QuestionDifficulty)
   @Column({

@@ -15,10 +15,7 @@ import {
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { getPublicExams, type Exam } from '@/lib/api/exams';
-import {
-  categoryDisplayNames,
-  type QuestionCategory,
-} from '@/lib/api/questions';
+import { getCategories, type Category } from '@/lib/api/categories';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getMyInProgressAttempts,
@@ -107,10 +104,9 @@ function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
 }
 
 // ── Exam card ───────────────────────────────────────────────
-function ExamCard({ exam }: { exam: Exam }) {
+function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) {
   const [from, to] = getBannerGradient(exam.category);
-  const catName =
-    categoryDisplayNames[exam.category as QuestionCategory] ?? exam.category;
+  const catName = categories.find((c) => c.slug === exam.category)?.name ?? exam.category;
   const createdDate = new Date(exam.createdAt).toLocaleDateString('th-TH', {
     day: 'numeric',
     month: 'short',
@@ -159,9 +155,11 @@ function ExamCard({ exam }: { exam: Exam }) {
 function CategoryDropdown({
   value,
   onChange,
+  categories,
 }: {
   value: string;
   onChange: (v: string) => void;
+  categories: Category[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -177,11 +175,11 @@ function CategoryDropdown({
   }, []);
 
   const options = [
-    { value: '', label: 'เลือกสนามสอบ' },
-    ...Object.entries(categoryDisplayNames).map(([k, v]) => ({ value: k, label: v })),
+    { value: '', label: 'เลือกหมวดหมู่' },
+    ...categories.map((c) => ({ value: c.slug, label: c.name })),
   ];
   const selectedLabel =
-    options.find((o) => o.value === value)?.label ?? 'เลือกสนามสอบ';
+    options.find((o) => o.value === value)?.label ?? 'เลือกหมวดหมู่';
 
   return (
     <div ref={ref} className="relative">
@@ -227,6 +225,7 @@ function isLoggedIn() {
 
 export default function PracticePage() {
   const { logout } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
@@ -237,6 +236,10 @@ export default function PracticePage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [inProgress, setInProgress] = useState<ExamAttempt[]>([]);
+
+  useEffect(() => {
+    getCategories().then(setCategories).catch(() => {});
+  }, []);
 
   // Fetch in-progress attempts (only if logged in)
   useEffect(() => {
@@ -251,7 +254,7 @@ export default function PracticePage() {
         page,
         limit: LIMIT,
         search: search || undefined,
-        category: (category as QuestionCategory) || undefined,
+        category: category || undefined,
       });
       setData(result);
     } catch (err) {
@@ -329,7 +332,7 @@ export default function PracticePage() {
             />
           </div>
 
-          <CategoryDropdown value={category} onChange={handleCategory} />
+          <CategoryDropdown value={category} onChange={handleCategory} categories={categories} />
 
           {/* Subject placeholder */}
           <button className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 bg-white rounded-full text-sm text-gray-500 whitespace-nowrap cursor-default">
@@ -374,7 +377,7 @@ export default function PracticePage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {data.items.map((exam) => (
-              <ExamCard key={exam.id} exam={exam} />
+              <ExamCard key={exam.id} exam={exam} categories={categories} />
             ))}
           </div>
         )}

@@ -79,9 +79,9 @@ export class CreateQuestionInput {
   @IsOptional()
   topicId?: string;
 
-  @Field(() => QuestionCategory)
-  @IsEnum(QuestionCategory)
-  category: QuestionCategory;
+  @Field()
+  @IsString()
+  category: string;
 
   @Field(() => QuestionDifficulty, { nullable: true })
   @IsEnum(QuestionDifficulty)
@@ -153,10 +153,10 @@ export class UpdateQuestionInput {
   @IsOptional()
   topicId?: string;
 
-  @Field(() => QuestionCategory, { nullable: true })
-  @IsEnum(QuestionCategory)
+  @Field({ nullable: true })
+  @IsString()
   @IsOptional()
-  category?: QuestionCategory;
+  category?: string;
 
   @Field(() => QuestionDifficulty, { nullable: true })
   @IsEnum(QuestionDifficulty)

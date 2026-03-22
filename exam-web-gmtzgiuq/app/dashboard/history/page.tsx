@@ -13,7 +13,7 @@ import {
   getMyAttempts, getMyStats,
   type ExamAttempt, type UserAttemptStats,
 } from '@/lib/api/attempts';
-import { categoryDisplayNames, type QuestionCategory } from '@/lib/api/questions';
+import { getCategories, type Category } from '@/lib/api/categories';
 import { formatTimeReadable } from '@/lib/exam-utils';
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -38,10 +38,10 @@ function getRecommendation(score: number) {
 
 // ── Attempt Card ──────────────────────────────────────────────────────
 
-function AttemptCard({ attempt, scoreChange }: { attempt: ExamAttempt; scoreChange: number | null }) {
+function AttemptCard({ attempt, scoreChange, categories }: { attempt: ExamAttempt; scoreChange: number | null; categories: Category[] }) {
   const score = Math.round(Number(attempt.score));
   const rec = getRecommendation(score);
-  const catName = categoryDisplayNames[attempt.category as QuestionCategory] || attempt.category;
+  const catName = categories.find((c) => c.slug === attempt.category)?.name ?? attempt.category;
   const examLink = attempt.examId
     ? attempt.mode === 'exam' ? `/exam/${attempt.examId}` : `/practice/exam/${attempt.examId}`
     : '#';
@@ -130,6 +130,7 @@ function ChartTooltip({ active, payload, label }: any) {
 const LIMIT = 10;
 
 export default function HistoryPage() {
+  const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<UserAttemptStats | null>(null);
   const [allAttempts, setAllAttempts] = useState<ExamAttempt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,6 +141,10 @@ export default function HistoryPage() {
 
   const [selectedExamTitle, setSelectedExamTitle] = useState('');
   const [chartDropdownOpen, setChartDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    getCategories().then(setCategories).catch(() => {});
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -384,9 +389,9 @@ export default function HistoryPage() {
           onChange={(e) => { setCategory(e.target.value); setPage(1); }}
           className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
         >
-          <option value="">เลือกสนามสอบ</option>
-          {Object.entries(categoryDisplayNames).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
+          <option value="">เลือกหมวดหมู่</option>
+          {categories.map((cat) => (
+            <option key={cat.slug} value={cat.slug}>{cat.name}</option>
           ))}
         </select>
       </div>
@@ -409,7 +414,7 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-3">
           {pagedAttempts.map((attempt) => (
-            <AttemptCard key={attempt.id} attempt={attempt} scoreChange={scoreChanges[attempt.id] ?? null} />
+            <AttemptCard key={attempt.id} attempt={attempt} scoreChange={scoreChanges[attempt.id] ?? null} categories={categories} />
           ))}
         </div>
       )}

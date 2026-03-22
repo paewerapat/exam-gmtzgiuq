@@ -65,7 +65,7 @@ input CreateBlogInput {
 }
 
 input CreateQuestionInput {
-  category: QuestionCategory!
+  category: String!
   chapter: String
   chapterId: String
   choices: [ChoiceInput!]
@@ -88,13 +88,14 @@ scalar DateTime
 
 type Exam {
   author: User!
-  category: QuestionCategory!
+  category: String!
   createdAt: DateTime!
   description: String
   id: ID!
   questionCount: Int!
   questions: [Question!]!
   status: QuestionStatus!
+  subjectId: String
   title: String!
   updatedAt: DateTime!
 }
@@ -173,7 +174,7 @@ type Query {
 
 type Question {
   author: User!
-  category: QuestionCategory!
+  category: String!
   chapter: String
   chapterId: String
   choices: [QuestionChoice!]
@@ -261,7 +262,7 @@ input UpdateBlogInput {
 }
 
 input UpdateQuestionInput {
-  category: QuestionCategory
+  category: String
   chapter: String
   chapterId: String
   choices: [ChoiceInput!]

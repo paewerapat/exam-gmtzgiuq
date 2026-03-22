@@ -235,7 +235,7 @@ export class ExamsService {
       .leftJoinAndSelect('exam.author', 'author')
       .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
       .andWhere(
-        '(exam.topicId = :topicId OR EXISTS (SELECT 1 FROM questions q WHERE q.examId = exam.id AND q.topicId = :topicId))',
+        'EXISTS (SELECT 1 FROM questions q WHERE q.examId = exam.id AND q.topicId = :topicId)',
         { topicId },
       )
       .orderBy('exam.createdAt', 'DESC')

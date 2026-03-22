@@ -12,10 +12,7 @@ import {
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { getPublicExams, type Exam } from '@/lib/api/exams';
-import {
-  categoryDisplayNames,
-  type QuestionCategory,
-} from '@/lib/api/questions';
+import { getCategories, type Category } from '@/lib/api/categories';
 
 // ── Category banner gradients ───────────────────────────────
 const categoryGradients: Record<string, [string, string]> = {
@@ -56,11 +53,10 @@ function isLoggedIn() {
 }
 
 // ── Exam card ───────────────────────────────────────────────
-function ExamCard({ exam }: { exam: Exam }) {
+function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) {
   const router = useRouter();
   const [from, to] = getBannerGradient(exam.category);
-  const catName =
-    categoryDisplayNames[exam.category as QuestionCategory] ?? exam.category;
+  const catName = categories.find((c) => c.slug === exam.category)?.name ?? exam.category;
   const createdDate = new Date(exam.createdAt).toLocaleDateString('th-TH', {
     day: 'numeric',
     month: 'short',
@@ -118,9 +114,11 @@ function ExamCard({ exam }: { exam: Exam }) {
 function CategoryDropdown({
   value,
   onChange,
+  categories,
 }: {
   value: string;
   onChange: (v: string) => void;
+  categories: Category[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -137,7 +135,7 @@ function CategoryDropdown({
 
   const options = [
     { value: '', label: 'ทุกหมวดหมู่' },
-    ...Object.entries(categoryDisplayNames).map(([k, v]) => ({ value: k, label: v })),
+    ...categories.map((c) => ({ value: c.slug, label: c.name })),
   ];
   const selectedLabel =
     options.find((o) => o.value === value)?.label ?? 'ทุกหมวดหมู่';
@@ -181,6 +179,7 @@ function CategoryDropdown({
 const LIMIT = 12;
 
 export default function PublicPracticePage() {
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
@@ -191,6 +190,10 @@ export default function PublicPracticePage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    getCategories().then(setCategories).catch(() => {});
+  }, []);
+
   const fetchExams = useCallback(async () => {
     setLoading(true);
     try {
@@ -198,7 +201,7 @@ export default function PublicPracticePage() {
         page,
         limit: LIMIT,
         search: search || undefined,
-        category: (category as QuestionCategory) || undefined,
+        category: category || undefined,
       });
       setData(result);
     } catch (err) {
@@ -256,7 +259,7 @@ export default function PublicPracticePage() {
                   className="w-full pl-11 pr-5 py-2.5 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition"
                 />
               </div>
-              <CategoryDropdown value={category} onChange={handleCategory} />
+              <CategoryDropdown value={category} onChange={handleCategory} categories={categories} />
             </div>
 
             <div className="flex items-center justify-between mt-3 px-1">
@@ -289,7 +292,7 @@ export default function PublicPracticePage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
               {data.items.map((exam) => (
-                <ExamCard key={exam.id} exam={exam} />
+                <ExamCard key={exam.id} exam={exam} categories={categories} />
               ))}
             </div>
           )}
