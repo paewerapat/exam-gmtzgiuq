@@ -300,16 +300,6 @@ function RealExamPageContent({ examId }: { examId: string }) {
       const { session: existingSession, questions: existingQuestions } =
         loadRealExamSession(examId);
 
-      if (existingSession && existingQuestions && existingSession.examId === examId) {
-        if (existingSession.status === 'completed') {
-          clearRealExamSession(examId);
-        } else {
-          const storedId = loadBackendAttemptId(examId);
-          await initFromSessionAndAttempt(existingSession, existingQuestions, storedId);
-          return;
-        }
-      }
-
       // 2. Check backend for in-progress (mode=exam)
       let backendAttempt: ExamAttempt | null = null;
       if (isLoggedIn()) {
@@ -321,9 +311,21 @@ function RealExamPageContent({ examId }: { examId: string }) {
         } catch { /* ignore */ }
       }
 
-      // 3. Fetch exam
+      // 3. Fetch exam (always fresh from API to get latest questions/choices)
       try {
         const exam = await getPublicExam(examId);
+
+        // If there's a cached in-progress session, restore it with fresh questions
+        if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
+          const storedId = loadBackendAttemptId(examId);
+          // Use fresh questions from API but keep session state (answers/progress)
+          saveRealExamSession(examId, existingSession, exam.questions);
+          await initFromSessionAndAttempt(existingSession, exam.questions, storedId);
+          return;
+        }
+        if (existingSession?.status === 'completed') {
+          clearRealExamSession(examId);
+        }
 
         if (!exam.questions || exam.questions.length === 0) {
           setError('ชุดข้อสอบนี้ยังไม่มีคำถาม');

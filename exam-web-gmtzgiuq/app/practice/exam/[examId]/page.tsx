@@ -167,25 +167,6 @@ function ExamPageContent({ examId }: { examId: string }) {
       const { session: existingSession, questions: existingQuestions } =
         loadExamSession();
 
-      if (
-        existingSession &&
-        existingQuestions &&
-        existingSession.examId === examId
-      ) {
-        if (existingSession.status === 'completed') {
-          router.push(`/practice/exam/${examId}/results`);
-          return;
-        }
-        // Resume from localStorage - re-use stored backend attempt ID
-        const storedId = loadBackendAttemptId(examId);
-        await initFromSessionAndAttempt(
-          existingSession,
-          existingQuestions,
-          storedId,
-        );
-        return;
-      }
-
       // 2. No localStorage session - check backend for in-progress (if logged in)
       let backendAttempt: ExamAttempt | null = null;
       if (isLoggedIn()) {
@@ -194,9 +175,21 @@ function ExamPageContent({ examId }: { examId: string }) {
         } catch {/* ignore */}
       }
 
-      // 3. Fetch the exam from API
+      // 3. Fetch the exam from API (always fresh to get latest questions/choices)
       try {
         const exam = await getPublicExam(examId);
+
+        // Resume in-progress session with fresh questions from API
+        if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
+          const storedId = loadBackendAttemptId(examId);
+          saveExamSession(existingSession, exam.questions);
+          await initFromSessionAndAttempt(existingSession, exam.questions, storedId);
+          return;
+        }
+        if (existingSession?.status === 'completed') {
+          router.push(`/practice/exam/${examId}/results`);
+          return;
+        }
 
         if (!exam.questions || exam.questions.length === 0) {
           setError('ชุดข้อสอบนี้ยังไม่มีคำถาม');

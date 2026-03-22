@@ -3,11 +3,13 @@ import {
   Post,
   Delete,
   Param,
+  Req,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -51,14 +53,20 @@ export class UploadController {
       },
     }),
   )
-  uploadFile(@UploadedFile() file: Express.Multer.File) {
+  uploadFile(@UploadedFile() file: Express.Multer.File, @Req() req: Request) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
+    // Use APP_URL env var if set, otherwise derive from the incoming request
+    // (handles reverse proxies / Plesk where the app runs on a non-standard port)
     const baseUrl =
       process.env.APP_URL ||
-      `http://localhost:${process.env.APP_PORT || 3001}`;
+      (() => {
+        const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol;
+        const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
+        return `${proto}://${host}`;
+      })();
     const url = `${baseUrl}/uploads/${file.filename}`;
 
     return { url, filename: file.filename };

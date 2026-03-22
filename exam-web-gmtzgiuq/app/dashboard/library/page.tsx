@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Library, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Library, ChevronDown, ChevronRight, Loader2, PlayCircle } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
   getPublicCurriculumTree,
@@ -44,15 +44,16 @@ function SubjectCard({ subject }: { subject: Subject }) {
             {subject.name}
           </h2>
           <p className="text-white/70 text-xs mt-0.5">
-            {subject.examCount ?? 0} ชุดข้อสอบ
+            {(subject.chapters ?? []).reduce((sum, c) => sum + (c.topics ?? []).reduce((s, t) => s + (t.questionCount ?? t.examCount ?? 0), 0), 0)} ข้อ
           </p>
         </div>
         <Link
-          href={`/dashboard/library/subject/${subject.id}`}
-          className="flex-shrink-0 px-3 py-1.5 bg-white rounded-full text-xs font-semibold whitespace-nowrap transition hover:bg-white/90"
+          href={`/practice/subject/${subject.id}`}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-semibold whitespace-nowrap transition hover:bg-white/90"
           style={{ color }}
         >
-          All Topics
+          <PlayCircle className="w-3.5 h-3.5" />
+          เริ่มทำทั้งวิชา
         </Link>
       </div>
 
@@ -83,14 +84,14 @@ function SubjectCard({ subject }: { subject: Subject }) {
                       )}
                     </button>
                     <Link
-                      href={`/dashboard/library/chapter/${chapter.id}`}
+                      href={`/practice/chapter/${chapter.id}`}
                       className="font-semibold text-gray-800 text-sm hover:text-indigo-600 transition truncate"
                     >
                       {chapter.name}
                     </Link>
                   </div>
                   <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                    {chapter.examCount ?? 0} ชุด
+                    {(chapter.topics ?? []).reduce((sum, t) => sum + (t.questionCount ?? t.examCount ?? 0), 0)} ข้อ
                   </span>
                 </div>
 
@@ -105,14 +106,14 @@ function SubjectCard({ subject }: { subject: Subject }) {
                       topics.map((topic: Topic) => (
                         <Link
                           key={topic.id}
-                          href={`/dashboard/library/topic/${topic.id}`}
-                          className="flex items-center justify-between pl-11 pr-5 py-2.5 hover:bg-gray-100 transition"
+                          href={`/practice/topic/${topic.id}`}
+                          className="flex items-center justify-between pl-11 pr-5 py-2.5 hover:bg-indigo-50 transition group"
                         >
-                          <span className="text-sm text-gray-600 hover:text-gray-900">
+                          <span className="text-sm text-gray-600 group-hover:text-indigo-600 transition">
                             {topic.name}
                           </span>
                           <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                            {topic.examCount ?? 0} ชุด
+                            {topic.questionCount ?? topic.examCount ?? 0} ข้อ
                           </span>
                         </Link>
                       ))

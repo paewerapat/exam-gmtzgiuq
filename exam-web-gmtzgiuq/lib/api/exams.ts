@@ -43,14 +43,14 @@ export interface ExamStats {
 export interface ExamQuestionInput {
   question: string;
   questionImage?: string;
-  choices: QuestionChoice[];
+  choices?: QuestionChoice[];
+  correctAnswer?: string;
   explanation?: string;
   hint?: string;
   difficulty?: QuestionDifficulty;
   type?: QuestionType;
   orderIndex?: number;
   topicId?: string | null;
-  chapterId?: string | null;
 }
 
 export interface CreateExamInput {
@@ -59,7 +59,7 @@ export interface CreateExamInput {
   category: QuestionCategory;
   status?: QuestionStatus;
   questions: ExamQuestionInput[];
-  topicId?: string | null;
+  subjectId?: string | null;
 }
 
 export interface UpdateExamInput {
@@ -68,7 +68,7 @@ export interface UpdateExamInput {
   category?: QuestionCategory;
   status?: QuestionStatus;
   questions?: ExamQuestionInput[];
-  topicId?: string | null;
+  subjectId?: string | null;
 }
 
 export interface GetExamsParams {
@@ -206,7 +206,13 @@ export async function updateExam(id: string, input: UpdateExamInput): Promise<Ex
   });
 
   if (!response.ok) {
-    throw new Error('Failed to update exam');
+    const errorData = await response.json().catch(() => null);
+    const message = errorData?.message
+      ? Array.isArray(errorData.message)
+        ? errorData.message.join(', ')
+        : errorData.message
+      : `HTTP ${response.status}`;
+    throw new Error(message);
   }
 
   return response.json();

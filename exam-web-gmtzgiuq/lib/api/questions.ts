@@ -259,6 +259,39 @@ export async function getPublicQuestions(
   return response.json();
 }
 
+// Public - Get all questions for a chapter (aggregates all topics in chapter)
+export async function getQuestionsByChapter(chapterId: string): Promise<Question[]> {
+  const response = await fetch(`${API_URL}/questions/chapter/${chapterId}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Failed to fetch chapter questions');
+  return response.json();
+}
+
+// Public - Get all questions for a subject (aggregates all chapters in subject)
+export async function getQuestionsBySubject(subjectId: string): Promise<Question[]> {
+  const response = await fetch(`${API_URL}/questions/subject/${subjectId}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Failed to fetch subject questions');
+  return response.json();
+}
+
+// Public - Get all questions for a topic (for topic practice mode)
+export async function getQuestionsByTopic(topicId: string): Promise<Question[]> {
+  const response = await fetch(`${API_URL}/questions/topic/${topicId}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Failed to fetch topic questions');
+  return response.json();
+}
+
 // Public - Get questions as array (convenience function for exam)
 export async function getQuestionsForExam(params: {
   category: QuestionCategory;

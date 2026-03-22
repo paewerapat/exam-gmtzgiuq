@@ -9,6 +9,7 @@ export interface ExamSession {
   questionIds: string[];
   currentIndex: number;
   answers: Record<string, string>; // questionId -> choiceId
+  checkedAnswers?: Record<string, boolean>; // questionId -> correct(true)/incorrect(false)
   markedForReview: string[];
   timePerQuestion: Record<string, number>; // questionId -> seconds
   startedAt: string;

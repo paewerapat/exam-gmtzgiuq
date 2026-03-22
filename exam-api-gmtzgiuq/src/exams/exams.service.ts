@@ -38,7 +38,7 @@ export class ExamsService {
         category: input.category,
         status: input.status || QuestionStatus.DRAFT,
         questionCount: input.questions.length,
-        topicId: input.topicId ?? null,
+        subjectId: input.subjectId ?? null,
         author,
         authorId: author.id,
       });
@@ -48,7 +48,8 @@ export class ExamsService {
         manager.create(Question, {
           question: q.question,
           questionImage: q.questionImage,
-          choices: q.choices,
+          choices: q.choices ?? [],
+          correctAnswer: q.correctAnswer,
           explanation: q.explanation,
           hint: q.hint,
           category: input.category,
@@ -159,7 +160,7 @@ export class ExamsService {
       if (input.description !== undefined) exam.description = input.description;
       if (input.category !== undefined) exam.category = input.category;
       if (input.status !== undefined) exam.status = input.status;
-      if (input.topicId !== undefined) exam.topicId = input.topicId ?? null;
+      if (input.subjectId !== undefined) exam.subjectId = input.subjectId ?? null;
 
       // Replace questions if provided
       if (input.questions) {
@@ -179,7 +180,8 @@ export class ExamsService {
           manager.create(Question, {
             question: q.question,
             questionImage: q.questionImage,
-            choices: q.choices,
+            choices: q.choices ?? [],
+            correctAnswer: q.correctAnswer,
             explanation: q.explanation,
             hint: q.hint,
             category,
@@ -198,7 +200,15 @@ export class ExamsService {
         exam.questionCount = input.questions.length;
       }
 
-      await manager.save(exam);
+      // Use update() instead of save() to avoid triggering cascade on questions
+      await manager.update(Exam, id, {
+        title: exam.title,
+        description: exam.description,
+        category: exam.category,
+        status: exam.status,
+        subjectId: exam.subjectId,
+        questionCount: exam.questionCount,
+      });
     });
 
     return this.findOne(id);
@@ -223,8 +233,11 @@ export class ExamsService {
     const [items, total] = await this.examsRepository
       .createQueryBuilder('exam')
       .leftJoinAndSelect('exam.author', 'author')
-      .where('exam.topicId = :topicId', { topicId })
-      .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      .andWhere(
+        '(exam.topicId = :topicId OR EXISTS (SELECT 1 FROM questions q WHERE q.examId = exam.id AND q.topicId = :topicId))',
+        { topicId },
+      )
       .orderBy('exam.createdAt', 'DESC')
       .skip(skip)
       .take(limit)

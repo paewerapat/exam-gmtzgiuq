@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   FileText,
-  FileQuestion,
   Users,
   ChevronLeft,
   BookOpen,
@@ -17,7 +16,6 @@ const menuItems = [
   { href: '/admin/curriculum', label: 'หลักสูตร', icon: BookOpen },
   { href: '/admin/exams', label: 'ชุดข้อสอบ', icon: ClipboardList },
   { href: '/admin/blogs', label: 'บทความ', icon: FileText },
-  { href: '/admin/questions', label: 'โจทย์สอบ', icon: FileQuestion },
   { href: '/admin/users', label: 'ผู้ใช้งาน', icon: Users },
 ];
 

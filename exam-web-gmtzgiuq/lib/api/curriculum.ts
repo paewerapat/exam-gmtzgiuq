@@ -35,6 +35,7 @@ export interface Topic {
   orderIndex: number;
   isActive: boolean;
   examCount?: number;
+  questionCount?: number;
   createdAt: string;
   // Populated when fetching single topic (findTopic loads relations)
   chapter?: {

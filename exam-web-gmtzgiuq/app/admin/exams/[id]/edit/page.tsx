@@ -13,7 +13,6 @@ import {
   Loader2,
   GripVertical,
   BookOpen,
-  Tag,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
@@ -30,6 +29,7 @@ import {
   type Topic,
 } from '@/lib/api/curriculum';
 import { toast } from 'react-toastify';
+import ImageUpload from '@/components/upload/ImageUpload';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -37,125 +37,41 @@ interface PageProps {
 
 interface QuestionForm {
   tempId: string;
+  type: 'multiple_choice' | 'short_answer';
   question: string;
   questionImage: string;
   choices: QuestionChoice[];
+  correctAnswer: string;
   explanation: string;
   hint: string;
   expanded: boolean;
-  subjectId: string;
-  chapterId: string;
-  topicId: string;
 }
 
 function generateTempId() {
   return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
+function defaultChoices(): QuestionChoice[] {
+  return [
+    { id: 'a', text: '', isCorrect: true },
+    { id: 'b', text: '', isCorrect: false },
+    { id: 'c', text: '', isCorrect: false },
+    { id: 'd', text: '', isCorrect: false },
+  ];
+}
+
 function createEmptyQuestion(): QuestionForm {
   return {
     tempId: generateTempId(),
+    type: 'multiple_choice',
     question: '',
     questionImage: '',
-    choices: [
-      { id: 'a', text: '', isCorrect: true },
-      { id: 'b', text: '', isCorrect: false },
-      { id: 'c', text: '', isCorrect: false },
-      { id: 'd', text: '', isCorrect: false },
-    ],
+    choices: defaultChoices(),
+    correctAnswer: '',
     explanation: '',
     hint: '',
     expanded: true,
-    subjectId: '',
-    chapterId: '',
-    topicId: '',
   };
-}
-
-// ── Per-question topic selector ─────────────────────────────
-function QuestionTopicSelector({
-  subjects,
-  subjectId,
-  chapterId,
-  topicId,
-  onChange,
-}: {
-  subjects: Subject[];
-  subjectId: string;
-  chapterId: string;
-  topicId: string;
-  onChange: (field: 'subjectId' | 'chapterId' | 'topicId', value: string) => void;
-}) {
-  const selectedSubject = subjects.find((s) => s.id === subjectId);
-  const chapters: Chapter[] = selectedSubject?.chapters ?? [];
-  const selectedChapter = chapters.find((c) => c.id === chapterId);
-  const topics: Topic[] = selectedChapter?.topics ?? [];
-
-  function handleSubjectChange(val: string) {
-    onChange('subjectId', val);
-    onChange('chapterId', '');
-    onChange('topicId', '');
-  }
-
-  function handleChapterChange(val: string) {
-    onChange('chapterId', val);
-    onChange('topicId', '');
-  }
-
-  return (
-    <div className="border-t border-gray-100 pt-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Tag className="w-4 h-4 text-indigo-400" />
-        <span className="text-sm font-medium text-gray-600">
-          บท / หัวข้อของข้อนี้
-          <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
-        </span>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">วิชา</label>
-          <select
-            value={subjectId}
-            onChange={(e) => handleSubjectChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
-            <option value="">— ไม่ระบุ —</option>
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">บท</label>
-          <select
-            value={chapterId}
-            onChange={(e) => handleChapterChange(e.target.value)}
-            disabled={!subjectId}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
-          >
-            <option value="">— ไม่ระบุ —</option>
-            {chapters.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">หัวข้อ</label>
-          <select
-            value={topicId}
-            onChange={(e) => onChange('topicId', e.target.value)}
-            disabled={!chapterId}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
-          >
-            <option value="">— ไม่ระบุ —</option>
-            {topics.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function EditExamPage({ params }: PageProps) {
@@ -170,7 +86,7 @@ export default function EditExamPage({ params }: PageProps) {
   const [status, setStatus] = useState<QuestionStatus>('draft');
   const [questions, setQuestions] = useState<QuestionForm[]>([]);
 
-  // Curriculum tree (loaded once)
+  // Curriculum tree (for exam-level selector)
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
   // Exam-level curriculum
@@ -196,40 +112,23 @@ export default function EditExamPage({ params }: PageProps) {
         setCategory(exam.category as QuestionCategory);
         setStatus(exam.status as QuestionStatus);
 
-        // Build question forms — restore per-question topic from tree
         setQuestions(
-          exam.questions.map((q) => {
-            // Find subjectId and chapterId from the tree using q.topicId / q.chapterId
-            let subjectId = '';
-            let chapterId = q.chapterId || '';
-            const topicId = q.topicId || '';
-
-            if (chapterId) {
-              const subj = subjects.find((s) =>
-                s.chapters?.some((c) => c.id === chapterId),
-              );
-              if (subj) subjectId = subj.id;
-            }
-
-            return {
-              tempId: q.id || generateTempId(),
-              question: q.question,
-              questionImage: q.questionImage || '',
-              choices: q.choices,
-              explanation: q.explanation || '',
-              hint: q.hint || '',
-              expanded: false,
-              subjectId,
-              chapterId,
-              topicId,
-            };
-          }),
+          exam.questions.map((q) => ({
+            tempId: q.id || generateTempId(),
+            type: (q.type === 'short_answer' ? 'short_answer' : 'multiple_choice') as 'multiple_choice' | 'short_answer',
+            question: q.question,
+            questionImage: q.questionImage || '',
+            choices: q.type === 'short_answer' ? [] : (q.choices?.length ? q.choices : defaultChoices()),
+            correctAnswer: q.correctAnswer || '',
+            explanation: q.explanation || '',
+            hint: q.hint || '',
+            expanded: false,
+          })),
         );
 
         // Restore exam-level curriculum
         if (exam.topicId) {
           setExamTopicId(exam.topicId);
-          // Find chapterId and subjectId from tree
           for (const subj of subjects) {
             for (const ch of subj.chapters ?? []) {
               if (ch.topics?.some((t) => t.id === exam.topicId)) {
@@ -288,21 +187,11 @@ export default function EditExamPage({ params }: PageProps) {
     );
   };
 
-  const updateQuestionTopic = (
-    tempId: string,
-    field: 'subjectId' | 'chapterId' | 'topicId',
-    value: string,
-  ) => {
-    setQuestions((prev) =>
-      prev.map((q) => (q.tempId === tempId ? { ...q, [field]: value } : q)),
-    );
-  };
-
   const updateChoice = (tempId: string, choiceIndex: number, field: keyof QuestionChoice, value: any) => {
     setQuestions((prev) =>
       prev.map((q) => {
         if (q.tempId !== tempId) return q;
-        const newChoices = q.choices.map((c, i) => {
+        const newChoices = (q.choices ?? defaultChoices()).map((c, i) => {
           if (i !== choiceIndex) {
             if (field === 'isCorrect' && value === true) return { ...c, isCorrect: false };
             return c;
@@ -317,9 +206,11 @@ export default function EditExamPage({ params }: PageProps) {
   const addChoice = (tempId: string) => {
     setQuestions((prev) =>
       prev.map((q) => {
-        if (q.tempId !== tempId || q.choices.length >= 6) return q;
-        const nextId = String.fromCharCode(97 + q.choices.length);
-        return { ...q, choices: [...q.choices, { id: nextId, text: '', isCorrect: false }] };
+        if (q.tempId !== tempId) return q;
+        const choices = q.choices ?? defaultChoices();
+        if (choices.length >= 6) return q;
+        const nextId = String.fromCharCode(97 + choices.length);
+        return { ...q, choices: [...choices, { id: nextId, text: '', isCorrect: false }] };
       }),
     );
   };
@@ -327,8 +218,10 @@ export default function EditExamPage({ params }: PageProps) {
   const removeChoice = (tempId: string, choiceIndex: number) => {
     setQuestions((prev) =>
       prev.map((q) => {
-        if (q.tempId !== tempId || q.choices.length <= 2) return q;
-        return { ...q, choices: q.choices.filter((_, i) => i !== choiceIndex) };
+        if (q.tempId !== tempId) return q;
+        const choices = q.choices ?? defaultChoices();
+        if (choices.length <= 2) return q;
+        return { ...q, choices: choices.filter((_, i) => i !== choiceIndex) };
       }),
     );
   };
@@ -341,8 +234,12 @@ export default function EditExamPage({ params }: PageProps) {
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.question.trim()) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกคำถาม`); return; }
-      if (!q.choices.some((c) => c.isCorrect)) { toast.error(`ข้อที่ ${i + 1}: กรุณาเลือกคำตอบที่ถูกต้อง`); return; }
-      if (q.choices.find((c) => !c.text.trim())) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกตัวเลือกให้ครบ`); return; }
+      if (q.type === 'short_answer') {
+        if (!q.correctAnswer.trim()) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกคำตอบที่ถูกต้อง`); return; }
+      } else {
+        if (!(q.choices ?? []).some((c) => c.isCorrect)) { toast.error(`ข้อที่ ${i + 1}: กรุณาเลือกคำตอบที่ถูกต้อง`); return; }
+        if ((q.choices ?? []).find((c) => !c.text?.trim())) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกตัวเลือกให้ครบ`); return; }
+      }
     }
 
     setSaving(true);
@@ -350,12 +247,12 @@ export default function EditExamPage({ params }: PageProps) {
       const examQuestions: ExamQuestionInput[] = questions.map((q, index) => ({
         question: q.question,
         questionImage: q.questionImage || undefined,
-        choices: q.choices,
+        type: q.type,
+        choices: q.type === 'short_answer' ? [] : q.choices,
+        correctAnswer: q.type === 'short_answer' ? q.correctAnswer : undefined,
         explanation: q.explanation || undefined,
         hint: q.hint || undefined,
         orderIndex: index,
-        topicId: q.topicId || null,
-        chapterId: q.chapterId || null,
       }));
 
       await updateExam(examId, {
@@ -369,21 +266,13 @@ export default function EditExamPage({ params }: PageProps) {
 
       toast.success('อัพเดทชุดข้อสอบสำเร็จ');
       router.push('/admin/exams');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update exam:', err);
-      toast.error('ไม่สามารถอัพเดทชุดข้อสอบได้');
+      toast.error(`ไม่สามารถอัพเดทชุดข้อสอบได้: ${err.message || err}`);
     } finally {
       setSaving(false);
     }
   };
-
-  function getTopicLabel(q: QuestionForm) {
-    if (!q.topicId) return null;
-    const subject = subjects.find((s) => s.id === q.subjectId);
-    const chapter = subject?.chapters?.find((c) => c.id === q.chapterId);
-    const topic = chapter?.topics?.find((t) => t.id === q.topicId);
-    return topic?.name ?? null;
-  }
 
   if (loading) {
     return (
@@ -523,9 +412,7 @@ export default function EditExamPage({ params }: PageProps) {
               คำถาม ({questions.length} ข้อ)
             </h2>
 
-            {questions.map((q, qIndex) => {
-              const topicLabel = getTopicLabel(q);
-              return (
+            {questions.map((q, qIndex) => (
                 <div key={q.tempId} className="bg-white rounded-xl shadow-sm overflow-hidden">
                   <div
                     className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
@@ -537,11 +424,6 @@ export default function EditExamPage({ params }: PageProps) {
                       {!q.expanded && q.question && (
                         <span className="text-sm text-gray-500 truncate">
                           — {q.question.substring(0, 60)}{q.question.length > 60 ? '...' : ''}
-                        </span>
-                      )}
-                      {!q.expanded && topicLabel && (
-                        <span className="flex-shrink-0 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">
-                          {topicLabel}
                         </span>
                       )}
                     </div>
@@ -560,6 +442,35 @@ export default function EditExamPage({ params }: PageProps) {
 
                   {q.expanded && (
                     <div className="px-6 py-5 space-y-4">
+                      {/* Question type toggle */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">ประเภท:</span>
+                        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                          <button
+                            type="button"
+                            onClick={() => updateQuestion(q.tempId, 'type', 'multiple_choice')}
+                            className={`px-4 py-1.5 font-medium transition ${
+                              q.type === 'multiple_choice'
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            ปรนัย
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateQuestion(q.tempId, 'type', 'short_answer')}
+                            className={`px-4 py-1.5 font-medium transition border-l border-gray-200 ${
+                              q.type === 'short_answer'
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            อัตนัย
+                          </button>
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           คำถาม <span className="text-red-500">*</span>
@@ -567,69 +478,91 @@ export default function EditExamPage({ params }: PageProps) {
                         <textarea
                           value={q.question}
                           onChange={(e) => updateQuestion(q.tempId, 'question', e.target.value)}
-                          placeholder="พิมพ์คำถาม..."
+                          placeholder="พิมพ์คำถาม... (รองรับ LaTeX เช่น $x^2 + y^2$)"
                           rows={3}
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">URL รูปภาพ</label>
-                        <input
-                          type="text"
+                        <label className="block text-sm font-medium text-gray-700 mb-1">รูปภาพ (ถ้ามี)</label>
+                        <ImageUpload
                           value={q.questionImage}
-                          onChange={(e) => updateQuestion(q.tempId, 'questionImage', e.target.value)}
-                          placeholder="https://..."
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          onChange={(url) => updateQuestion(q.tempId, 'questionImage', url)}
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          ตัวเลือก <span className="text-red-500">*</span>
-                        </label>
-                        <div className="space-y-2">
-                          {q.choices.map((choice, cIndex) => (
-                            <div key={cIndex} className="flex items-center gap-3">
-                              <input
-                                type="radio"
-                                name={`correct-${q.tempId}`}
-                                checked={choice.isCorrect}
-                                onChange={() => updateChoice(q.tempId, cIndex, 'isCorrect', true)}
-                                className="w-4 h-4 text-green-600 focus:ring-green-500"
-                              />
-                              <span className="text-sm font-medium text-gray-500 w-6">
-                                {String.fromCharCode(65 + cIndex)}.
-                              </span>
-                              <input
-                                type="text"
-                                value={choice.text}
-                                onChange={(e) => updateChoice(q.tempId, cIndex, 'text', e.target.value)}
-                                placeholder={`ตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
-                                className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                                  choice.isCorrect ? 'border-green-300 bg-green-50' : 'border-gray-300'
-                                }`}
-                              />
-                              {q.choices.length > 2 && (
-                                <button
-                                  onClick={() => removeChoice(q.tempId, cIndex)}
-                                  className="p-1 text-gray-400 hover:text-red-500 transition"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                      {/* Choices (ปรนัย only) */}
+                      {q.type === 'multiple_choice' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            ตัวเลือก <span className="text-red-500">*</span>
+                          </label>
+                          <div className="space-y-2">
+                            {(q.choices ?? defaultChoices()).map((choice, cIndex) => (
+                              <div key={cIndex} className="flex items-center gap-3">
+                                <input
+                                  type="radio"
+                                  name={`correct-${q.tempId}`}
+                                  checked={choice.isCorrect}
+                                  onChange={() => updateChoice(q.tempId, cIndex, 'isCorrect', true)}
+                                  className="w-4 h-4 text-green-600 focus:ring-green-500"
+                                />
+                                <span className="text-sm font-medium text-gray-500 w-6">
+                                  {String.fromCharCode(65 + cIndex)}.
+                                </span>
+                                <input
+                                  type="text"
+                                  value={choice.text}
+                                  onChange={(e) => updateChoice(q.tempId, cIndex, 'text', e.target.value)}
+                                  placeholder={`ตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
+                                  className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                                    choice.isCorrect ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                                  }`}
+                                />
+                                {(q.choices ?? []).length > 2 && (
+                                  <button
+                                    onClick={() => removeChoice(q.tempId, cIndex)}
+                                    className="p-1 text-gray-400 hover:text-red-500 transition"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {(q.choices ?? []).length < 6 && (
+                            <button
+                              onClick={() => addChoice(q.tempId)}
+                              className="mt-2 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" /> เพิ่มตัวเลือก
+                            </button>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            คลิกวงกลมเพื่อเลือกคำตอบที่ถูกต้อง (สีเขียว = ถูก)
+                          </p>
                         </div>
-                        {q.choices.length < 6 && (
-                          <button
-                            onClick={() => addChoice(q.tempId)}
-                            className="mt-2 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                          >
-                            <Plus className="w-3 h-3" /> เพิ่มตัวเลือก
-                          </button>
-                        )}
-                      </div>
+                      )}
+
+                      {/* Correct answer (อัตนัย only) */}
+                      {q.type === 'short_answer' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            คำตอบที่ถูกต้อง <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={q.correctAnswer}
+                            onChange={(e) => updateQuestion(q.tempId, 'correctAnswer', e.target.value)}
+                            placeholder="พิมพ์คำตอบที่ถูกต้อง"
+                            className="w-full px-4 py-2.5 border border-green-300 bg-green-50 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            ระบบจะตรวจสอบคำตอบของผู้เรียนกับค่านี้ (ตรงทุกตัวอักษร)
+                          </p>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">คำอธิบายเฉลย</label>
@@ -651,19 +584,10 @@ export default function EditExamPage({ params }: PageProps) {
                         />
                       </div>
 
-                      {/* Per-question topic selector */}
-                      <QuestionTopicSelector
-                        subjects={subjects}
-                        subjectId={q.subjectId}
-                        chapterId={q.chapterId}
-                        topicId={q.topicId}
-                        onChange={(field, value) => updateQuestionTopic(q.tempId, field, value)}
-                      />
                     </div>
                   )}
                 </div>
-              );
-            })}
+            ))}
           </div>
 
           <button

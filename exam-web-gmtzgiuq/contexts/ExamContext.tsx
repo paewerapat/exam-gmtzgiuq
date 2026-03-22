@@ -167,6 +167,13 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
 
       return {
         ...state,
+        session: {
+          ...state.session,
+          checkedAnswers: {
+            ...(state.session.checkedAnswers ?? {}),
+            [currentQuestionId]: isCorrect,
+          },
+        },
         answerChecked: true,
         isCorrect,
       };

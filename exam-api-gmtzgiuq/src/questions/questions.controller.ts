@@ -30,6 +30,18 @@ import { AdminGuard } from '../common/guards/admin.guard';
 export class QuestionsController {
   constructor(private questionsService: QuestionsService) {}
 
+  // Public - Get all questions for a topic (for topic practice)
+  @Get('topic/:topicId')
+  async findByTopic(@Param('topicId') topicId: string) {
+    return this.questionsService.findByTopic(topicId);
+  }
+
+  // Public - Get all questions for a subject (aggregate all topics in subject)
+  @Get('subject/:subjectId')
+  async findBySubject(@Param('subjectId') subjectId: string) {
+    return this.questionsService.findBySubject(subjectId);
+  }
+
   // Public - Get published questions
   @Get()
   async findAll(

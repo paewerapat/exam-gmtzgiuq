@@ -8,10 +8,10 @@ import {
   OneToMany,
   JoinColumn,
 } from 'typeorm';
+
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import { User } from '../users/user.entity';
 import { Question, QuestionCategory, QuestionStatus } from '../questions/question.entity';
-import { Topic } from '../curriculum/topic.entity';
 
 @ObjectType()
 @Entity('exams')
@@ -56,12 +56,9 @@ export class Exam {
   @Column()
   authorId: string;
 
-  @ManyToOne(() => Topic, { nullable: true, onDelete: 'SET NULL', eager: false })
-  @JoinColumn({ name: 'topicId' })
-  topic: Topic;
-
+  @Field(() => String, { nullable: true })
   @Column({ nullable: true, type: 'varchar', length: 36 })
-  topicId: string | null;
+  subjectId: string | null;
 
   @Field()
   @CreateDateColumn()

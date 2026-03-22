@@ -11,14 +11,12 @@ import {
   clearExamSession,
   generateSessionId,
 } from '@/lib/exam-utils';
-import { getQuestionsByTopic } from '@/lib/api/questions';
-import { getTopic } from '@/lib/api/curriculum';
+import { getQuestionsByChapter } from '@/lib/api/questions';
+import { getChapter } from '@/lib/api/curriculum';
 import type { ExamSession } from '@/types/exam';
 import type { Question } from '@/lib/api/questions';
 
-// ── Topic exam content ────────────────────────────────────────
-
-function TopicExamContent({ topicId }: { topicId: string }) {
+function ChapterExamContent({ chapterId }: { chapterId: string }) {
   const router = useRouter();
   const { initExam, state } = useExam();
   const [loading, setLoading] = useState(true);
@@ -27,30 +25,26 @@ function TopicExamContent({ topicId }: { topicId: string }) {
   const [pendingSession, setPendingSession] = useState<ExamSession | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<Question[]>([]);
 
-  // Topic sessions use "topic_<id>" as the examId so they don't collide with exam sessions
-  const sessionKey = `topic_${topicId}`;
+  const sessionKey = `chapter_${chapterId}`;
 
   useEffect(() => {
     async function load() {
       try {
-        const [questions, topic] = await Promise.all([
-          getQuestionsByTopic(topicId),
-          getTopic(topicId).catch(() => null),
+        const [questions, chapter] = await Promise.all([
+          getQuestionsByChapter(chapterId),
+          getChapter(chapterId).catch(() => null),
         ]);
 
         if (!questions || questions.length === 0) {
-          setError('ยังไม่มีคำถามในหัวข้อนี้');
+          setError('ยังไม่มีคำถามในบทนี้');
           setLoading(false);
           return;
         }
 
-        const topicName = topic?.name ?? 'ฝึกทำข้อสอบ';
+        const chapterName = chapter?.name ?? 'ฝึกทำข้อสอบ';
 
-        // Check if there's an in-progress session for this topic
         const { session: existing } = loadExamSession();
-
         if (existing && existing.examId === sessionKey && existing.status === 'in_progress') {
-          // Refresh questions from API but keep session progress
           saveExamSession(existing, questions);
           setPendingSession(existing);
           setPendingQuestions(questions);
@@ -59,13 +53,12 @@ function TopicExamContent({ topicId }: { topicId: string }) {
           return;
         }
 
-        // Clear any old session and start fresh
         clearExamSession();
 
         const newSession: ExamSession = {
           id: generateSessionId(),
           examId: sessionKey,
-          examTitle: topicName,
+          examTitle: chapterName,
           category: (questions[0]?.category as any) ?? 'general_knowledge',
           questionIds: questions.map((q) => q.id),
           currentIndex: 0,
@@ -86,7 +79,7 @@ function TopicExamContent({ topicId }: { topicId: string }) {
       }
     }
     load();
-  }, [topicId]);
+  }, [chapterId]);
 
   function handleResume() {
     if (!pendingSession || pendingQuestions.length === 0) return;
@@ -99,15 +92,15 @@ function TopicExamContent({ topicId }: { topicId: string }) {
     setShowResume(false);
     setLoading(true);
     try {
-      const [questions, topic] = await Promise.all([
-        getQuestionsByTopic(topicId),
-        getTopic(topicId).catch(() => null),
+      const [questions, chapter] = await Promise.all([
+        getQuestionsByChapter(chapterId),
+        getChapter(chapterId).catch(() => null),
       ]);
-      const topicName = topic?.name ?? 'ฝึกทำข้อสอบ';
+      const chapterName = chapter?.name ?? 'ฝึกทำข้อสอบ';
       const newSession: ExamSession = {
         id: generateSessionId(),
         examId: sessionKey,
-        examTitle: topicName,
+        examTitle: chapterName,
         category: (questions[0]?.category as any) ?? 'general_knowledge',
         questionIds: questions.map((q) => q.id),
         currentIndex: 0,
@@ -126,7 +119,6 @@ function TopicExamContent({ topicId }: { topicId: string }) {
     }
   }
 
-  // Auto-redirect when session completes
   useEffect(() => {
     if (!loading && !showResume && state.session.status === 'completed' && state.session.examId === sessionKey) {
       clearExamSession();
@@ -207,18 +199,15 @@ function TopicExamContent({ topicId }: { topicId: string }) {
   );
 }
 
-// ── Page wrapper ──────────────────────────────────────────────
-
-export default function TopicPracticePage({
+export default function ChapterPracticePage({
   params,
 }: {
-  params: Promise<{ topicId: string }>;
+  params: Promise<{ chapterId: string }>;
 }) {
-  const { topicId } = use(params);
-
+  const { chapterId } = use(params);
   return (
     <ExamProvider>
-      <TopicExamContent topicId={topicId} />
+      <ChapterExamContent chapterId={chapterId} />
     </ExamProvider>
   );
 }

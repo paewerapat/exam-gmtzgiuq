@@ -46,11 +46,17 @@ export class CreateExamQuestionInput {
   @IsOptional()
   questionImage?: string;
 
-  @Field(() => [ExamChoiceInput])
+  @Field(() => [ExamChoiceInput], { nullable: true })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ExamChoiceInput)
-  choices: ExamChoiceInput[];
+  @IsOptional()
+  choices?: ExamChoiceInput[];
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  correctAnswer?: string;
 
   @Field({ nullable: true })
   @IsString()
@@ -111,9 +117,8 @@ export class CreateExamInput {
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @ValidateIf((o) => o.topicId !== null)
   @IsString()
-  topicId?: string | null;
+  subjectId?: string | null;
 
   @Field(() => [CreateExamQuestionInput])
   @IsArray()
@@ -147,9 +152,8 @@ export class UpdateExamInput {
 
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @ValidateIf((o) => o.topicId !== null)
   @IsString()
-  topicId?: string | null;
+  subjectId?: string | null;
 
   @Field(() => [CreateExamQuestionInput], { nullable: true })
   @IsArray()

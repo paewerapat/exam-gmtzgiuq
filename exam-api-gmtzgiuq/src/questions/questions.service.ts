@@ -146,6 +146,30 @@ export class QuestionsService {
     return true;
   }
 
+  async findByTopic(topicId: string): Promise<Question[]> {
+    return this.questionsRepository
+      .createQueryBuilder('q')
+      .innerJoin('q.exam', 'exam')
+      .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      .andWhere('q.topicId = :topicId', { topicId })
+      .orderBy('exam.createdAt', 'ASC')
+      .addOrderBy('q.orderIndex', 'ASC')
+      .getMany();
+  }
+
+  async findBySubject(subjectId: string): Promise<Question[]> {
+    return this.questionsRepository
+      .createQueryBuilder('q')
+      .innerJoin('q.exam', 'exam')
+      .innerJoin('topics', 'topic', 'topic.id = q.topicId')
+      .innerJoin('chapters', 'chapter', 'chapter.id = topic.chapterId')
+      .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      .andWhere('chapter.subjectId = :subjectId', { subjectId })
+      .orderBy('exam.createdAt', 'ASC')
+      .addOrderBy('q.orderIndex', 'ASC')
+      .getMany();
+  }
+
   async getStats(): Promise<QuestionStats> {
     const total = await this.questionsRepository.count();
     const published = await this.questionsRepository.count({

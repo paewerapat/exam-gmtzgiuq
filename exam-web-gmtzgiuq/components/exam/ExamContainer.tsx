@@ -11,6 +11,7 @@ import {
   Check,
   X,
   Play,
+  ListFilter,
 } from 'lucide-react';
 import { useExam } from '@/contexts/ExamContext';
 import { getCorrectChoiceId, saveExamSession } from '@/lib/exam-utils';
@@ -46,6 +47,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
   } = useExam();
 
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [groupAnswered, setGroupAnswered] = useState(false);
   const [imageError, setImageError] = useState(false);
 
   const { session, currentTimer, isPaused, answerChecked, isCorrect } = state;
@@ -114,7 +116,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
       />
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-auto pb-24">
+      <div className="flex-1 overflow-auto pb-20">
         <div className="max-w-5xl mx-auto px-4 py-6">
 
           {/* Main card */}
@@ -329,73 +331,154 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
         </div>
       </div>
 
-      {/* Question nav panel (slides up above bottom bar) */}
+      {/* Question Bank panel — floating card above bottom bar */}
       {isNavOpen && (
-        <div className="fixed bottom-[72px] left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-2xl px-4 py-4 max-h-64 overflow-y-auto">
-          <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-gray-700">เลือกข้อ</p>
-              <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded-full bg-gray-200 inline-block" />
-                  ยังไม่ตอบ
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded-full bg-green-400 inline-block" />
-                  ตอบแล้ว
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded-full bg-orange-400 inline-block" />
-                  ทำเครื่องหมาย
-                </span>
+        <div
+          className="fixed inset-0 z-30 flex items-end justify-center pb-[64px] px-3"
+          onClick={() => setIsNavOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden"
+            style={{ maxHeight: '60vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <span className="font-bold text-gray-800 text-sm">Question Bank</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newVal = !groupAnswered;
+                    setGroupAnswered(newVal);
+                    if (newVal) {
+                      // Jump to first unanswered
+                      const firstUnanswered = questionIds.findIndex((id) => !answers[id]);
+                      if (firstUnanswered !== -1) jumpToQuestion(firstUnanswered);
+                    }
+                  }}
+                  title="Group answered questions at the start and jump to first unanswered"
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                    groupAnswered
+                      ? 'bg-indigo-100 text-indigo-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <ListFilter className="w-3.5 h-3.5" />
+                  Group Answered
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsNavOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <div className="grid grid-cols-10 gap-1.5">
-              {questionIds.map((qId, idx) => {
-                const isAnswered = !!answers[qId];
-                const isMk = markedForReview.includes(qId);
-                const isCurrent = idx === currentIndex;
 
-                let bg = 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-                if (isAnswered) bg = 'bg-green-100 text-green-700 hover:bg-green-200';
-                if (isMk) bg = 'bg-orange-100 text-orange-700 hover:bg-orange-200';
-                if (isCurrent) bg = 'bg-indigo-600 text-white ring-2 ring-indigo-300 ring-offset-1';
+            {/* Legend */}
+            <div className="px-4 py-2 flex flex-wrap gap-x-4 gap-y-1.5 border-b border-gray-50 flex-shrink-0">
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span className="w-5 h-5 rounded-md bg-green-100 border-2 border-green-400 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-3 h-3 text-green-600" strokeWidth={3} />
+                </span>
+                ถูกต้อง
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span className="w-5 h-5 rounded-md bg-red-100 border-2 border-red-400 flex items-center justify-center flex-shrink-0">
+                  <X className="w-3 h-3 text-red-600" strokeWidth={3} />
+                </span>
+                ผิด
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span className="w-5 h-5 rounded-md bg-orange-100 border-2 border-orange-400 flex items-center justify-center flex-shrink-0">
+                  <Bookmark className="w-3 h-3 text-orange-500" fill="currentColor" />
+                </span>
+                ทำเครื่องหมาย
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span className="w-5 h-5 rounded-md bg-gray-100 border border-gray-300 flex-shrink-0" />
+                ยังไม่ตอบ
+              </span>
+            </div>
+
+            {/* Grid */}
+            <div className="overflow-y-auto flex-1 px-3 py-3">
+              {(() => {
+                const checkedAnswers = session.checkedAnswers ?? {};
+                // Build list: optionally group answered first
+                const indexed = questionIds.map((qId, idx) => ({ qId, idx }));
+                const displayList = groupAnswered
+                  ? [
+                      ...indexed.filter(({ qId }) => !!answers[qId]),
+                      ...indexed.filter(({ qId }) => !answers[qId]),
+                    ]
+                  : indexed;
 
                 return (
-                  <button
-                    key={qId}
-                    type="button"
-                    onClick={() => {
-                      jumpToQuestion(idx);
-                      setIsNavOpen(false);
-                    }}
-                    className={`aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition ${bg}`}
-                  >
-                    {idx + 1}
-                  </button>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {displayList.map(({ qId, idx }) => {
+                      const isAnswered = !!answers[qId];
+                      const isMk = markedForReview.includes(qId);
+                      const isCurrent = idx === currentIndex;
+                      const checkedResult = checkedAnswers[qId]; // true/false/undefined
+
+                      let cls =
+                        'bg-gray-100 text-gray-500 hover:bg-gray-200'; // unanswered
+                      if (isAnswered && checkedResult === undefined)
+                        cls = 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'; // answered, not yet checked
+                      if (checkedResult === true)
+                        cls = 'bg-green-100 text-green-700 border-2 border-green-400 hover:bg-green-200'; // correct
+                      if (checkedResult === false)
+                        cls = 'bg-red-100 text-red-700 border-2 border-red-400 hover:bg-red-200'; // incorrect
+                      if (isMk)
+                        cls = 'bg-orange-100 text-orange-600 border-2 border-orange-400 hover:bg-orange-200'; // marked
+                      if (isCurrent)
+                        cls = 'bg-white text-gray-900 border-2 border-gray-900 font-bold shadow-sm'; // current
+
+                      return (
+                        <button
+                          key={qId}
+                          type="button"
+                          onClick={() => {
+                            jumpToQuestion(idx);
+                            setIsNavOpen(false);
+                          }}
+                          className={`aspect-square flex items-center justify-center rounded-xl text-xs transition ${cls}`}
+                        >
+                          {idx + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
                 );
-              })}
+              })()}
             </div>
           </div>
         </div>
       )}
 
       {/* Fixed bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-indigo-600 px-6 py-4 flex items-center justify-between">
+      <div className="fixed bottom-0 left-0 right-0 z-20 px-4 py-3 flex items-center justify-between">
+        {/* Spacer to balance submit button */}
+        <div className="w-24" />
+        {/* Centered pill trigger */}
         <button
           type="button"
           onClick={() => setIsNavOpen(!isNavOpen)}
-          className="flex items-center gap-2 text-white font-medium text-sm"
+          className="flex items-center gap-2 bg-white shadow-lg border border-gray-200 rounded-full px-5 py-2 text-sm font-semibold text-gray-700 transition hover:shadow-xl"
         >
-          <span>{currentIndex + 1} จาก {totalQuestions}</span>
+          <span>{currentIndex + 1} of {totalQuestions}</span>
           <ChevronUp
-            className={`w-5 h-5 transition-transform ${isNavOpen ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 transition-transform ${isNavOpen ? 'rotate-180' : ''}`}
           />
         </button>
+        {/* Submit */}
         <button
           type="button"
           onClick={handleFinish}
-          className="px-5 py-2 bg-rose-300 hover:bg-rose-400 text-white text-sm font-semibold rounded-xl transition"
+          className="w-24 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold rounded-full transition shadow-md"
         >
           ส่งข้อสอบ
         </button>
