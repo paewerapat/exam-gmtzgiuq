@@ -116,11 +116,12 @@ export async function getPublicExams(
 }
 
 // Public - Get single published exam with questions
-export async function getPublicExam(id: string): Promise<Exam> {
+export async function getPublicExam(id: string, signal?: AbortSignal): Promise<Exam> {
   const response = await fetch(`${API_URL}/exams/${id}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
+    signal,
   });
 
   if (!response.ok) {

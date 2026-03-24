@@ -303,20 +303,26 @@ function RealExamPageContent({ examId }: { examId: string }) {
       const { session: existingSession, questions: existingQuestions } =
         loadRealExamSession(examId);
 
-      // 2. Check backend for in-progress (mode=exam)
+      // 2. Check backend for in-progress (mode=exam) — 8s timeout
       let backendAttempt: ExamAttempt | null = null;
       if (isLoggedIn()) {
         try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 8000);
           const attempt = await getMyInProgressForExam(examId);
+          clearTimeout(t);
           if (attempt && attempt.mode === 'exam') {
             backendAttempt = attempt;
           }
-        } catch { /* ignore */ }
+        } catch { /* ignore — timeout or network error */ }
       }
 
-      // 3. Fetch exam (always fresh from API to get latest questions/choices)
+      // 3. Fetch exam (always fresh from API) — 15s timeout
+      const examCtrl = new AbortController();
+      const examTimeout = setTimeout(() => examCtrl.abort(), 15000);
       try {
-        const exam = await getPublicExam(examId);
+        const exam = await getPublicExam(examId, examCtrl.signal);
+        clearTimeout(examTimeout);
 
         // If there's a cached in-progress session, restore it with fresh questions
         if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
@@ -348,9 +354,11 @@ function RealExamPageContent({ examId }: { examId: string }) {
         }
 
         await startFreshExam(exam, backendAttempt);
-      } catch (err) {
+      } catch (err: any) {
+        clearTimeout(examTimeout);
+        const isTimeout = err?.name === 'AbortError';
         console.error('Failed to load exam:', err);
-        setError('ไม่สามารถโหลดข้อสอบได้');
+        setError(isTimeout ? 'การเชื่อมต่อหมดเวลา กรุณาลองใหม่' : 'ไม่สามารถโหลดข้อสอบได้');
         setLoading(false);
       }
     }
