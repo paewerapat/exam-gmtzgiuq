@@ -64,16 +64,21 @@ export function normalizeMathAnswer(s: string): string {
   // Strip outer $ delimiters  ($...$  or  $$...$$)
   t = t.replace(/^\$\$?([\s\S]*?)\$\$?$/, '$1').trim();
 
-  // LaTeX → plain text
-  t = t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)');
+  // LaTeX → plain text  (sqrt MUST come before frac — frac regex can't handle nested braces)
   t = t.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
   t = t.replace(/\\sqrt\s+(\S+)/g, 'sqrt($1)');
+  t = t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)');
   t = t.replace(/\\left|\\right/g, '');
   t = t.replace(/\\\s*/g, '');           // remaining backslash commands
   t = t.replace(/\{|\}/g, '');           // stray braces
 
-  // Unicode symbols → ascii
-  t = t.replace(/√/g, 'sqrt');
+  // Unicode symbols → ascii  (√3 → sqrt(3), √(x) → sqrt(x))
+  t = t.replace(/√(\d+(?:\.\d+)?)/g, 'sqrt($1)');
+  t = t.replace(/√\(([^)]+)\)/g, 'sqrt($1)');
+  t = t.replace(/√/g, 'sqrt');    // fallback
+
+  // Ensure bare sqrt followed by digits gets parens: sqrt3 → sqrt(3)
+  t = t.replace(/sqrt(\d+(?:\.\d+)?)/g, 'sqrt($1)');
   t = t.replace(/×/g, '*');
   t = t.replace(/÷/g, '/');
   t = t.replace(/−/g, '-');             // Unicode minus
