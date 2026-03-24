@@ -34,10 +34,18 @@ export class AttemptsService {
     },
   ): Promise<ExamAttempt> {
     // Abandon any existing in-progress attempt for the same exam
-    await this.attemptsRepository.update(
-      { userId, examId: data.examId, status: 'in_progress' },
-      { status: 'abandoned' },
-    );
+    // Use short lock timeout to avoid hanging if row is locked
+    try {
+      await this.attemptsRepository.query('SET innodb_lock_wait_timeout = 3');
+      await this.attemptsRepository.update(
+        { userId, examId: data.examId, status: 'in_progress' },
+        { status: 'abandoned' },
+      );
+    } catch {
+      // If lock timeout or error, skip abandoning — proceed to create new attempt
+    } finally {
+      await this.attemptsRepository.query('SET innodb_lock_wait_timeout = 50').catch(() => {});
+    }
 
     const attempt = this.attemptsRepository.create({
       userId,

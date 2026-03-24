@@ -283,17 +283,25 @@ export async function getAttemptStats(): Promise<AttemptStats> {
 
 // ── IN-PROGRESS ────────────────────────────────────────────
 
-// User - Start in-progress attempt
+// User - Start in-progress attempt (8s timeout to prevent page hang on DB lock)
 export async function startInProgressAttempt(
   input: StartInProgressInput,
 ): Promise<ExamAttempt> {
-  const response = await fetchWithAuth(`${API_URL}/attempts/start`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-
-  if (!response.ok) throw new Error('Failed to start attempt');
-  return response.json();
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const response = await fetchWithAuth(`${API_URL}/attempts/start`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (!response.ok) throw new Error('Failed to start attempt');
+    return response.json();
+  } catch (err) {
+    clearTimeout(t);
+    throw err;
+  }
 }
 
 // User - Update in-progress attempt
