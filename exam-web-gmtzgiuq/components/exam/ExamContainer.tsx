@@ -14,7 +14,7 @@ import {
   ListFilter,
 } from 'lucide-react';
 import { useExam } from '@/contexts/ExamContext';
-import { getCorrectChoiceId, saveExamSession, normalizeMathAnswer } from '@/lib/exam-utils';
+import { getCorrectChoiceId, saveExamSession, prettyMathAnswer } from '@/lib/exam-utils';
 import ExamHeader from './ExamHeader';
 import ChoiceButton from './ChoiceButton';
 import LatexRenderer from '@/components/latex/LatexRenderer';
@@ -264,7 +264,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                       <p className="mt-1.5 text-xs text-gray-400">
                         ระบบอ่านเป็น:{' '}
                         <code className="font-mono bg-gray-100 px-1 rounded">
-                          {normalizeMathAnswer(userAnswer)}
+                          {prettyMathAnswer(userAnswer)}
                         </code>
                       </p>
                     )}

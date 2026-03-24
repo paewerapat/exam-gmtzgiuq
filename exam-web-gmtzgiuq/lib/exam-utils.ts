@@ -137,6 +137,59 @@ export function isAnswerCorrect(question: Question, userAnswer: string): boolean
   return getCorrectChoiceId(question) === userAnswer;
 }
 
+const SUPERSCRIPT: Record<string, string> = {
+  '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴',
+  '5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',
+  '+':'⁺','-':'⁻','n':'ⁿ','a':'ᵃ','b':'ᵇ',
+  'x':'ˣ','y':'ʸ','z':'ᶻ','k':'ᵏ','m':'ᵐ',
+};
+function toSup(s: string): string {
+  return s.split('').map((c) => SUPERSCRIPT[c] ?? c).join('');
+}
+
+/**
+ * Convert a math string to a pretty human-readable Unicode form for display.
+ * e.g. \frac{\sqrt{3}}{3} → √3/3,  x^2 → x²,  sqrt(3)/3 → √3/3
+ */
+export function prettyMathAnswer(s: string): string {
+  let t = s.trim();
+
+  // Strip $ delimiters
+  t = t.replace(/^\$\$?([\s\S]*?)\$\$?$/, '$1').trim();
+
+  // LaTeX: sqrt before frac
+  t = t.replace(/\\sqrt\{([^{}]+)\}/g, '√($1)');
+  t = t.replace(/\\sqrt\s+(\S+)/g, '√($1)');
+  t = t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)');
+  t = t.replace(/\\left|\\right/g, '');
+  t = t.replace(/\\\s*/g, '');
+  t = t.replace(/\{|\}/g, '');
+
+  // sqrt(...) / sqrt(\d) → √
+  t = t.replace(/sqrt\((\d+(?:\.\d+)?)\)/gi, '√$1');
+  t = t.replace(/sqrt\(([^)]+)\)/gi, '√($1)');
+  t = t.replace(/sqrt(\d+(?:\.\d+)?)/gi, '√$1');
+
+  // Superscripts: ^{...} or ^digit(s) or ^letter
+  t = t.replace(/\^\{([^}]+)\}/g, (_, exp) => toSup(exp));
+  t = t.replace(/\^(\d+)/g, (_, exp) => toSup(exp));
+  t = t.replace(/\^([a-zA-Z])/g, (_, c) => toSup(c));
+
+  // Clean up redundant parens around single token: √(3) → √3, /(3) → /3
+  t = t.replace(/√\((\w+)\)/g, '√$1');
+  t = t.replace(/\/\((\w+(?:\.\d+)?)\)/g, '/$1');
+  t = t.replace(/\((\w+(?:\.\d+)?)\)\//g, '$1/');
+
+  // × for multiplication
+  t = t.replace(/\*/g, '×');
+  // ÷ for division (only explicit \div, not /)
+  t = t.replace(/\\div/g, '÷');
+  // Unicode minus passthrough
+  t = t.replace(/−/g, '-');
+
+  return t;
+}
+
 /**
  * Convert a correctAnswer string to human-readable hint forms.
  * e.g. \frac{\sqrt{3}}{3}  →  ["sqrt(3)/3", "√3/3"]
