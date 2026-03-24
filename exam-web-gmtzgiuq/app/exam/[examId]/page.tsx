@@ -139,11 +139,10 @@ function ResumeDialog({
 
 // ── Result screen ─────────────────────────────────────────────
 function ResultScreen({
-  examId,
   examTitle,
   result,
+  onRetry,
 }: {
-  examId: string;
   examTitle: string;
   result: {
     totalQuestions: number;
@@ -152,6 +151,7 @@ function ResultScreen({
     unanswered: number;
     score: number;
   };
+  onRetry: () => void;
 }) {
   const passed = result.score >= 60;
 
@@ -216,13 +216,13 @@ function ResultScreen({
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
-          <Link
-            href={`/exam/${examId}`}
+          <button
+            onClick={onRetry}
             className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold transition flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
             สอบใหม่อีกครั้ง
-          </Link>
+          </button>
           <Link
             href="/dashboard/exam"
             className="w-full py-3 border border-gray-300 text-gray-600 rounded-xl font-medium hover:bg-gray-50 transition"
@@ -255,6 +255,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
     score: number;
   } | null>(null);
 
+  const [retryKey, setRetryKey] = useState(0);
   const attemptIdRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -296,6 +297,8 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
   useEffect(() => {
     async function loadOrCreateSession() {
+      setLoading(true);
+      setError(null);
       // 1. Check real-exam localStorage
       const { session: existingSession, questions: existingQuestions } =
         loadRealExamSession(examId);
@@ -354,7 +357,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
     loadOrCreateSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examId]);
+  }, [examId, retryKey]);
 
   async function startFreshExam(exam: any, existingBackendAttempt?: ExamAttempt | null) {
     const questionIds = exam.questions.map((q: any) => q.id);
@@ -501,6 +504,14 @@ function RealExamPageContent({ examId }: { examId: string }) {
     });
   };
 
+  function handleRetry() {
+    clearRealExamSession(examId);
+    clearBackendAttemptId(examId);
+    attemptIdRef.current = null;
+    setResult(null);
+    setRetryKey((k) => k + 1);
+  }
+
   // ── Render ────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -544,9 +555,9 @@ function RealExamPageContent({ examId }: { examId: string }) {
   if (result) {
     return (
       <ResultScreen
-        examId={examId}
         examTitle={result.examTitle}
         result={result}
+        onRetry={handleRetry}
       />
     );
   }
