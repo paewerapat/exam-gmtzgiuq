@@ -140,7 +140,7 @@ export class ExamsService {
   async findPublishedOne(id: string): Promise<Exam> {
     const exam = await this.examsRepository.findOne({
       where: { id, status: QuestionStatus.PUBLISHED },
-      relations: ['author', 'questions', 'questions.author'],
+      relations: ['author', 'questions'],
       order: { questions: { orderIndex: 'ASC' } },
     });
 
