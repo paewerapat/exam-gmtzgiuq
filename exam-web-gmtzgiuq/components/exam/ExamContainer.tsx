@@ -14,7 +14,7 @@ import {
   ListFilter,
 } from 'lucide-react';
 import { useExam } from '@/contexts/ExamContext';
-import { getCorrectChoiceId, saveExamSession } from '@/lib/exam-utils';
+import { getCorrectChoiceId, saveExamSession, getAnswerHints } from '@/lib/exam-utils';
 import ExamHeader from './ExamHeader';
 import ChoiceButton from './ChoiceButton';
 import LatexRenderer from '@/components/latex/LatexRenderer';
@@ -259,9 +259,25 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                           : 'border-gray-200 focus:border-indigo-400 bg-white'
                       }`}
                     />
+                    {/* Hint: show accepted forms before checking */}
+                    {!answerChecked && currentQuestion.correctAnswer && (
+                      <p className="mt-1.5 text-xs text-gray-400">
+                        ระบบอ่านเป็น:{' '}
+                        {getAnswerHints(currentQuestion.correctAnswer).map((h, i) => (
+                          <span key={i}>
+                            {i > 0 && <span className="mx-1">หรือ</span>}
+                            <code className="font-mono bg-gray-100 px-1 rounded">{h}</code>
+                          </span>
+                        ))}
+                      </p>
+                    )}
                     {answerChecked && !isCorrect && currentQuestion.correctAnswer && (
                       <p className="mt-2 text-sm text-gray-500">
-                        คำตอบที่ถูกต้อง: <span className="font-semibold text-gray-800">{currentQuestion.correctAnswer}</span>
+                        คำตอบที่ถูกต้อง:{' '}
+                        <span className="font-semibold text-gray-800">{currentQuestion.correctAnswer}</span>
+                        <span className="text-gray-400 ml-2 text-xs">
+                          (อ่านเป็น: {getAnswerHints(currentQuestion.correctAnswer).join(' หรือ ')})
+                        </span>
                       </p>
                     )}
                   </div>

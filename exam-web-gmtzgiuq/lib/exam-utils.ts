@@ -54,19 +54,100 @@ export function getCorrectChoiceId(question: Question): string | undefined {
 }
 
 /**
+ * Normalize a math answer string so equivalent forms compare equal.
+ * Handles LaTeX, Unicode symbols, and plain-text math.
+ * e.g. \frac{\sqrt{3}}{3}  ===  sqrt(3)/3  ===  √3/3  ===  1/sqrt(3)  (after eval)
+ */
+export function normalizeMathAnswer(s: string): string {
+  let t = s.trim();
+
+  // Strip outer $ delimiters  ($...$  or  $$...$$)
+  t = t.replace(/^\$\$?([\s\S]*?)\$\$?$/, '$1').trim();
+
+  // LaTeX → plain text
+  t = t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)');
+  t = t.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
+  t = t.replace(/\\sqrt\s+(\S+)/g, 'sqrt($1)');
+  t = t.replace(/\\left|\\right/g, '');
+  t = t.replace(/\\\s*/g, '');           // remaining backslash commands
+  t = t.replace(/\{|\}/g, '');           // stray braces
+
+  // Unicode symbols → ascii
+  t = t.replace(/√/g, 'sqrt');
+  t = t.replace(/×/g, '*');
+  t = t.replace(/÷/g, '/');
+  t = t.replace(/−/g, '-');             // Unicode minus
+  t = t.replace(/[^\S ]+/g, '');        // non-space whitespace
+  t = t.replace(/\s+/g, '');            // collapse spaces
+
+  return t.toLowerCase();
+}
+
+/**
+ * Try to evaluate a simple math expression string to a number.
+ * Returns NaN if not parseable or unsafe.
+ */
+function evalMathExpr(expr: string): number {
+  // Only allow safe characters
+  if (!/^[0-9+\-*/().sqrteSQRTE\s]+$/.test(expr)) return NaN;
+  try {
+    // Replace sqrt(...) with Math.sqrt(...)
+    const safe = expr.replace(/sqrt\(/gi, 'Math.sqrt(');
+    // eslint-disable-next-line no-new-func
+    const result = new Function(`"use strict"; return (${safe})`)();
+    return typeof result === 'number' ? result : NaN;
+  } catch {
+    return NaN;
+  }
+}
+
+/**
  * Check if an answer is correct (handles both MC and short_answer)
  */
 export function isAnswerCorrect(question: Question, userAnswer: string): boolean {
   if (question.type === 'short_answer') {
     if (!question.correctAnswer) return false;
-    const normalize = (s: string) => s.trim().toLowerCase();
-    // Try numeric comparison first
+
+    // 1. Numeric comparison (plain numbers)
     const ua = parseFloat(userAnswer.trim());
     const ca = parseFloat(question.correctAnswer.trim());
-    if (!isNaN(ua) && !isNaN(ca)) return ua === ca;
-    return normalize(userAnswer) === normalize(question.correctAnswer);
+    if (!isNaN(ua) && !isNaN(ca)) return Math.abs(ua - ca) < 1e-9;
+
+    // 2. Normalize both sides
+    const normUser = normalizeMathAnswer(userAnswer);
+    const normCorrect = normalizeMathAnswer(question.correctAnswer);
+
+    // 3. String match after normalization
+    if (normUser === normCorrect) return true;
+
+    // 4. Numeric evaluation of normalized expressions
+    const evalUser = evalMathExpr(normUser);
+    const evalCorrect = evalMathExpr(normCorrect);
+    if (!isNaN(evalUser) && !isNaN(evalCorrect)) {
+      return Math.abs(evalUser - evalCorrect) < 1e-9;
+    }
+
+    return false;
   }
   return getCorrectChoiceId(question) === userAnswer;
+}
+
+/**
+ * Convert a correctAnswer string to human-readable hint forms.
+ * e.g. \frac{\sqrt{3}}{3}  →  ["sqrt(3)/3", "√3/3"]
+ */
+export function getAnswerHints(correctAnswer: string): string[] {
+  const norm = normalizeMathAnswer(correctAnswer);
+  const hints: string[] = [];
+
+  // plain normalized form
+  hints.push(norm);
+
+  // Unicode √ variant
+  const unicodeForm = norm.replace(/sqrt/gi, '√');
+  if (unicodeForm !== norm) hints.push(unicodeForm);
+
+  return [...new Set(hints)];
 }
 
 /**
