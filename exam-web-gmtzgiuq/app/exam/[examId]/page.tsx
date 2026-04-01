@@ -326,11 +326,18 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
         // If there's a cached in-progress session, restore it with fresh questions
         if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
-          const storedId = loadBackendAttemptId(examId);
-          // Use fresh questions from API but keep session state (answers/progress)
-          saveRealExamSession(examId, existingSession, exam.questions);
-          await initFromSessionAndAttempt(existingSession, exam.questions, storedId);
-          return;
+          const freshQuestionIds = new Set(exam.questions.map((q: any) => q.id));
+          const sessionIdsMatch = existingSession.questionIds.every((id) => freshQuestionIds.has(id));
+          if (sessionIdsMatch && existingSession.questionIds.length > 0) {
+            const storedId = loadBackendAttemptId(examId);
+            // Use fresh questions from API but keep session state (answers/progress)
+            saveRealExamSession(examId, existingSession, exam.questions);
+            await initFromSessionAndAttempt(existingSession, exam.questions, storedId);
+            return;
+          }
+          // Session question IDs don't match fresh questions — discard stale session
+          clearRealExamSession(examId);
+          clearBackendAttemptId(examId);
         }
         if (existingSession?.status === 'completed') {
           clearRealExamSession(examId);

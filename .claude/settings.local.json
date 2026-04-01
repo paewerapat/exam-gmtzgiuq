@@ -9,7 +9,16 @@
       "Bash(node -e:*)",
       "Bash(npx next build)",
       "Bash(npx nest build:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(mkdir -p \"e:/Fastwork/559LDU4Z/exam-web-gmtzgiuq/app/practice/chapter/[chapterId]\")",
+      "Bash(mkdir -p \"e:/Fastwork/559LDU4Z/exam-web-gmtzgiuq/app/practice/subject/[subjectId]\")",
+      "Bash(node migrate-subject.js)",
+      "Bash(node ../migrate-categories.js)",
+      "Bash(node -e \"require\\(''''mysql2/promise''''\\)\")",
+      "Bash(node migrate-categories.js)",
+      "Bash(node test-math.mjs)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -i \"next/image\\\\|Image\\\\b\" e:/Fastwork/559LDU4Z/exam-web-gmtzgiuq/next.config.*)"
     ],
     "additionalDirectories": [
       "e:\\Fastwork\\559LDU4Z\\exam-web-gmtzgiuq\\app\\api\\auth"

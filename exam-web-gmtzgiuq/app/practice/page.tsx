@@ -48,10 +48,6 @@ function BannerShapes() {
   );
 }
 
-function isLoggedIn() {
-  return typeof window !== 'undefined' && !!localStorage.getItem('token');
-}
-
 // ── Exam card ───────────────────────────────────────────────
 function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) {
   const router = useRouter();
@@ -65,10 +61,6 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
 
   function handleStart(e: React.MouseEvent) {
     e.preventDefault();
-    if (!isLoggedIn()) {
-      router.push(`/login?redirect=/practice/exam/${exam.id}`);
-      return;
-    }
     router.push(`/practice/exam/${exam.id}`);
   }
 
@@ -239,7 +231,7 @@ export default function PublicPracticePage() {
         <div className="max-w-5xl mx-auto text-center">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">ฝึกทำข้อสอบ</h1>
           <p className="text-indigo-200 text-sm md:text-base">
-            เลือกชุดข้อสอบที่ต้องการฝึก · เข้าสู่ระบบเพื่อบันทึกคะแนนและติดตามพัฒนาการ
+            เลือกชุดข้อสอบที่ต้องการฝึก · เข้าสู่ระบบเพื่อบันทึกคะแนนและติดตามพัฒนาการของคุณ
           </p>
         </div>
       </div>
