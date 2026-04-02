@@ -12,6 +12,7 @@ import {
   Users,
   Settings,
   LogOut,
+  LogIn,
   BarChart3,
   Library,
   GraduationCap,
@@ -50,23 +51,35 @@ export default function DashboardSidebar() {
 
       {/* User info */}
       <div className="px-5 py-5 flex items-center gap-3">
-        {user?.avatar ? (
-          <img src={user.avatar} alt="avatar" className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+        {user ? (
+          <>
+            {user.avatar ? (
+              <img src={user.avatar} alt="avatar" className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                {initial}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 text-sm truncate leading-tight">
+                {user.firstName
+                  ? `${user.firstName} ${user.lastName || ''}`.trim()
+                  : user.email?.split('@')[0]}
+              </p>
+              <p className="text-xs text-gray-400 truncate mt-0.5">{user.email}</p>
+            </div>
+          </>
         ) : (
-          <div className="w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-            {initial}
-          </div>
+          <>
+            <div className="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+              <User className="w-5 h-5 text-gray-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-700 text-sm">ผู้เยี่ยมชม</p>
+              <p className="text-xs text-gray-400 mt-0.5">ยังไม่ได้เข้าสู่ระบบ</p>
+            </div>
+          </>
         )}
-        <div className="min-w-0">
-          <p className="font-semibold text-gray-900 text-sm truncate leading-tight">
-            {user?.firstName
-              ? `${user.firstName} ${user.lastName || ''}`.trim()
-              : user?.email?.split('@')[0]}
-          </p>
-          <p className="text-xs text-gray-400 truncate mt-0.5">
-            {user?.email || 'user'}
-          </p>
-        </div>
       </div>
 
       <div className="h-px bg-gray-100 mx-4 mb-3" />
@@ -98,15 +111,25 @@ export default function DashboardSidebar() {
         })}
       </nav>
 
-      {/* Logout */}
+      {/* Login / Logout */}
       <div className="p-4 border-t border-gray-100">
-        <button
-          onClick={logout}
-          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-all"
-        >
-          <LogOut className="w-5 h-5" />
-          ออกจากระบบ
-        </button>
+        {user ? (
+          <button
+            onClick={logout}
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-all"
+          >
+            <LogOut className="w-5 h-5" />
+            ออกจากระบบ
+          </button>
+        ) : (
+          <Link
+            href="/login"
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-all"
+          >
+            <LogIn className="w-5 h-5" />
+            เข้าสู่ระบบ
+          </Link>
+        )}
       </div>
     </aside>
   );

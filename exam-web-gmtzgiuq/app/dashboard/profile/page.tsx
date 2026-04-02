@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Mail, Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { User, Mail, Calendar, CheckCircle, XCircle, LogIn } from 'lucide-react';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -20,7 +21,32 @@ export default function ProfilePage() {
     }
   }, [user]);
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <User className="w-10 h-10 text-indigo-400" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">เข้าสู่ระบบเพื่อดูโปรไฟล์</h2>
+        <p className="text-gray-500 text-sm mb-6">กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อจัดการข้อมูลส่วนตัว</p>
+        <div className="flex gap-3">
+          <Link
+            href="/login"
+            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-full transition"
+          >
+            <LogIn className="w-4 h-4" />
+            เข้าสู่ระบบ
+          </Link>
+          <Link
+            href="/register"
+            className="px-6 py-2.5 border border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-sm font-semibold rounded-full transition"
+          >
+            สมัครสมาชิก
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
