@@ -26,9 +26,6 @@ export default function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-8">
-            <Link href="/practice" className="text-gray-700 hover:text-indigo-600 transition font-medium">
-              ฝึกทำข้อสอบ
-            </Link>
             <Link href="/blogs" className="text-gray-700 hover:text-indigo-600 transition">
               บทความ
             </Link>
@@ -54,6 +51,13 @@ export default function Navbar() {
               </>
             ) : (
               <>
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  เมนูหลัก
+                </Link>
                 <Link
                   href="/login"
                   className="text-gray-700 hover:text-indigo-600 transition"
@@ -87,13 +91,6 @@ export default function Navbar() {
         <div className="md:hidden bg-white border-t">
           <div className="px-2 pt-2 pb-3 space-y-1">
             <Link
-              href="/practice"
-              className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md font-medium"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              ฝึกทำข้อสอบ
-            </Link>
-            <Link
               href="/blogs"
               className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
               onClick={() => setMobileMenuOpen(false)}
@@ -124,6 +121,14 @@ export default function Navbar() {
               </>
             ) : (
               <>
+                <Link
+                  href="/dashboard"
+                  className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 rounded-md font-medium flex items-center gap-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  เมนูหลัก
+                </Link>
                 <Link
                   href="/login"
                   className="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
