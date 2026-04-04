@@ -4,6 +4,8 @@
 function handleUnauthorized() {
   if (typeof window === 'undefined') return;
   if (window.location.pathname === '/login') return; // prevent redirect loop
+  const hadToken = !!localStorage.getItem('token');
+  if (!hadToken) return; // guest user — no token, no redirect
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   window.location.href = '/login';

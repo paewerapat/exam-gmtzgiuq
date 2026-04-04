@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import UserAvatar from '@/components/ui/UserAvatar';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -53,13 +54,7 @@ export default function DashboardSidebar() {
       <div className="px-5 py-5 flex items-center gap-3">
         {user ? (
           <>
-            {user.avatar ? (
-              <img src={user.avatar} alt="avatar" className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                {initial}
-              </div>
-            )}
+            <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={44} />
             <div className="min-w-0">
               <p className="font-semibold text-gray-900 text-sm truncate leading-tight">
                 {user.firstName

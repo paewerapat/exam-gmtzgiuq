@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { User, Mail, Calendar, CheckCircle, XCircle, LogIn } from 'lucide-react';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -55,17 +56,7 @@ export default function ProfilePage() {
       {/* Profile Header */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
         <div className="flex items-center space-x-6">
-          {user.avatar ? (
-            <img
-              src={user.avatar}
-              alt="avatar"
-              className="w-20 h-20 rounded-full"
-            />
-          ) : (
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
-              <User className="w-10 h-10 text-white" />
-            </div>
-          )}
+          <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={80} />
           <div>
             <h2 className="text-xl font-bold text-gray-900">
               {user.firstName && user.lastName

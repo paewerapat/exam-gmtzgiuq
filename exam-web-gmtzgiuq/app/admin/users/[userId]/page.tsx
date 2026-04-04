@@ -14,6 +14,7 @@ import {
   Target,
   Loader2,
 } from 'lucide-react';
+import UserAvatar from '@/components/ui/UserAvatar';
 import FadeIn from '@/components/animations/FadeIn';
 import { getAdminUser, type UserProfile } from '@/lib/api/users';
 import {
@@ -153,17 +154,7 @@ export default function AdminUserDetailPage({
           {/* User Profile Card */}
           <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
             <div className="flex items-start gap-4">
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt=""
-                  className="w-16 h-16 rounded-full"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xl">
-                  {user.firstName?.[0] || user.email[0].toUpperCase()}
-                </div>
-              )}
+              <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={64} />
               <div className="flex-1">
                 <h1 className="text-xl font-bold text-gray-900">
                   {user.firstName

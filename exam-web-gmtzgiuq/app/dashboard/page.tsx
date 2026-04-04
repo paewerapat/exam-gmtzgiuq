@@ -38,6 +38,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
+    if (!hasToken) {
+      setLoading(false);
+      return;
+    }
     async function loadData() {
       try {
         const [statsData, recentData] = await Promise.all([

@@ -32,7 +32,8 @@ const errorLink = onError(({ error }) => {
   }
 
   if (isUnauth && typeof window !== 'undefined') {
-    if (window.location.pathname !== '/login') {
+    const hasToken = !!localStorage.getItem('token');
+    if (hasToken && window.location.pathname !== '/login') {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

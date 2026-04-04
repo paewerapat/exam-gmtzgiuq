@@ -11,6 +11,7 @@ import {
   UserCheck,
   Chrome,
 } from 'lucide-react';
+import UserAvatar from '@/components/ui/UserAvatar';
 import FadeIn from '@/components/animations/FadeIn';
 import {
   getAdminUsers,
@@ -212,18 +213,7 @@ export default function AdminUsersPage() {
                         <tr key={user.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              {user.avatar ? (
-                                <img
-                                  src={user.avatar}
-                                  alt=""
-                                  className="w-9 h-9 rounded-full"
-                                />
-                              ) : (
-                                <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-medium text-sm">
-                                  {user.firstName?.[0] ||
-                                    user.email[0].toUpperCase()}
-                                </div>
-                              )}
+                              <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={36} />
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
                                   {user.firstName
