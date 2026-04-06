@@ -427,7 +427,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   : indexed;
 
                 return (
-                  <div className="grid grid-cols-6 gap-1.5">
+                  <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5">
                     {displayList.map(({ qId, idx }) => {
                       const isAnswered = !!answers[qId];
                       const isMk = markedForReview.includes(qId);

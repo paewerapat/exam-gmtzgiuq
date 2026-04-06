@@ -33,7 +33,11 @@ const menuItems = [
   { href: '/admin', label: 'จัดการระบบ', icon: Settings, adminOnly: true, exact: true },
 ];
 
-export default function DashboardSidebar() {
+interface DashboardSidebarProps {
+  onNavigate?: () => void;
+}
+
+export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
@@ -93,6 +97,7 @@ export default function DashboardSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isActive
                   ? 'bg-indigo-600 text-white shadow-sm'

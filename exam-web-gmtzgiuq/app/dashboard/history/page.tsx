@@ -83,10 +83,10 @@ function AttemptCard({ attempt, scoreChange, categories }: { attempt: ExamAttemp
         </Link>
       </div>
 
-      <div className="w-px bg-gray-100" />
+      <div className="hidden sm:block w-px bg-gray-100" />
 
       {/* Right: recommendation */}
-      <div className={`w-56 flex-shrink-0 p-5 ${rec.bg} flex flex-col justify-between`}>
+      <div className={`hidden sm:flex w-56 flex-shrink-0 p-5 ${rec.bg} flex-col justify-between`}>
         <div>
           <p className="text-sm font-bold text-gray-800">{rec.title}</p>
           <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{rec.sub}</p>
@@ -266,7 +266,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-gray-500">จำนวนข้อสอบที่ทำทั้งหมด</p>
@@ -373,7 +373,7 @@ export default function HistoryPage() {
       )}
 
       {/* Search + filter */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input

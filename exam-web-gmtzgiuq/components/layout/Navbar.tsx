@@ -4,10 +4,16 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Menu, Loader2, LayoutDashboard, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
   const { user, loading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Dashboard/admin have their own sidebar — hide Navbar entirely on those routes
+  const isDashboard = pathname?.startsWith('/dashboard') || pathname?.startsWith('/admin');
+  if (isDashboard) return null;
 
   const handleLogout = () => {
     logout();

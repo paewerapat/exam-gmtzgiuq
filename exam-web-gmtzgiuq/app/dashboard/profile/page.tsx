@@ -159,7 +159,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm p-6 text-center">
           <div className="text-3xl font-bold text-indigo-600">0</div>
           <div className="text-gray-600 mt-1">ข้อสอบที่ทำ</div>
