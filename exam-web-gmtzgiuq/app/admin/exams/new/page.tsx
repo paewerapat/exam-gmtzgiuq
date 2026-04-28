@@ -89,6 +89,9 @@ export default function NewExamPage() {
   // Exam-level: subject only
   const [examSubjectId, setExamSubjectId] = useState('');
 
+  // Banner image
+  const [bannerImage, setBannerImage] = useState('');
+
   // Questions
   const [questions, setQuestions] = useState<QuestionForm[]>([createEmptyQuestion()]);
 
@@ -207,6 +210,7 @@ export default function NewExamPage() {
         status,
         questions: examQuestions,
         subjectId: examSubjectId || null,
+        bannerImage: bannerImage || null,
       });
 
       toast.success('สร้างชุดข้อสอบสำเร็จ');
@@ -306,6 +310,18 @@ export default function NewExamPage() {
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Banner image */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ภาพแบนเนอร์ชุดข้อสอบ
+                  <span className="ml-2 text-xs text-gray-400 font-normal">แนะนำ 16:9 (เช่น 1280×720px)</span>
+                </label>
+                <ImageUpload
+                  value={bannerImage}
+                  onChange={setBannerImage}
+                />
               </div>
             </div>
           </div>

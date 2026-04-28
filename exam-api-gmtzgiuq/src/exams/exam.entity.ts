@@ -60,6 +60,10 @@ export class Exam {
   @Column({ nullable: true, type: 'varchar', length: 36 })
   subjectId: string | null;
 
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  bannerImage: string | null;
+
   @Field()
   @CreateDateColumn()
   createdAt: Date;

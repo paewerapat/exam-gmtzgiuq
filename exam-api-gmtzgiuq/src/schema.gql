@@ -88,6 +88,7 @@ scalar DateTime
 
 type Exam {
   author: User!
+  bannerImage: String
   category: String!
   createdAt: DateTime!
   description: String

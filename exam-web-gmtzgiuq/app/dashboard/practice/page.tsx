@@ -115,19 +115,24 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
-      {/* Gradient banner */}
-      <div
-        className="relative h-36 p-4 flex flex-col justify-between overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-      >
-        <BannerShapes />
-        <span className="relative z-10 text-[11px] font-bold text-white/80 uppercase tracking-widest">
-          {catName}
-        </span>
-        <h3 className="relative z-10 text-white font-bold text-base leading-snug line-clamp-2">
-          {exam.title}
-        </h3>
-      </div>
+      {exam.bannerImage ? (
+        <div className="relative h-36 overflow-hidden">
+          <img src={exam.bannerImage} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/40 p-4 flex flex-col justify-between">
+            <span className="text-[11px] font-bold text-white/80 uppercase tracking-widest">{catName}</span>
+            <h3 className="text-white font-bold text-base leading-snug line-clamp-2">{exam.title}</h3>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="relative h-36 p-4 flex flex-col justify-between overflow-hidden"
+          style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
+        >
+          <BannerShapes />
+          <span className="relative z-10 text-[11px] font-bold text-white/80 uppercase tracking-widest">{catName}</span>
+          <h3 className="relative z-10 text-white font-bold text-base leading-snug line-clamp-2">{exam.title}</h3>
+        </div>
+      )}
 
       {/* Card body */}
       <div className="p-4 flex flex-col flex-1">

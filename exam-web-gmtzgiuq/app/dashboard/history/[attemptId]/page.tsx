@@ -30,12 +30,13 @@ function getScoreBorderColor(score: number) {
   return 'border-red-400';
 }
 
-// ── Tab 1: Question review ────────────────────────────────────
+// ── Tab 1: Question result table ─────────────────────────────
 
 type FilterType = 'all' | 'correct' | 'incorrect' | 'unanswered';
 
 function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | null }) {
   const [filter, setFilter] = useState<FilterType>('all');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   if (!exam || !exam.questions?.length) {
     return (
@@ -75,10 +76,18 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
     { key: 'unanswered', label: 'ไม่ตอบ', count: counts.unanswered },
   ];
 
+  function toggleExpand(qId: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(qId) ? next.delete(qId) : next.add(qId);
+      return next;
+    });
+  }
+
   return (
     <div>
       {/* Filter tabs */}
-      <div className="flex gap-2 mb-5">
+      <div className="flex flex-wrap gap-2 mb-4">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -92,77 +101,112 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
         ))}
       </div>
 
-      {/* Question cards */}
-      <div className="space-y-4">
-        {filtered.map((item) => {
-          if (!item.question) return null;
-          const globalIdx = attempt.questionIds.indexOf(item.qId) + 1;
-          const userAnswerChoice = item.question.choices.find((c) => c.id === item.userAnswer);
-          const correctChoice = item.correctChoice;
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="text-center px-4 py-3 text-gray-500 font-medium w-14">ข้อที่</th>
+                <th className="text-left px-4 py-3 text-gray-500 font-medium">คำถาม</th>
+                <th className="text-left px-4 py-3 text-gray-500 font-medium w-32">Section</th>
+                <th className="text-left px-4 py-3 text-gray-500 font-medium w-40">เฉลย</th>
+                <th className="text-left px-4 py-3 text-gray-500 font-medium w-40">คำตอบผู้สอบ</th>
+                <th className="text-center px-4 py-3 text-gray-500 font-medium w-20">View</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((item) => {
+                if (!item.question) return null;
+                const globalIdx = attempt.questionIds.indexOf(item.qId) + 1;
+                const userAnswerChoice = item.question.choices.find((c) => c.id === item.userAnswer);
+                const correctChoice = item.correctChoice;
+                const isExpanded = expandedIds.has(item.qId);
+                const hasExplanation = !!item.question.explanation;
 
-          const cardBorder =
-            item.status === 'correct' ? 'border-green-200 bg-green-50/30' :
-            item.status === 'incorrect' ? 'border-red-200 bg-red-50/20' :
-            'border-gray-200 bg-white';
+                const statusIcon =
+                  item.status === 'correct' ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto" /> :
+                  item.status === 'incorrect' ? <XCircle className="w-4 h-4 text-red-400 mx-auto" /> :
+                  <MinusCircle className="w-4 h-4 text-gray-300 mx-auto" />;
 
-          const expBg =
-            item.status === 'correct' ? 'bg-green-50 border-green-200' :
-            item.status === 'incorrect' ? 'bg-red-50 border-red-200' :
-            'bg-gray-50 border-gray-200';
+                const userAnswerColor =
+                  item.status === 'correct' ? 'text-green-600 font-semibold' :
+                  item.status === 'incorrect' ? 'text-red-500 font-semibold' :
+                  'text-gray-400';
 
-          return (
-            <div key={item.qId} className={`rounded-2xl border p-5 ${cardBorder}`}>
-              {/* Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {item.status === 'correct' && <CheckCircle className="w-5 h-5 text-green-500" />}
-                  {item.status === 'incorrect' && <XCircle className="w-5 h-5 text-red-400" />}
-                  {item.status === 'unanswered' && <MinusCircle className="w-5 h-5 text-gray-400" />}
-                  <span className="text-sm font-semibold text-gray-700">ข้อ {globalIdx}</span>
-                </div>
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />{item.timeSpent}s
-                </span>
-              </div>
-
-              {/* Question */}
-              <div className="text-gray-900 mb-3 text-sm leading-relaxed">
-                <LatexText text={item.question.question} />
-              </div>
-              {item.question.questionImage && (
-                <img src={item.question.questionImage} alt="question" className="max-w-xs rounded-lg mb-3" />
-              )}
-
-              {/* Answers */}
-              <div className="space-y-1 mb-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-500 w-28 flex-shrink-0">คำตอบของคุณ:</span>
-                  <span className={item.status === 'correct' ? 'text-green-600 font-semibold' : item.status === 'incorrect' ? 'text-red-500 font-semibold' : 'text-gray-400'}>
-                    {userAnswerChoice ? <LatexText text={userAnswerChoice.text} /> : '-'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-500 w-28 flex-shrink-0">คำตอบที่ถูกต้อง:</span>
-                  <span className="text-green-600 font-semibold">
-                    {correctChoice ? <LatexText text={correctChoice.text} /> : '-'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Explanation */}
-              {item.question.explanation && (
-                <div className={`rounded-xl border p-3 ${expBg}`}>
-                  <p className={`text-xs font-bold mb-1 ${item.status === 'correct' ? 'text-green-700' : item.status === 'incorrect' ? 'text-red-600' : 'text-gray-600'}`}>
-                    คำอธิบาย
-                  </p>
-                  <div className="text-sm text-gray-700 leading-relaxed">
-                    <LatexText text={item.question.explanation} />
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                return (
+                  <>
+                    <tr key={item.qId} className={isExpanded ? 'bg-indigo-50/40' : 'hover:bg-gray-50/60'}>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs font-medium text-gray-500">{globalIdx}</span>
+                          {statusIcon}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 max-w-xs">
+                        <p className="line-clamp-2 text-xs leading-relaxed">
+                          <LatexText text={item.question.question} />
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.question.chapter ? (
+                          <span className="inline-block text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
+                            {item.question.chapter}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-green-600 font-medium text-xs">
+                        {correctChoice ? <LatexText text={correctChoice.text} /> : '-'}
+                      </td>
+                      <td className={`px-4 py-3 text-xs ${userAnswerColor}`}>
+                        {userAnswerChoice ? <LatexText text={userAnswerChoice.text} /> : <span className="text-gray-300">ไม่ตอบ</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {hasExplanation && (
+                          <button
+                            onClick={() => toggleExpand(item.qId)}
+                            className={`text-xs font-medium px-3 py-1 rounded-lg transition ${
+                              isExpanded
+                                ? 'bg-indigo-600 text-white'
+                                : 'border border-indigo-300 text-indigo-600 hover:bg-indigo-50'
+                            }`}
+                          >
+                            {isExpanded ? 'ปิด' : 'View'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${item.qId}-exp`} className="bg-indigo-50/40">
+                        <td />
+                        <td colSpan={5} className="px-4 pb-4 pt-1">
+                          {item.question.questionImage && (
+                            <img src={item.question.questionImage} alt="" className="max-w-xs rounded-lg mb-3" />
+                          )}
+                          <div className={`rounded-xl border p-3 text-sm ${
+                            item.status === 'correct' ? 'bg-green-50 border-green-200' :
+                            item.status === 'incorrect' ? 'bg-red-50 border-red-200' :
+                            'bg-gray-50 border-gray-200'
+                          }`}>
+                            <p className={`text-xs font-bold mb-1.5 ${
+                              item.status === 'correct' ? 'text-green-700' :
+                              item.status === 'incorrect' ? 'text-red-600' : 'text-gray-600'
+                            }`}>คำอธิบาย</p>
+                            <div className="text-gray-700 leading-relaxed">
+                              <LatexText text={item.question.explanation!} />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -170,75 +214,110 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
 
 // ── Tab 2: Score by chapter ───────────────────────────────────
 
-function ScoreByChapter({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | null }) {
+interface ChapterStats {
+  name: string;
+  total: number;
+  correct: number;
+  incorrect: number;
+  skipped: number;
+}
+
+function buildChapterStats(attempt: ExamAttempt, exam: Exam): ChapterStats[] {
+  const questionMap = new Map(exam.questions.map((q) => [q.id, q]));
+  const chapterMap = new Map<string, ChapterStats>();
+
+  attempt.questionIds.forEach((qId) => {
+    const question = questionMap.get(qId);
+    if (!question) return;
+    const chapterKey = question.chapter || '(ไม่ระบุบท)';
+    if (!chapterMap.has(chapterKey)) {
+      chapterMap.set(chapterKey, { name: chapterKey, total: 0, correct: 0, incorrect: 0, skipped: 0 });
+    }
+    const stat = chapterMap.get(chapterKey)!;
+    stat.total++;
+    const userAnswer = attempt.answers[qId];
+    if (!userAnswer) { stat.skipped++; return; }
+    const correctChoice = question.choices.find((c) => c.isCorrect);
+    if (correctChoice && userAnswer === correctChoice.id) stat.correct++;
+    else stat.incorrect++;
+  });
+
+  return [...chapterMap.values()];
+}
+
+export function ScoreByChapterTable({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | null }) {
   if (!exam || !exam.questions?.length) {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center shadow-sm">
-        <p className="text-gray-500">ไม่สามารถโหลดข้อมูลได้</p>
+        <BookOpen className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+        <p className="text-sm text-gray-400">ไม่สามารถโหลดข้อมูลได้</p>
       </div>
     );
   }
 
-  // Compute overall stats (only data we have)
-  const questionMap = new Map(exam.questions.map((q) => [q.id, q]));
-  let correct = 0, incorrect = 0, skipped = 0;
+  const chapters = buildChapterStats(attempt, exam);
+  const totalCorrect = chapters.reduce((s, c) => s + c.correct, 0);
+  const totalIncorrect = chapters.reduce((s, c) => s + c.incorrect, 0);
+  const totalSkipped = chapters.reduce((s, c) => s + c.skipped, 0);
+  const totalAll = chapters.reduce((s, c) => s + c.total, 0);
+  const totalPct = totalAll > 0 ? Math.round((totalCorrect / totalAll) * 100) : 0;
 
-  attempt.questionIds.forEach((qId) => {
-    const question = questionMap.get(qId);
-    const userAnswer = attempt.answers[qId];
-    if (!question) return;
-    if (!userAnswer) { skipped++; return; }
-    const correctChoice = question.choices.find((c) => c.isCorrect);
-    if (correctChoice && userAnswer === correctChoice.id) correct++;
-    else incorrect++;
-  });
-
-  const total = attempt.questionIds.length;
-  const scorePct = total > 0 ? Math.round((correct / total) * 100) : 0;
+  const hasChapterData = chapters.some((c) => c.name !== '(ไม่ระบุบท)');
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-100">
-            <th className="text-left px-5 py-3 text-gray-500 font-medium">ชื่อบท</th>
-            <th className="text-center px-4 py-3 text-gray-500 font-medium">คะแนน %</th>
-            <th className="text-center px-4 py-3 text-gray-500 font-medium">ข้อที่ทำได้</th>
-            <th className="text-center px-4 py-3 text-gray-500 font-medium">ข้อที่ผิด</th>
-            <th className="text-center px-4 py-3 text-gray-500 font-medium">ข้อที่ข้าม</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* Overall row */}
-          <tr className="bg-indigo-50 border-b border-indigo-100">
-            <td className="px-5 py-3 font-bold text-indigo-700">{attempt.examTitle}</td>
-            <td className="px-4 py-3 text-center font-bold text-indigo-700">{scorePct}%</td>
-            <td className="px-4 py-3 text-center font-bold text-indigo-700">{correct}</td>
-            <td className="px-4 py-3 text-center font-bold text-indigo-700">{incorrect}</td>
-            <td className="px-4 py-3 text-center font-bold text-indigo-700">{skipped}</td>
-          </tr>
-
-          {/* Placeholder — per-question chapter info not available */}
-          <tr>
-            <td colSpan={5} className="px-5 py-8 text-center">
-              <BookOpen className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">ยังไม่มีข้อมูลสัดส่วนตามบท</p>
-              <p className="text-xs text-gray-300 mt-1">สามารถเปิดใช้งานได้เมื่อข้อสอบมีการแท็กบท/หัวข้อ</p>
-            </td>
-          </tr>
-
-          {/* Total row */}
-          <tr className="bg-indigo-600">
-            <td className="px-5 py-3 font-bold text-white">รวมทั้งหมด</td>
-            <td className="px-4 py-3 text-center font-bold text-white">{scorePct}%</td>
-            <td className="px-4 py-3 text-center font-bold text-white">{correct}</td>
-            <td className="px-4 py-3 text-center font-bold text-white">{incorrect}</td>
-            <td className="px-4 py-3 text-center font-bold text-white">{skipped}</td>
-          </tr>
-        </tbody>
-      </table>
+      {!hasChapterData && (
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <p className="text-xs text-amber-700">ข้อสอบนี้ยังไม่มีการแท็กบท — แสดงภาพรวมทั้งชุด</p>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100">
+              <th className="text-left px-5 py-3 text-gray-500 font-medium">ชื่อบท / Section</th>
+              <th className="text-center px-4 py-3 text-gray-500 font-medium">คะแนน %</th>
+              <th className="text-center px-4 py-3 text-gray-500 font-medium">ถูก</th>
+              <th className="text-center px-4 py-3 text-gray-500 font-medium">ผิด</th>
+              <th className="text-center px-4 py-3 text-gray-500 font-medium">ข้าม</th>
+              <th className="text-center px-4 py-3 text-gray-500 font-medium">ทั้งหมด</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chapters.map((ch) => {
+              const pct = ch.total > 0 ? Math.round((ch.correct / ch.total) * 100) : 0;
+              const pctColor = pct >= 70 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-500';
+              return (
+                <tr key={ch.name} className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <td className="px-5 py-3 font-medium text-gray-800">{ch.name}</td>
+                  <td className={`px-4 py-3 text-center font-bold ${pctColor}`}>{pct}%</td>
+                  <td className="px-4 py-3 text-center text-green-600 font-medium">{ch.correct}</td>
+                  <td className="px-4 py-3 text-center text-red-500 font-medium">{ch.incorrect}</td>
+                  <td className="px-4 py-3 text-center text-gray-400">{ch.skipped}</td>
+                  <td className="px-4 py-3 text-center text-gray-600">{ch.total}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="bg-indigo-600">
+              <td className="px-5 py-3 font-bold text-white">รวมทั้งหมด</td>
+              <td className="px-4 py-3 text-center font-bold text-white">{totalPct}%</td>
+              <td className="px-4 py-3 text-center font-bold text-white">{totalCorrect}</td>
+              <td className="px-4 py-3 text-center font-bold text-white">{totalIncorrect}</td>
+              <td className="px-4 py-3 text-center font-bold text-white">{totalSkipped}</td>
+              <td className="px-4 py-3 text-center font-bold text-white">{totalAll}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
+}
+
+function ScoreByChapter({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | null }) {
+  return <ScoreByChapterTable attempt={attempt} exam={exam} />;
 }
 
 // ── Page ──────────────────────────────────────────────────────

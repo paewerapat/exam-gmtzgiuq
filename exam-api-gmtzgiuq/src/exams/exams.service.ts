@@ -39,6 +39,7 @@ export class ExamsService {
         status: input.status || QuestionStatus.DRAFT,
         questionCount: input.questions.length,
         subjectId: input.subjectId ?? null,
+        bannerImage: input.bannerImage ?? null,
         author,
         authorId: author.id,
       });
@@ -161,6 +162,7 @@ export class ExamsService {
       if (input.category !== undefined) exam.category = input.category;
       if (input.status !== undefined) exam.status = input.status;
       if (input.subjectId !== undefined) exam.subjectId = input.subjectId ?? null;
+      if (input.bannerImage !== undefined) exam.bannerImage = input.bannerImage;
 
       // Replace questions if provided
       if (input.questions) {

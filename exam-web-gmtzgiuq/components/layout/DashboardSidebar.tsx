@@ -44,7 +44,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
   const initial = (user?.firstName?.[0] || user?.email?.[0] || 'U').toUpperCase();
 
   return (
-    <aside className="w-64 bg-white min-h-screen flex flex-col border-r border-gray-100 flex-shrink-0">
+    <aside className="w-64 bg-white sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-gray-100 flex-shrink-0">
       {/* Logo */}
       <div className="px-6 pt-7 pb-5">
         <Link href="/" className="text-2xl font-extrabold text-indigo-600 tracking-tight">

@@ -120,6 +120,11 @@ export class CreateExamInput {
   @IsString()
   subjectId?: string | null;
 
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  bannerImage?: string;
+
   @Field(() => [CreateExamQuestionInput])
   @IsArray()
   @ValidateNested({ each: true })
@@ -154,6 +159,11 @@ export class UpdateExamInput {
   @IsOptional()
   @IsString()
   subjectId?: string | null;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  bannerImage?: string;
 
   @Field(() => [CreateExamQuestionInput], { nullable: true })
   @IsArray()

@@ -20,6 +20,7 @@ export interface Exam {
   questions: Question[];
   author: QuestionAuthor;
   subjectId?: string | null;
+  bannerImage?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +60,7 @@ export interface CreateExamInput {
   status?: QuestionStatus;
   questions: ExamQuestionInput[];
   subjectId?: string | null;
+  bannerImage?: string | null;
 }
 
 export interface UpdateExamInput {
@@ -68,6 +70,7 @@ export interface UpdateExamInput {
   status?: QuestionStatus;
   questions?: ExamQuestionInput[];
   subjectId?: string | null;
+  bannerImage?: string | null;
 }
 
 export interface GetExamsParams {

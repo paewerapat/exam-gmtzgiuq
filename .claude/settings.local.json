@@ -18,7 +18,9 @@
       "Bash(node migrate-categories.js)",
       "Bash(node test-math.mjs)",
       "Bash(xargs grep:*)",
-      "Bash(grep -i \"next/image\\\\|Image\\\\b\" e:/Fastwork/559LDU4Z/exam-web-gmtzgiuq/next.config.*)"
+      "Bash(grep -i \"next/image\\\\|Image\\\\b\" e:/Fastwork/559LDU4Z/exam-web-gmtzgiuq/next.config.*)",
+      "Bash(mysql -h 147.50.255.13 -P 3306 -u chokesiri_admin -p7z08Oz9_a chokesiri_db -e ' *)",
+      "Bash(where mysql *)"
     ],
     "additionalDirectories": [
       "e:\\Fastwork\\559LDU4Z\\exam-web-gmtzgiuq\\app\\api\\auth"

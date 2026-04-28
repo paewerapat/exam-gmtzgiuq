@@ -95,6 +95,9 @@ export default function EditExamPage({ params }: PageProps) {
   // Exam-level: subject only
   const [examSubjectId, setExamSubjectId] = useState('');
 
+  // Banner image
+  const [bannerImage, setBannerImage] = useState('');
+
   useEffect(() => {
     params.then((p) => setExamId(p.id));
   }, [params]);
@@ -132,6 +135,9 @@ export default function EditExamPage({ params }: PageProps) {
         // Restore exam-level subject
         if (exam.subjectId) {
           setExamSubjectId(exam.subjectId);
+        }
+        if (exam.bannerImage) {
+          setBannerImage(exam.bannerImage);
         }
 
         setLoading(false);
@@ -251,6 +257,7 @@ export default function EditExamPage({ params }: PageProps) {
         status,
         questions: examQuestions,
         subjectId: examSubjectId || null,
+        bannerImage: bannerImage || null,
       });
 
       toast.success('อัพเดทชุดข้อสอบสำเร็จ');
@@ -356,6 +363,18 @@ export default function EditExamPage({ params }: PageProps) {
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Banner image */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ภาพแบนเนอร์ชุดข้อสอบ
+                  <span className="ml-2 text-xs text-gray-400 font-normal">แนะนำ 16:9 (เช่น 1280×720px)</span>
+                </label>
+                <ImageUpload
+                  value={bannerImage}
+                  onChange={setBannerImage}
+                />
               </div>
             </div>
           </div>
