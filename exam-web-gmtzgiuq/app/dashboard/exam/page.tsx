@@ -110,7 +110,7 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
       {exam.bannerImage ? (
-        <div className="relative h-36 overflow-hidden">
+        <div className="relative aspect-video overflow-hidden">
           <img src={exam.bannerImage} alt="" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-black/40 p-4 flex flex-col justify-between">
             <span className="text-[11px] font-bold text-white/80 uppercase tracking-widest">{catName}</span>
@@ -119,7 +119,7 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
         </div>
       ) : (
         <div
-          className="relative h-36 p-4 flex flex-col justify-between overflow-hidden"
+          className="relative aspect-video p-4 flex flex-col justify-between overflow-hidden"
           style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
         >
           <BannerShapes />
