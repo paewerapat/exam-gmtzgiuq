@@ -210,6 +210,7 @@ export class ExamsService {
         status: exam.status,
         subjectId: exam.subjectId,
         questionCount: exam.questionCount,
+        bannerImage: exam.bannerImage,
       });
     });
 
