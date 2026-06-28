@@ -13,7 +13,8 @@ import {
   ArrowRight,
   Play,
   BarChart3,
-  Shield
+  Shield,
+  Gift
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { StaggerContainer, StaggerItem } from '@/components/animations/StaggerContainer';
@@ -67,14 +68,14 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
-              พิชิตทุกการสอบด้วย
+              แพลตฟอร์มฝึกสอบออนไลน์ฟรี
               <motion.span
                 className="block text-yellow-300"
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
-                ExamPrep
+                ที่ช่วยให้คุณสอบได้อย่างมั่นใจ
               </motion.span>
             </motion.h1>
             <motion.p
@@ -83,8 +84,8 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
             >
-              ฝึกทำข้อสอบจำลองที่ครอบคลุม พร้อมรับ feedback ทันที
-              และวิเคราะห์ผลอย่างละเอียดเพื่อติดตามความก้าวหน้าของคุณ
+              ฝึกทำข้อสอบ พร้อมคำอธิบายทันที เห็นพัฒนาการของตัวเองได้ชัดเจน
+              ไม่ว่าคุณจะเริ่มจากจุดไหน เราอยู่ข้างคุณ ใช้งานได้ฟรี
             </motion.p>
             <motion.div
               className="flex justify-center"
@@ -97,7 +98,7 @@ export default function Home() {
                 className="bg-white text-indigo-600 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
               >
                 <Play className="w-5 h-5" />
-                เริ่มทำโจทย์
+                เริ่มฝึกทำโจทย์ ฟรี
               </Link>
             </motion.div>
           </div>
@@ -117,9 +118,9 @@ export default function Home() {
                   viewport={{ once: true }}
                   transition={{ type: 'spring', stiffness: 100, delay: 0 }}
                 >
-                  10,000+
+                  3,000+
                 </motion.div>
-                <div className="text-gray-600">ผู้ใช้งาน</div>
+                <div className="text-gray-600">ครั้ง<br />ข้อสอบที่ฝึกทำไปแล้ว</div>
               </div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -131,9 +132,9 @@ export default function Home() {
                   viewport={{ once: true }}
                   transition={{ type: 'spring', stiffness: 100, delay: 0.1 }}
                 >
-                  50,000+
+                  5000+
                 </motion.div>
-                <div className="text-gray-600">ข้อสอบ</div>
+                <div className="text-gray-600">ข้อ<br />ให้คุณฝึกได้อย่างต่อเนื่อง</div>
               </div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -147,7 +148,7 @@ export default function Home() {
                 >
                   95%
                 </motion.div>
-                <div className="text-gray-600">ความพึงพอใจ</div>
+                <div className="text-gray-600">ความพึงพอใจ<br />รู้สึกมั่นใจขึ้นหลังฝึกทำข้อสอบ</div>
               </div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -159,9 +160,9 @@ export default function Home() {
                   viewport={{ once: true }}
                   transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}
                 >
-                  100+
+                  10+
                 </motion.div>
-                <div className="text-gray-600">หมวดหมู่</div>
+                <div className="text-gray-600">หมวดหมู่<br />วิชารองรับทุกเป้าหมายการสอบ</div>
               </div>
             </StaggerItem>
           </StaggerContainer>
@@ -180,7 +181,7 @@ export default function Home() {
             </p>
           </FadeIn>
 
-          <StaggerContainer className="grid md:grid-cols-2 lg:grid-cols-4 gap-8" staggerDelay={0.1}>
+          <StaggerContainer className="grid md:grid-cols-2 lg:grid-cols-5 gap-8" staggerDelay={0.1}>
             <StaggerItem direction="up">
               <motion.div
                 className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
@@ -192,7 +193,7 @@ export default function Home() {
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
                   ข้อสอบครอบคลุม
                 </h3>
-                <p className="text-gray-600">เข้าถึงข้อสอบนับพันที่ครอบคลุมทุกหัวข้อในการสอบของคุณ</p>
+                <p className="text-gray-600">ฝึกได้ครบทุกหัวข้อ ไม่ต้องเสียเวลาหาเพิ่ม</p>
               </motion.div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -206,7 +207,7 @@ export default function Home() {
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
                   Feedback ทันที
                 </h3>
-                <p className="text-gray-600">รับผลลัพธ์ทันทีพร้อมคำอธิบายละเอียดสำหรับทุกคำถาม</p>
+                <p className="text-gray-600">ทุกคำถามรู้ทันทีว่าผิดตรงไหน และควรแก้ยังไง</p>
               </motion.div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -220,7 +221,7 @@ export default function Home() {
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
                   ติดตามความก้าวหน้า
                 </h3>
-                <p className="text-gray-600">ดูพัฒนาการของคุณด้วยการวิเคราะห์และข้อมูลเชิงลึกอย่างละเอียด</p>
+                <p className="text-gray-600">เห็นพัฒนาการของตัวเองได้ชัดขึ้นในทุกครั้งที่ฝึก</p>
               </motion.div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -234,7 +235,21 @@ export default function Home() {
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
                   เนื้อหาจากผู้เชี่ยวชาญ
                 </h3>
-                <p className="text-gray-600">ข้อสอบคัดสรรโดยผู้เชี่ยวชาญและนักการศึกษามืออาชีพ</p>
+                <p className="text-gray-600">มั่นใจในเนื้อหา ที่ผ่านการคัดสรรโดยผู้เชี่ยวชาญ</p>
+              </motion.div>
+            </StaggerItem>
+            <StaggerItem direction="up">
+              <motion.div
+                className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
+                whileHover={{ y: -5 }}
+              >
+                <div className="inline-block p-4 bg-pink-100 rounded-2xl mb-6 group-hover:bg-pink-600 transition">
+                  <Gift className="w-8 h-8 text-pink-600 group-hover:text-white transition" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  ฝึกได้ฟรี ไม่มีค่าใช้จ่าย
+                </h3>
+                <p className="text-gray-600">เริ่มฝึกได้เลย โดยไม่ต้องกังวลเรื่องค่าใช้จ่าย</p>
               </motion.div>
             </StaggerItem>
           </StaggerContainer>
@@ -246,10 +261,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <FadeIn className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              เริ่มต้นง่ายๆ ใน 3 ขั้นตอน
+              เริ่มฝึกสอบได้ง่ายๆ ใน 3 ขั้นตอน
             </h2>
             <p className="text-xl text-gray-600">
-              ไม่ยุ่งยาก พร้อมเริ่มทำข้อสอบได้ทันที
+              ไม่ต้องเตรียมอะไรให้วุ่นวาย เริ่มฝึกได้ทันที
             </p>
           </FadeIn>
 
@@ -263,8 +278,8 @@ export default function Home() {
                 >
                   1
                 </motion.div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">สมัครสมาชิก</h3>
-                <p className="text-gray-600">สร้างบัญชีฟรีใน 30 วินาที ไม่ต้องใช้บัตรเครดิต</p>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">เริ่มต้นใช้งานฟรี</h3>
+                <p className="text-gray-600">ใช้เวลาไม่ถึง 30 วินาที ไม่ต้องใช้บัตรเครดิต</p>
                 <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200"></div>
               </div>
             </StaggerItem>
@@ -277,8 +292,8 @@ export default function Home() {
                 >
                   2
                 </motion.div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">เลือกข้อสอบ</h3>
-                <p className="text-gray-600">เลือกหมวดหมู่และชุดข้อสอบที่ต้องการฝึก</p>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">เลือกสิ่งที่คุณอยากสอบ</h3>
+                <p className="text-gray-600">เลือกหมวดหมู่และข้อสอบที่เหมาะกับคุณได้เลย</p>
                 <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200"></div>
               </div>
             </StaggerItem>
@@ -291,8 +306,8 @@ export default function Home() {
                 >
                   3
                 </motion.div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">ฝึกและพัฒนา</h3>
-                <p className="text-gray-600">ทำข้อสอบ รับ feedback และพัฒนาตัวเองอย่างต่อเนื่อง</p>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">ฝึกทำและพัฒนาตัวเอง</h3>
+                <p className="text-gray-600">รู้ทันทีว่าควรปรับตรงไหน และเห็นพัฒนาการของตัวเอง</p>
               </div>
             </StaggerItem>
           </StaggerContainer>
@@ -307,7 +322,7 @@ export default function Home() {
               หมวดหมู่ข้อสอบยอดนิยม
             </h2>
             <p className="text-xl text-gray-600">
-              ครอบคลุมทุกการสอบที่คุณต้องการ
+              ไม่ว่าคุณจะเตรียมสอบอะไร เรามีให้คุณเริ่มฝึกได้ทันที
             </p>
           </FadeIn>
 
@@ -323,7 +338,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
-                      ข้อสอบราชการ (ก.พ.)
+                      เตรียมสอบ A-LEVEL  คณิตศาสตร์
                     </h3>
                     <p className="text-sm text-gray-500">5,000+ ข้อ</p>
                   </div>
@@ -342,7 +357,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
-                      ข้อสอบ TOEIC
+                      เตรียมสอบ A-LEVEL ชีวะ
                     </h3>
                     <p className="text-sm text-gray-500">3,000+ ข้อ</p>
                   </div>
@@ -361,7 +376,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
-                      ข้อสอบ GAT/PAT
+                      เตรียมสอบ A-LEVEL เคมี
                     </h3>
                     <p className="text-sm text-gray-500">4,500+ ข้อ</p>
                   </div>
@@ -380,7 +395,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
-                      ข้อสอบ O-NET
+                      เตรียมสอบ สอวน. ชีวะ
                     </h3>
                     <p className="text-sm text-gray-500">6,000+ ข้อ</p>
                   </div>
@@ -399,7 +414,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
-                      ข้อสอบใบขับขี่
+                      เตรียมสอบ สอวน. คณิต
                     </h3>
                     <p className="text-sm text-gray-500">1,500+ ข้อ</p>
                   </div>
@@ -413,14 +428,14 @@ export default function Home() {
                   href="/practice"
                   className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
-                  <div className="p-4 bg-gray-100 rounded-xl mr-4 group-hover:bg-gray-600 transition">
-                    <Target className="w-6 h-6 text-gray-600 group-hover:text-white transition" />
+                  <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition">
+                    <BookOpen className="w-6 h-6 text-indigo-600 group-hover:text-white transition" />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition">
-                      ข้อสอบอื่นๆ
+                      ข้อสอบอื่นๆ ให้คุณฝึก
                     </h3>
-                    <p className="text-sm text-gray-500">10,000+ ข้อ</p>
+                    <p className="text-sm text-gray-500">5,000+ ข้อ</p>
                   </div>
                   <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
                 </Link>
@@ -438,7 +453,7 @@ export default function Home() {
               เสียงจากผู้ใช้งานจริง
             </h2>
             <p className="text-xl text-gray-600">
-              ดูว่าผู้ใช้คนอื่นๆ พูดถึงเราอย่างไร
+              หลายคนเริ่มจากไม่มั่นใจ แต่ค่อยๆ พัฒนาและสอบได้สำเร็จ
             </p>
           </FadeIn>
 
@@ -507,7 +522,7 @@ export default function Home() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            พร้อมที่จะเริ่มต้นเส้นทางสู่ความสำเร็จ?
+            พร้อมที่จะเริ่มฝึกเพื่อไปถึงเป้าหมายความสำเร็จของคุณหรือยัง?
           </motion.h2>
           <motion.p
             className="text-xl text-indigo-100 mb-8 max-w-2xl mx-auto"
@@ -516,7 +531,7 @@ export default function Home() {
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
           >
-            เข้าร่วมกับนักเรียนกว่า 10,000 คนที่กำลังพัฒนาผลการสอบของตน
+            มีคนอีกมากกว่า 10,000 คนที่กำลังพัฒนาตัวเองไปพร้อมกับคุณ
           </motion.p>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -525,10 +540,10 @@ export default function Home() {
             transition={{ delay: 0.2 }}
           >
             <Link
-              href="/register"
+              href="/practice"
               className="inline-block bg-white text-indigo-600 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
-              สมัครสมาชิกฟรี
+              เริ่มฝึกทำโจทย์ ฟรี
             </Link>
           </motion.div>
           <motion.p
@@ -538,7 +553,7 @@ export default function Home() {
             viewport={{ once: true }}
             transition={{ delay: 0.3 }}
           >
-            ไม่ต้องใช้บัตรเครดิต • ยกเลิกได้ทุกเมื่อ
+            เริ่มได้ทันที ไม่ต้องใช้บัตรเครดิต ไม่ว่าคุณจะเริ่มจากจุดไหน ExamPrep อยู่ข้างคุณ
           </motion.p>
         </FadeIn>
       </section>
@@ -550,23 +565,24 @@ export default function Home() {
             <div>
               <h3 className="text-white font-bold text-lg mb-4">ExamPrep</h3>
               <p className="text-sm">
-                แพลตฟอร์มฝึกสอบออนไลน์ที่ช่วยให้คุณประสบความสำเร็จในทุกการสอบ
+                แพลตฟอร์มฝึกสอบออนไลน์ฟรี ที่อยู่ข้างคุณในทุกก้าวของการเตรียมสอบ
               </p>
             </div>
             <div>
               <h4 className="text-white font-semibold mb-4">ลิงก์ด่วน</h4>
               <ul className="space-y-2 text-sm">
                 <li><Link href="/" className="hover:text-white transition">หน้าแรก</Link></li>
-                <li><Link href="/blogs" className="hover:text-white transition">บทความ</Link></li>
-                <li><Link href="/register" className="hover:text-white transition">สมัครสมาชิก</Link></li>
+                <li><Link href="/about" className="hover:text-white transition">เกี่ยวกับเรา</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">ช่วยเหลือ</h4>
+              <h4 className="text-white font-semibold mb-4">บริการ</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white transition">วิธีใช้งาน</Link></li>
-                <li><Link href="#" className="hover:text-white transition">คำถามที่พบบ่อย</Link></li>
-                <li><Link href="#" className="hover:text-white transition">ติดต่อเรา</Link></li>
+                <li><Link href="/practice" className="hover:text-white transition">ฝึกทำข้อสอบ</Link></li>
+                <li><Link href="/practice" className="hover:text-white transition">คลังข้อสอบ</Link></li>
+                <li><Link href="/blogs" className="hover:text-white transition">บทความ</Link></li>
+                <li><Link href="/login" className="hover:text-white transition">เข้าสู่ระบบ</Link></li>
+                <li><Link href="/register" className="hover:text-white transition">เริ่มใช้งานฟรี</Link></li>
               </ul>
             </div>
             <div>
@@ -579,7 +595,11 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm">
-            <p>&copy; 2024 ExamPrep. All rights reserved.</p>
+            <div className="flex justify-center gap-4 mb-3">
+              <Link href="/terms" className="hover:text-white transition">ข้อกำหนดและเงื่อนไข</Link>
+              <Link href="/privacy" className="hover:text-white transition">นโยบายความเป็นส่วนตัว</Link>
+            </div>
+            <p>&copy; 2026 ExamPrep. All rights reserved.</p>
           </div>
         </div>
       </footer>
