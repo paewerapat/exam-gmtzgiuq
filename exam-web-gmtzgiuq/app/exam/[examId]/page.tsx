@@ -32,6 +32,7 @@ import {
 } from '@/lib/api/attempts';
 import type { ExamSession } from '@/types/exam';
 import type { QuestionCategory } from '@/lib/api/questions';
+import { trackEvent } from '@/lib/api/analytics';
 
 const BACKEND_ATTEMPT_KEY = 'real_exam_backend_attempt_id';
 
@@ -389,10 +390,19 @@ function RealExamPageContent({ examId }: { examId: string }) {
       markedForReview: [],
       timePerQuestion: {},
       startedAt,
+      // If backend exam defines a duration (minutes or seconds), store as seconds
+      durationSeconds:
+        (exam.durationSeconds as number) ?? (exam.durationMinutes ? Number(exam.durationMinutes) * 60 : undefined) ?? null,
       status: 'in_progress',
     };
 
     saveRealExamSession(examId, session, exam.questions);
+
+    trackEvent('timer_start', {
+      examId: exam.id,
+      durationSeconds: session.durationSeconds,
+      questionCount: questionIds.length,
+    });
 
     let attemptId: string | null = null;
     if (isLoggedIn()) {
@@ -478,6 +488,14 @@ function RealExamPageContent({ examId }: { examId: string }) {
     if (!savedSession) return;
 
     const examResult = calculateExamResult(savedSession, savedQuestions);
+    trackEvent('timer_end', {
+      examId: savedSession.examId,
+      totalTime: examResult.totalTime,
+      score: examResult.score,
+      timedOut:
+        !!savedSession.durationSeconds &&
+        examResult.totalTime >= savedSession.durationSeconds,
+    });
     const payload = {
       examId: savedSession.examId,
       examTitle: savedSession.examTitle,

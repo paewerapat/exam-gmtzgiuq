@@ -31,6 +31,7 @@ const initialState: ExamState = {
     markedForReview: [],
     timePerQuestion: {},
     startedAt: '',
+    durationSeconds: null,
     status: 'in_progress',
   },
   questions: [],

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import {
   Lightbulb,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useExam } from '@/contexts/ExamContext';
 import { getCorrectChoiceId, saveExamSession, prettyMathAnswer } from '@/lib/exam-utils';
+import { fetchClockOffset } from '@/lib/api/serverTime';
 import ExamHeader from './ExamHeader';
 import ChoiceButton from './ChoiceButton';
 import LatexRenderer from '@/components/latex/LatexRenderer';
@@ -104,11 +105,65 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
 
   const { questionIds, answers, markedForReview } = session;
 
+  // Remaining seconds for countdown (if session.durationSeconds provided)
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  // serverNow - clientNow (ms), refreshed periodically to correct for client clock drift
+  const [clockOffset, setClockOffset] = useState(0);
+
+  // Periodically re-sync with the server clock so a wrong/drifting client clock
+  // doesn't let the user run over (or get cut off early on) the exam duration
+  useEffect(() => {
+    if (!session?.durationSeconds) return;
+
+    let cancelled = false;
+    const sync = () => {
+      fetchClockOffset()
+        .then((offset) => {
+          if (!cancelled) setClockOffset(offset);
+        })
+        .catch(() => {
+          // keep using the last known offset on failure
+        });
+    };
+
+    sync();
+    const id = setInterval(sync, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [session?.durationSeconds]);
+
+  // Setup countdown when session has a duration
+  useEffect(() => {
+    if (!session || !session.startedAt || !session.durationSeconds) {
+      setRemainingSeconds(null);
+      return;
+    }
+
+    const startMs = new Date(session.startedAt).getTime();
+    const endMs = startMs + (session.durationSeconds || 0) * 1000;
+
+    function tick() {
+      const serverApproxNow = Date.now() + clockOffset;
+      const rem = Math.max(0, Math.ceil((endMs - serverApproxNow) / 1000));
+      setRemainingSeconds(rem);
+      if (rem <= 0) {
+        // Time is up — submit/complete the exam
+        onComplete();
+      }
+    }
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [session, onComplete, clockOffset]);
+
   return (
     <div className="min-h-screen bg-[#F5F6FA] flex flex-col">
       {/* Sticky top header */}
       <ExamHeader
-        timer={currentTimer}
+        timer={remainingSeconds ?? currentTimer}
         answeredCount={answeredCount}
         totalQuestions={totalQuestions}
         onPause={mode === 'practice' ? pauseTimer : undefined}

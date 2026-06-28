@@ -9,4 +9,10 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  // Lightweight server-time endpoint used by the frontend to detect/correct client clock drift
+  @Get('time')
+  getServerTime(): { now: number } {
+    return { now: Date.now() };
+  }
 }

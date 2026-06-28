@@ -13,6 +13,7 @@ export interface ExamSession {
   markedForReview: string[];
   timePerQuestion: Record<string, number>; // questionId -> seconds
   startedAt: string;
+  durationSeconds?: number | null; // optional total duration for the exam in seconds
   completedAt?: string;
   status: 'in_progress' | 'completed';
 }
