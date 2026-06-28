@@ -6,16 +6,18 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import client from '@/lib/apollo-client';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <ApolloProvider client={client}>
-        <AuthProvider>
-          {children}
-          <ToastContainer
+    <ThemeProvider>
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <ApolloProvider client={client}>
+          <AuthProvider>
+            {children}
+            <ToastContainer
             position="top-right"
             autoClose={3000}
             hideProgressBar={false}
@@ -30,5 +32,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         </AuthProvider>
       </ApolloProvider>
     </GoogleOAuthProvider>
+    </ThemeProvider>
   );
 }
