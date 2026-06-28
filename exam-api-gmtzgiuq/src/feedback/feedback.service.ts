@@ -25,12 +25,27 @@ export class FeedbackService {
   async findAll(
     page: number,
     limit: number,
-  ): Promise<{ items: Feedback[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    items: Feedback[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     const [items, total] = await this.feedbackRepository.findAndCount({
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { items, total, page, limit };
+
+    // The User relation is eager-loaded for display purposes (name/email) —
+    // strip the password hash so it never leaves the server in this response.
+    for (const item of items) {
+      if (item.user) {
+        delete (item.user as { password?: string }).password;
+      }
+    }
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 }

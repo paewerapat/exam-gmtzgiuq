@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Tag,
   LayoutGrid,
+  MessageSquare,
 } from 'lucide-react';
 
 const menuItems = [
@@ -20,6 +21,7 @@ const menuItems = [
   { href: '/admin/categories', label: 'หมวดหมู่', icon: Tag },
   { href: '/admin/blogs', label: 'บทความ', icon: FileText },
   { href: '/admin/users', label: 'ผู้ใช้งาน', icon: Users },
+  { href: '/admin/feedback', label: 'Feedback', icon: MessageSquare },
 ];
 
 export default function AdminSidebar() {

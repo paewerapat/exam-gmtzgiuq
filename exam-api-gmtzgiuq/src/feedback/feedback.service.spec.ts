@@ -71,7 +71,25 @@ describe('FeedbackService', () => {
       expect(repo.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 10, take: 10 }),
       );
-      expect(result).toEqual({ items: [], total: 0, page: 2, limit: 10 });
+      expect(result).toEqual({
+        items: [],
+        total: 0,
+        page: 2,
+        limit: 10,
+        totalPages: 0,
+      });
+    });
+
+    it('strips the password hash off the eager-loaded user before returning', async () => {
+      const item = {
+        id: 'f1',
+        user: { id: 'u1', email: 'a@b.com', password: 'super-secret-hash' },
+      } as unknown as Feedback;
+      repo.findAndCount.mockResolvedValue([[item], 1]);
+
+      const result = await service.findAll(1, 20);
+
+      expect(result.items[0].user).toEqual({ id: 'u1', email: 'a@b.com' });
     });
   });
 });
