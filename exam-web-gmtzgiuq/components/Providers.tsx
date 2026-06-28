@@ -7,6 +7,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import client from '@/lib/apollo-client';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import FeedbackButton from '@/components/feedback/FeedbackButton';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
@@ -17,6 +18,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <ApolloProvider client={client}>
           <AuthProvider>
             {children}
+            <FeedbackButton />
             <ToastContainer
             position="top-right"
             autoClose={3000}

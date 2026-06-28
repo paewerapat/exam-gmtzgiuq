@@ -1,0 +1,36 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Feedback } from './feedback.entity';
+import { CreateFeedbackDto } from './dto/create-feedback.dto';
+
+@Injectable()
+export class FeedbackService {
+  constructor(
+    @InjectRepository(Feedback)
+    private feedbackRepository: Repository<Feedback>,
+  ) {}
+
+  async create(dto: CreateFeedbackDto, userId: string | null): Promise<Feedback> {
+    const feedback = this.feedbackRepository.create({
+      userId,
+      examId: dto.examId ?? null,
+      age: dto.age ?? null,
+      message: dto.message,
+      details: dto.details ?? null,
+    });
+    return this.feedbackRepository.save(feedback);
+  }
+
+  async findAll(
+    page: number,
+    limit: number,
+  ): Promise<{ items: Feedback[]; total: number; page: number; limit: number }> {
+    const [items, total] = await this.feedbackRepository.findAndCount({
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { items, total, page, limit };
+  }
+}

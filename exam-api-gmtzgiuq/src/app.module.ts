@@ -17,6 +17,7 @@ import { UploadModule } from './upload/upload.module';
 import { CurriculumModule } from './curriculum/curriculum.module';
 import { CategoriesModule } from './categories/categories.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { FeedbackModule } from './feedback/feedback.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     CurriculumModule,
     CategoriesModule,
     AnalyticsModule,
+    FeedbackModule,
   ],
   controllers: [AppController],
   providers: [AppService],
