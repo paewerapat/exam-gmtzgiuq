@@ -21,11 +21,11 @@ export class Feedback {
   @JoinColumn({ name: 'userId' })
   user: User | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   userId: string | null;
 
-  @Field({ nullable: true })
-  @Column({ nullable: true })
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   examId: string | null;
 
   @Field(() => Int, { nullable: true })
@@ -36,7 +36,7 @@ export class Feedback {
   @Column({ type: 'text' })
   message: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @Column({ type: 'text', nullable: true })
   details: string | null;
 

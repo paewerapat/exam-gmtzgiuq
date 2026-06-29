@@ -8,7 +8,7 @@ export class AnalyticsEvent {
   @Column({ type: 'varchar', length: 100 })
   event: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   userId: string | null;
 
   @Column({ type: 'json', nullable: true })
