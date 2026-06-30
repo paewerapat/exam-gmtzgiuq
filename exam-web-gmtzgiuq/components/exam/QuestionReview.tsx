@@ -29,7 +29,7 @@ export default function QuestionReview({
     <div
       className={`
         border rounded-lg overflow-hidden transition-all
-        ${isCorrect ? 'border-green-200' : isUnanswered ? 'border-gray-200' : 'border-red-200'}
+        ${isCorrect ? 'border-green-200 dark:border-green-800/50' : isUnanswered ? 'border-gray-200 dark:border-gray-700' : 'border-red-200 dark:border-red-800/50'}
         ${className}
       `}
     >
@@ -39,29 +39,29 @@ export default function QuestionReview({
         onClick={() => setIsExpanded(!isExpanded)}
         className={`
           w-full flex items-center justify-between p-4 text-left
-          ${isCorrect ? 'bg-green-50' : isUnanswered ? 'bg-gray-50' : 'bg-red-50'}
+          ${isCorrect ? 'bg-green-50 dark:bg-green-900/30' : isUnanswered ? 'bg-gray-50 dark:bg-gray-900' : 'bg-red-50 dark:bg-red-900/30'}
         `}
       >
         <div className="flex items-center gap-3">
           <span
             className={`
               flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
-              ${isCorrect ? 'bg-green-200 text-green-700' : isUnanswered ? 'bg-gray-200 text-gray-600' : 'bg-red-200 text-red-700'}
+              ${isCorrect ? 'bg-green-200 text-green-700 dark:text-green-300' : isUnanswered ? 'bg-gray-200 text-gray-600 dark:text-gray-400' : 'bg-red-200 text-red-700 dark:text-red-300'}
             `}
           >
             {questionNumber}
           </span>
           <div className="flex items-center gap-2">
             {isCorrect ? (
-              <Check className="w-5 h-5 text-green-600" />
+              <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
             ) : isUnanswered ? (
-              <span className="text-gray-500 text-sm">ไม่ได้ตอบ</span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm">ไม่ได้ตอบ</span>
             ) : (
-              <X className="w-5 h-5 text-red-600" />
+              <X className="w-5 h-5 text-red-600 dark:text-red-400" />
             )}
             <span
               className={`text-sm font-medium ${
-                isCorrect ? 'text-green-700' : isUnanswered ? 'text-gray-600' : 'text-red-700'
+                isCorrect ? 'text-green-700 dark:text-green-300' : isUnanswered ? 'text-gray-600 dark:text-gray-400' : 'text-red-700 dark:text-red-300'
               }`}
             >
               {isCorrect ? 'ถูกต้อง' : isUnanswered ? 'ไม่ได้ตอบ' : 'ไม่ถูกต้อง'}
@@ -69,15 +69,15 @@ export default function QuestionReview({
           </div>
         </div>
         {isExpanded ? (
-          <ChevronUp className="w-5 h-5 text-gray-400" />
+          <ChevronUp className="w-5 h-5 text-gray-400 dark:text-gray-500" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-gray-400" />
+          <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />
         )}
       </button>
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           {/* Question */}
           <div className="prose prose-sm max-w-none mb-4">
             <LatexRenderer content={question.question} />
@@ -89,7 +89,7 @@ export default function QuestionReview({
               <img
                 src={question.questionImage}
                 alt="Question"
-                className="max-w-full h-auto rounded-lg border border-gray-200"
+                className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
               />
             </div>
           )}
@@ -100,18 +100,18 @@ export default function QuestionReview({
               const isUserAnswer = choice.id === userAnswer;
               const isCorrectAnswer = choice.id === correctChoiceId;
 
-              let bgColor = 'bg-gray-50';
-              let textColor = 'text-gray-700';
+              let bgColor = 'bg-gray-50 dark:bg-gray-900';
+              let textColor = 'text-gray-700 dark:text-gray-300';
               let icon = null;
 
               if (isCorrectAnswer) {
                 bgColor = 'bg-green-100';
-                textColor = 'text-green-700';
-                icon = <Check className="w-4 h-4 text-green-600" />;
+                textColor = 'text-green-700 dark:text-green-300';
+                icon = <Check className="w-4 h-4 text-green-600 dark:text-green-400" />;
               } else if (isUserAnswer && !isCorrectAnswer) {
                 bgColor = 'bg-red-100';
-                textColor = 'text-red-700';
-                icon = <X className="w-4 h-4 text-red-600" />;
+                textColor = 'text-red-700 dark:text-red-300';
+                icon = <X className="w-4 h-4 text-red-600 dark:text-red-400" />;
               }
 
               return (
@@ -123,7 +123,7 @@ export default function QuestionReview({
                     className={`
                       flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full
                       text-xs font-medium
-                      ${isCorrectAnswer ? 'bg-green-600 text-white' : isUserAnswer ? 'bg-red-600 text-white' : 'bg-gray-300 text-gray-600'}
+                      ${isCorrectAnswer ? 'bg-green-600 text-white' : isUserAnswer ? 'bg-red-600 text-white' : 'bg-gray-300 text-gray-600 dark:text-gray-400'}
                     `}
                   >
                     {getChoiceLetter(index)}
@@ -139,9 +139,9 @@ export default function QuestionReview({
 
           {/* Explanation */}
           {question.explanation && (
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-              <div className="font-medium text-blue-800 mb-2">คำอธิบาย</div>
-              <div className="text-blue-700 prose prose-sm max-w-none">
+            <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800/50">
+              <div className="font-medium text-blue-800 dark:text-blue-300 mb-2">คำอธิบาย</div>
+              <div className="text-blue-700 dark:text-blue-300 prose prose-sm max-w-none">
                 <LatexRenderer content={question.explanation} />
               </div>
             </div>

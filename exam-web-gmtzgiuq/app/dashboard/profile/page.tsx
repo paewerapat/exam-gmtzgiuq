@@ -28,8 +28,8 @@ export default function ProfilePage() {
         <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <User className="w-10 h-10 text-indigo-400" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">เข้าสู่ระบบเพื่อดูโปรไฟล์</h2>
-        <p className="text-gray-500 text-sm mb-6">กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อจัดการข้อมูลส่วนตัว</p>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">เข้าสู่ระบบเพื่อดูโปรไฟล์</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อจัดการข้อมูลส่วนตัว</p>
         <div className="flex gap-3">
           <Link
             href="/login"
@@ -40,7 +40,7 @@ export default function ProfilePage() {
           </Link>
           <Link
             href="/register"
-            className="px-6 py-2.5 border border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-sm font-semibold rounded-full transition"
+            className="px-6 py-2.5 border border-indigo-300 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 text-sm font-semibold rounded-full transition"
           >
             สมัครสมาชิก
           </Link>
@@ -51,30 +51,30 @@ export default function ProfilePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">โปรไฟล์</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">โปรไฟล์</h1>
 
       {/* Profile Header */}
-      <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
         <div className="flex items-center space-x-6">
           <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={80} />
           <div>
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
               {user.firstName && user.lastName
                 ? `${user.firstName} ${user.lastName}`
                 : user.email?.split('@')[0]}
             </h2>
-            <div className="flex items-center mt-1 text-gray-600">
+            <div className="flex items-center mt-1 text-gray-600 dark:text-gray-400">
               <Mail className="w-4 h-4 mr-2" />
               {user.email}
             </div>
             <div className="flex items-center mt-1 text-sm">
               {user.isEmailVerified ? (
-                <span className="flex items-center text-green-600">
+                <span className="flex items-center text-green-600 dark:text-green-400">
                   <CheckCircle className="w-4 h-4 mr-1" />
                   ยืนยันอีเมลแล้ว
                 </span>
               ) : (
-                <span className="flex items-center text-yellow-600">
+                <span className="flex items-center text-yellow-600 dark:text-yellow-400">
                   <XCircle className="w-4 h-4 mr-1" />
                   ยังไม่ได้ยืนยันอีเมล
                 </span>
@@ -85,55 +85,55 @@ export default function ProfilePage() {
       </div>
 
       {/* Profile Form */}
-      <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">ข้อมูลส่วนตัว</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">ข้อมูลส่วนตัว</h3>
 
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 ชื่อ
               </label>
               <input
                 type="text"
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="ชื่อ"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 นามสกุล
               </label>
               <input
                 type="text"
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="นามสกุล"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               อีเมล
             </label>
             <input
               type="email"
               value={user.email}
               disabled
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+              className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 cursor-not-allowed"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               ไม่สามารถเปลี่ยนอีเมลได้
             </p>
           </div>
 
           {user.createdAt && (
-            <div className="flex items-center text-sm text-gray-600">
+            <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
               <Calendar className="w-4 h-4 mr-2" />
               สมาชิกตั้งแต่ {new Date(user.createdAt).toLocaleDateString('th-TH', {
                 day: 'numeric',
@@ -150,7 +150,7 @@ export default function ProfilePage() {
               บันทึก
             </button>
             <button
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+              className="px-4 py-2 bg-gray-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-300 transition"
             >
               ยกเลิก
             </button>
@@ -160,17 +160,17 @@ export default function ProfilePage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-          <div className="text-3xl font-bold text-indigo-600">0</div>
-          <div className="text-gray-600 mt-1">ข้อสอบที่ทำ</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center">
+          <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">0</div>
+          <div className="text-gray-600 dark:text-gray-400 mt-1">ข้อสอบที่ทำ</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-          <div className="text-3xl font-bold text-green-600">0%</div>
-          <div className="text-gray-600 mt-1">คะแนนเฉลี่ย</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center">
+          <div className="text-3xl font-bold text-green-600 dark:text-green-400">0%</div>
+          <div className="text-gray-600 dark:text-gray-400 mt-1">คะแนนเฉลี่ย</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-          <div className="text-3xl font-bold text-purple-600">0</div>
-          <div className="text-gray-600 mt-1">ชั่วโมงฝึกฝน</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center">
+          <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">0</div>
+          <div className="text-gray-600 dark:text-gray-400 mt-1">ชั่วโมงฝึกฝน</div>
         </div>
       </div>
     </div>

@@ -17,14 +17,14 @@ export default function ExamProgress({
 
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
-      <div className="flex items-center justify-between text-sm text-gray-600">
+      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
         <span>
-          ข้อที่ <span className="font-semibold text-indigo-600">{current}</span> จาก{' '}
+          ข้อที่ <span className="font-semibold text-indigo-600 dark:text-indigo-400">{current}</span> จาก{' '}
           <span className="font-semibold">{total}</span>
         </span>
         <span>
           ตอบแล้ว{' '}
-          <span className="font-semibold text-green-600">{answeredCount}</span> ข้อ ({progress}%)
+          <span className="font-semibold text-green-600 dark:text-green-400">{answeredCount}</span> ข้อ ({progress}%)
         </span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2">

@@ -29,9 +29,9 @@ import {
 } from '@/lib/api/questions';
 
 function getScoreBadge(score: number) {
-  if (score >= 80) return 'bg-green-100 text-green-700';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-700';
-  return 'bg-red-100 text-red-700';
+  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300';
+  return 'bg-red-100 text-red-700 dark:text-red-300';
 }
 
 export default function AdminDashboard() {
@@ -63,7 +63,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
@@ -71,59 +71,59 @@ export default function AdminDashboard() {
   return (
     <FadeIn>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">ภาพรวมระบบข้อสอบ</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+        <p className="text-gray-600 dark:text-gray-400">ภาพรวมระบบข้อสอบ</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-xl shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
+              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
-            <span className="text-sm text-gray-500">สอบทั้งหมด</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">สอบทั้งหมด</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
-            {attemptStats?.totalAttempts || 0} <span className="text-sm font-normal text-gray-500">ครั้ง</span>
+          <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            {attemptStats?.totalAttempts || 0} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">ครั้ง</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-yellow-100 rounded-lg">
-              <Trophy className="w-5 h-5 text-yellow-600" />
+              <Trophy className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
             </div>
-            <span className="text-sm text-gray-500">คะแนนเฉลี่ย</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนเฉลี่ย</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             {(attemptStats?.averageScore || 0).toFixed(1)}%
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-purple-100 rounded-lg">
-              <Users className="w-5 h-5 text-purple-600" />
+              <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
-            <span className="text-sm text-gray-500">ผู้ใช้ที่สอบ</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">ผู้ใช้ที่สอบ</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
-            {attemptStats?.uniqueUsers || 0} <span className="text-sm font-normal text-gray-500">คน</span>
+          <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            {attemptStats?.uniqueUsers || 0} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">คน</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-green-100 rounded-lg">
-              <ClipboardList className="w-5 h-5 text-green-600" />
+              <ClipboardList className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
-            <span className="text-sm text-gray-500">ชุดข้อสอบ</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">ชุดข้อสอบ</span>
           </div>
-          <div className="text-2xl font-bold text-gray-900">
-            {examStats?.total || 0} <span className="text-sm font-normal text-gray-500">ชุด</span>
+          <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            {examStats?.total || 0} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">ชุด</span>
           </div>
-          <div className="text-xs text-gray-400 mt-1">
+          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             เผยแพร่ {examStats?.published || 0} | แบบร่าง {examStats?.draft || 0}
           </div>
         </div>
@@ -132,22 +132,22 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Category stats */}
         {attemptStats && attemptStats.byCategory.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-indigo-600" />
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               สถิติแยกหมวดหมู่
             </h2>
             <div className="space-y-3">
               {attemptStats.byCategory.map((cat) => (
-                <div key={cat.category} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={cat.category} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                   <div className="flex items-center gap-2">
                     <span>{categoryIcons[cat.category as QuestionCategory]}</span>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       {categoryDisplayNames[cat.category as QuestionCategory] || cat.category}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-500">{cat.attempts} ครั้ง</span>
+                    <span className="text-gray-500 dark:text-gray-400">{cat.attempts} ครั้ง</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getScoreBadge(cat.averageScore)}`}>
                       เฉลี่ย {cat.averageScore.toFixed(1)}%
                     </span>
@@ -159,37 +159,37 @@ export default function AdminDashboard() {
         )}
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Quick Actions</h2>
           <div className="space-y-3">
             <Link
               href="/admin/exams/new"
-              className="flex items-center p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition"
+              className="flex items-center p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 transition"
             >
-              <Plus className="w-8 h-8 text-indigo-600 mr-4" />
+              <Plus className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mr-4" />
               <div>
-                <p className="font-medium text-gray-900">สร้างชุดข้อสอบ</p>
-                <p className="text-sm text-gray-600">สร้างชุดข้อสอบใหม่พร้อมคำถาม</p>
+                <p className="font-medium text-gray-900 dark:text-gray-100">สร้างชุดข้อสอบ</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">สร้างชุดข้อสอบใหม่พร้อมคำถาม</p>
               </div>
             </Link>
             <Link
               href="/admin/exams"
-              className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition"
+              className="flex items-center p-4 bg-green-50 dark:bg-green-900/30 rounded-lg hover:bg-green-100 transition"
             >
-              <ClipboardList className="w-8 h-8 text-green-600 mr-4" />
+              <ClipboardList className="w-8 h-8 text-green-600 dark:text-green-400 mr-4" />
               <div>
-                <p className="font-medium text-gray-900">จัดการข้อสอบ</p>
-                <p className="text-sm text-gray-600">แก้ไข เผยแพร่ หรือลบชุดข้อสอบ</p>
+                <p className="font-medium text-gray-900 dark:text-gray-100">จัดการข้อสอบ</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">แก้ไข เผยแพร่ หรือลบชุดข้อสอบ</p>
               </div>
             </Link>
             <Link
               href="/admin/attempts"
-              className="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition"
+              className="flex items-center p-4 bg-purple-50 dark:bg-purple-900/30 rounded-lg hover:bg-purple-100 transition"
             >
-              <BarChart3 className="w-8 h-8 text-purple-600 mr-4" />
+              <BarChart3 className="w-8 h-8 text-purple-600 dark:text-purple-400 mr-4" />
               <div>
-                <p className="font-medium text-gray-900">ดูประวัติการสอบ</p>
-                <p className="text-sm text-gray-600">ดูผลการทำข้อสอบของผู้ใช้ทุกคน</p>
+                <p className="font-medium text-gray-900 dark:text-gray-100">ดูประวัติการสอบ</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">ดูผลการทำข้อสอบของผู้ใช้ทุกคน</p>
               </div>
             </Link>
           </div>
@@ -198,47 +198,47 @@ export default function AdminDashboard() {
 
       {/* Recent attempts */}
       {recentAttempts && recentAttempts.items.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               การสอบล่าสุด
             </h2>
             <Link
               href="/admin/attempts"
-              className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 flex items-center gap-1"
             >
               ดูทั้งหมด <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">ผู้สอบ</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">ชุดข้อสอบ</th>
-                  <th className="text-center px-4 py-2 text-xs font-medium text-gray-500 uppercase">คะแนน</th>
-                  <th className="text-center px-4 py-2 text-xs font-medium text-gray-500 uppercase">ผลลัพธ์</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">วันที่</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ผู้สอบ</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ชุดข้อสอบ</th>
+                  <th className="text-center px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">คะแนน</th>
+                  <th className="text-center px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ผลลัพธ์</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">วันที่</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {recentAttempts.items.map((attempt) => (
                   <tr key={attempt.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900">{attempt.user?.name || 'Unknown'}</div>
-                      <div className="text-xs text-gray-500">{attempt.user?.email}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{attempt.user?.name || 'Unknown'}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{attempt.user?.email}</div>
                     </td>
                     <td className="px-4 py-3">
                       {attempt.examId ? (
                         <Link
                           href={`/admin/attempts/exam/${attempt.examId}`}
-                          className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
+                          className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline"
                         >
                           {attempt.examTitle}
                         </Link>
                       ) : (
-                        <span className="text-sm text-gray-800">{attempt.examTitle}</span>
+                        <span className="text-sm text-gray-800 dark:text-gray-200">{attempt.examTitle}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -247,10 +247,10 @@ export default function AdminDashboard() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="text-sm text-gray-600">{attempt.correctAnswers}/{attempt.totalQuestions}</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{attempt.correctAnswers}/{attempt.totalQuestions}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(attempt.createdAt).toLocaleDateString('th-TH', {
                           month: 'short',
                           day: 'numeric',

@@ -25,22 +25,22 @@ export default function ChoiceButton({
 }: ChoiceButtonProps) {
   const letter = getChoiceLetter(index);
 
-  let cardStyle = 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40';
-  let circleStyle = 'bg-gray-100 text-gray-600';
+  let cardStyle = 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-300 hover:bg-indigo-50/40';
+  let circleStyle = 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400';
   let icon: React.ReactNode = null;
 
   if (isSelected && !showResult) {
-    cardStyle = 'border-indigo-400 bg-indigo-50';
+    cardStyle = 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30';
     circleStyle = 'bg-indigo-600 text-white';
   } else if (showResult) {
     if (isCorrect === true) {
-      cardStyle = 'border-green-400 bg-green-50';
+      cardStyle = 'border-green-400 bg-green-50 dark:bg-green-900/30';
       circleStyle = 'bg-green-600 text-white';
-      icon = <Check className="w-4 h-4 text-green-600 flex-shrink-0" />;
+      icon = <Check className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />;
     } else if (isSelected && isCorrect === false) {
-      cardStyle = 'border-red-400 bg-red-50';
+      cardStyle = 'border-red-400 bg-red-50 dark:bg-red-900/30';
       circleStyle = 'bg-red-600 text-white';
-      icon = <X className="w-4 h-4 text-red-600 flex-shrink-0" />;
+      icon = <X className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />;
     }
   }
 
@@ -64,7 +64,7 @@ export default function ChoiceButton({
       >
         {letter}
       </span>
-      <span className="flex-1 text-left text-gray-700 text-sm leading-relaxed">
+      <span className="flex-1 text-left text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
         <LatexText text={text} />
       </span>
       {icon}

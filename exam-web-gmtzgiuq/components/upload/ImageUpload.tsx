@@ -151,13 +151,13 @@ export default function ImageUpload({
           <img
             src={value}
             alt="Uploaded"
-            className="w-full h-48 object-cover rounded-lg border border-gray-200"
+            className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
           />
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition rounded-lg flex items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100"
+              className="p-2 bg-white dark:bg-gray-800 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100"
               title="เปลี่ยนรูป"
             >
               <Upload className="w-5 h-5" />
@@ -165,7 +165,7 @@ export default function ImageUpload({
             <button
               type="button"
               onClick={handleRemove}
-              className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50"
+              className="p-2 bg-white dark:bg-gray-800 rounded-full text-red-600 dark:text-red-400 hover:bg-red-50"
               title="ลบรูป"
             >
               <X className="w-5 h-5" />
@@ -180,22 +180,22 @@ export default function ImageUpload({
           onClick={() => fileInputRef.current?.click()}
           className={`
             border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition
-            ${dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-indigo-400'}
+            ${dragOver ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400'}
             ${uploading ? 'pointer-events-none opacity-60' : ''}
           `}
         >
           {uploading ? (
             <div className="flex flex-col items-center">
-              <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-2" />
-              <p className="text-gray-600">กำลังอัพโหลด...</p>
+              <Loader2 className="w-10 h-10 text-indigo-600 dark:text-indigo-400 animate-spin mb-2" />
+              <p className="text-gray-600 dark:text-gray-400">กำลังอัพโหลด...</p>
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <ImageIcon className="w-10 h-10 text-gray-400 mb-2" />
-              <p className="text-gray-600 mb-1">
-                ลากไฟล์มาวางที่นี่ หรือ <span className="text-indigo-600">คลิกเพื่อเลือก</span>
+              <ImageIcon className="w-10 h-10 text-gray-400 dark:text-gray-500 mb-2" />
+              <p className="text-gray-600 dark:text-gray-400 mb-1">
+                ลากไฟล์มาวางที่นี่ หรือ <span className="text-indigo-600 dark:text-indigo-400">คลิกเพื่อเลือก</span>
               </p>
-              <p className="text-sm text-gray-400">PNG, JPG, GIF (สูงสุด 5MB)</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">PNG, JPG, GIF (สูงสุด 5MB)</p>
             </div>
           )}
         </div>
@@ -203,14 +203,14 @@ export default function ImageUpload({
 
       {/* URL Input fallback */}
       <div className="mt-3">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           หรือใส่ URL รูปภาพ
         </label>
         <input
           type="url"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
           placeholder="https://example.com/image.jpg"
         />
       </div>

@@ -15,7 +15,7 @@ function renderMarkdown(content: string) {
   const flushList = () => {
     if (listItems.length > 0) {
       elements.push(
-        <ul key={`list-${elements.length}`} className="list-disc list-inside space-y-1 mb-4 text-gray-700">
+        <ul key={`list-${elements.length}`} className="list-disc list-inside space-y-1 mb-4 text-gray-700 dark:text-gray-300">
           {listItems.map((item, i) => (
             <li key={i} dangerouslySetInnerHTML={{ __html: item }} />
           ))}
@@ -30,21 +30,21 @@ function renderMarkdown(content: string) {
     if (line.startsWith('# ')) {
       flushList();
       elements.push(
-        <h1 key={index} className="text-3xl font-bold text-gray-900 mb-4 mt-8 first:mt-0">
+        <h1 key={index} className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 mt-8 first:mt-0">
           {line.slice(2)}
         </h1>
       );
     } else if (line.startsWith('## ')) {
       flushList();
       elements.push(
-        <h2 key={index} className="text-2xl font-bold text-gray-900 mb-3 mt-6">
+        <h2 key={index} className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3 mt-6">
           {line.slice(3)}
         </h2>
       );
     } else if (line.startsWith('### ')) {
       flushList();
       elements.push(
-        <h3 key={index} className="text-xl font-semibold text-gray-900 mb-2 mt-4">
+        <h3 key={index} className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 mt-4">
           {line.slice(4)}
         </h3>
       );
@@ -54,7 +54,7 @@ function renderMarkdown(content: string) {
       if (match) {
         const text = match[1].replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
         elements.push(
-          <p key={index} className="mb-2 text-gray-700" dangerouslySetInnerHTML={{ __html: text }} />
+          <p key={index} className="mb-2 text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: text }} />
         );
       }
     } else if (line.startsWith('- ')) {
@@ -67,7 +67,7 @@ function renderMarkdown(content: string) {
       flushList();
       const text = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       elements.push(
-        <p key={index} className="mb-4 text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: text }} />
+        <p key={index} className="mb-4 text-gray-700 dark:text-gray-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: text }} />
       );
     }
   });
@@ -94,21 +94,21 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
 
   if (notFound || !blog) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">ไม่พบบทความ</h1>
-          <p className="text-gray-600 mb-8">บทความที่คุณค้นหาไม่มีอยู่หรือถูกลบออกแล้ว</p>
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">ไม่พบบทความ</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">บทความที่คุณค้นหาไม่มีอยู่หรือถูกลบออกแล้ว</p>
           <Link
             href="/blogs"
-            className="inline-flex items-center text-indigo-600 hover:text-indigo-700 font-medium"
+            className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             กลับหน้าบทความ
@@ -121,7 +121,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
   const readTime = calculateReadTime(blog.content);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Hero Section */}
       {blog.featuredImage && (
         <div className="relative h-96 bg-gray-900">
@@ -138,7 +138,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
       <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-12">
         <Link
           href="/blogs"
-          className="inline-flex items-center text-indigo-600 hover:text-indigo-700 mb-8"
+          className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 mb-8"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           กลับหน้าบทความ
@@ -146,10 +146,10 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
 
         <article>
           {/* Title */}
-          <h1 className="text-4xl font-bold text-gray-900 mb-6">{blog.title}</h1>
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-6">{blog.title}</h1>
 
           {/* Meta */}
-          <div className="flex flex-wrap items-center gap-4 text-gray-600 mb-8 pb-8 border-b">
+          <div className="flex flex-wrap items-center gap-4 text-gray-600 dark:text-gray-400 mb-8 pb-8 border-b">
             <div className="flex items-center">
               <User className="w-4 h-4 mr-2" />
               <span>{blog.author.firstName} {blog.author.lastName}</span>
@@ -178,7 +178,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
         <div className="mt-12 pt-8 border-t">
           <Link
             href="/blogs"
-            className="inline-flex items-center text-indigo-600 hover:text-indigo-700 font-medium"
+            className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             กลับหน้าบทความ
@@ -187,7 +187,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12 mt-16">
+      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12 mt-16">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>&copy; 2024 ExamPrep. All rights reserved.</p>
         </div>

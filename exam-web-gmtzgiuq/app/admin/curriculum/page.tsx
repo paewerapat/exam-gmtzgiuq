@@ -41,10 +41,10 @@ function InlineInput({
         placeholder={placeholder}
         className="border border-indigo-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none w-52"
       />
-      <button onClick={() => value.trim() && onSave(value.trim())} className="text-green-600 hover:text-green-700">
+      <button onClick={() => value.trim() && onSave(value.trim())} className="text-green-600 dark:text-green-400 hover:text-green-700">
         <Check className="w-4 h-4" />
       </button>
-      <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+      <button onClick={onCancel} className="text-gray-400 dark:text-gray-500 hover:text-gray-600">
         <X className="w-4 h-4" />
       </button>
     </div>
@@ -144,7 +144,7 @@ export default function AdminCurriculumPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
@@ -153,16 +153,16 @@ export default function AdminCurriculumPage() {
     <div className="max-w-4xl mx-auto">
       <FadeIn>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BookOpen className="w-7 h-7 text-indigo-600" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <BookOpen className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
             จัดการหลักสูตร
           </h1>
-          <p className="text-gray-500 mt-1">จัดการวิชาและหัวข้อข้อสอบ</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">จัดการวิชาและหัวข้อข้อสอบ</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
           {/* Add subject bar */}
-          <div className="p-4 border-b border-gray-100">
+          <div className="p-4 border-b border-gray-100 dark:border-gray-800">
             {addingSubject ? (
               <div className="flex items-center gap-3">
                 <InlineInput
@@ -184,7 +184,7 @@ export default function AdminCurriculumPage() {
             ) : (
               <button
                 onClick={() => setAddingSubject(true)}
-                className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                className="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 font-medium"
               >
                 <Plus className="w-4 h-4" />
                 เพิ่มวิชาใหม่
@@ -193,7 +193,7 @@ export default function AdminCurriculumPage() {
           </div>
 
           {subjects.length === 0 ? (
-            <div className="p-12 text-center text-gray-400">
+            <div className="p-12 text-center text-gray-400 dark:text-gray-500">
               <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p>ยังไม่มีวิชา — กด "เพิ่มวิชาใหม่" ด้านบน</p>
             </div>
@@ -219,18 +219,18 @@ export default function AdminCurriculumPage() {
                           />
                         </span>
                       ) : (
-                        <span className="font-semibold text-gray-900 flex-1">
+                        <span className="font-semibold text-gray-900 dark:text-gray-100 flex-1">
                           {subject.iconEmoji && <span className="mr-1">{subject.iconEmoji}</span>}
                           {subject.name}
-                          <span className="ml-2 text-xs text-gray-400 font-normal">{topics.length} หัวข้อ</span>
+                          <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 font-normal">{topics.length} หัวข้อ</span>
                         </span>
                       )}
 
                       <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setEditingSubject(subject.id)} className="p-1 text-gray-400 hover:text-indigo-600">
+                        <button onClick={() => setEditingSubject(subject.id)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-indigo-600">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteSubject(subject.id, subject.name)} className="p-1 text-gray-400 hover:text-red-600">
+                        <button onClick={() => handleDeleteSubject(subject.id, subject.name)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -238,9 +238,9 @@ export default function AdminCurriculumPage() {
 
                     {/* Topics (shown when subject expanded) */}
                     {isOpen && (
-                      <div className="bg-gray-50 border-t border-gray-100">
+                      <div className="bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
                         {topics.length === 0 && addingTopicFor !== subject.id && (
-                          <p className="pl-8 pr-4 py-2 text-xs text-gray-400">ยังไม่มีหัวข้อ</p>
+                          <p className="pl-8 pr-4 py-2 text-xs text-gray-400 dark:text-gray-500">ยังไม่มีหัวข้อ</p>
                         )}
 
                         {topics.map((topic) => (
@@ -254,13 +254,13 @@ export default function AdminCurriculumPage() {
                                 onCancel={() => setEditingTopic(null)}
                               />
                             ) : (
-                              <span className="text-sm text-gray-700 flex-1">{topic.name}</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">{topic.name}</span>
                             )}
                             <div className="flex items-center gap-1 ml-auto">
-                              <button onClick={() => setEditingTopic(topic.id)} className="p-1 text-gray-400 hover:text-indigo-600">
+                              <button onClick={() => setEditingTopic(topic.id)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-indigo-600">
                                 <Pencil className="w-3 h-3" />
                               </button>
-                              <button onClick={() => handleDeleteTopic(topic.id, topic.name)} className="p-1 text-gray-400 hover:text-red-600">
+                              <button onClick={() => handleDeleteTopic(topic.id, topic.name)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600">
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             </div>

@@ -21,8 +21,8 @@ export default function MarkForReviewButton({
         inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-colors
         ${
           isMarked
-            ? 'bg-orange-100 text-orange-700 border border-orange-300 hover:bg-orange-200'
-            : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            ? 'bg-orange-100 text-orange-700 dark:text-orange-300 border border-orange-300 hover:bg-orange-200'
+            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-200'
         }
         ${className}
       `}

@@ -9,7 +9,7 @@ import { getBlogs, formatDate, calculateReadTime, Blog, PaginatedBlogs } from '@
 function BlogCard({ blog }: { blog: Blog }) {
   return (
     <Link href={`/blogs/${blog.slug}`} className="block">
-      <article className="bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
+      <article className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
         {blog.featuredImage ? (
           <div className="h-48 overflow-hidden">
             <img
@@ -25,13 +25,13 @@ function BlogCard({ blog }: { blog: Blog }) {
         )}
 
         <div className="p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition line-clamp-2">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition line-clamp-2">
             {blog.title}
           </h3>
 
-          <p className="text-gray-600 mb-4 line-clamp-2">{blog.excerpt}</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">{blog.excerpt}</p>
 
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
             <div className="flex items-center space-x-4">
               <div className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
@@ -48,7 +48,7 @@ function BlogCard({ blog }: { blog: Blog }) {
             </div>
           </div>
 
-          <span className="inline-block mt-4 text-indigo-600 group-hover:text-indigo-700 font-medium">
+          <span className="inline-block mt-4 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 font-medium">
             อ่านเพิ่มเติม →
           </span>
         </div>
@@ -59,7 +59,7 @@ function BlogCard({ blog }: { blog: Blog }) {
 
 function BlogCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden animate-pulse">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden animate-pulse">
       <div className="h-48 bg-gray-200" />
       <div className="p-6">
         <div className="h-6 bg-gray-200 rounded mb-2" />
@@ -75,7 +75,7 @@ function BlogCardSkeleton() {
 
 function FeaturedPostSkeleton() {
   return (
-    <div className="bg-white rounded-2xl shadow-lg overflow-hidden lg:flex animate-pulse">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden lg:flex animate-pulse">
       <div className="lg:w-1/2 h-64 lg:h-auto bg-gray-200" />
       <div className="lg:w-1/2 p-8">
         <div className="flex space-x-4 mb-4">
@@ -111,7 +111,7 @@ function BlogSection({
   return (
     <div className="mb-12">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center">
           <span className={`${badgeColor} text-white p-2 rounded-lg mr-3`}>
             <Icon className="w-5 h-5" />
           </span>
@@ -119,7 +119,7 @@ function BlogSection({
         </h2>
         <Link
           href={viewAllLink}
-          className="inline-flex items-center text-indigo-600 hover:text-indigo-700 font-medium transition"
+          className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium transition"
         >
           ดูทั้งหมด
           <ArrowRight className="w-4 h-4 ml-1" />
@@ -132,7 +132,7 @@ function BlogSection({
         ) : displayBlogs.length > 0 ? (
           displayBlogs.map((blog) => <BlogCard key={blog.id} blog={blog} />)
         ) : (
-          <div className="col-span-3 text-center py-8 text-gray-500">
+          <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
             ยังไม่มีบทความในหมวดหมู่นี้
           </div>
         )}
@@ -173,7 +173,7 @@ export default function BlogsPage() {
   const recentBlogs = recentData?.items || [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header Section */}
       <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -187,7 +187,7 @@ export default function BlogsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Featured Post */}
         <div className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center">
             <span className="bg-indigo-600 text-white text-sm px-3 py-1 rounded-full mr-3">ล่าสุด</span>
             บทความแนะนำ
           </h2>
@@ -196,7 +196,7 @@ export default function BlogsPage() {
             <FeaturedPostSkeleton />
           ) : featuredPost ? (
             <Link href={`/blogs/${featuredPost.slug}`} className="block group">
-              <article className="bg-white rounded-2xl shadow-lg overflow-hidden lg:flex hover:shadow-xl transition">
+              <article className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden lg:flex hover:shadow-xl transition">
                 {/* Image */}
                 <div className="lg:w-1/2 h-64 lg:h-auto overflow-hidden">
                   {featuredPost.featuredImage ? (
@@ -214,7 +214,7 @@ export default function BlogsPage() {
 
                 {/* Content */}
                 <div className="lg:w-1/2 p-8 flex flex-col justify-center">
-                  <div className="flex items-center text-sm text-gray-500 mb-4 space-x-4">
+                  <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4 space-x-4">
                     <span className="flex items-center">
                       <Calendar className="w-4 h-4 mr-1" />
                       {formatDate(featuredPost.publishedAt)}
@@ -229,15 +229,15 @@ export default function BlogsPage() {
                     </span>
                   </div>
 
-                  <h3 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4 group-hover:text-indigo-600 transition">
+                  <h3 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 group-hover:text-indigo-600 transition">
                     {featuredPost.title}
                   </h3>
 
-                  <p className="text-gray-600 mb-6 line-clamp-3">
+                  <p className="text-gray-600 dark:text-gray-400 mb-6 line-clamp-3">
                     {featuredPost.excerpt}
                   </p>
 
-                  <span className="inline-flex items-center text-indigo-600 font-semibold group-hover:text-indigo-700">
+                  <span className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-semibold group-hover:text-indigo-700">
                     อ่านเพิ่มเติม
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition" />
                   </span>
@@ -245,7 +245,7 @@ export default function BlogsPage() {
               </article>
             </Link>
           ) : (
-            <div className="bg-white rounded-2xl shadow-lg p-12 text-center text-gray-500">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-12 text-center text-gray-500 dark:text-gray-400">
               ยังไม่มีบทความ
             </div>
           )}
@@ -293,7 +293,7 @@ export default function BlogsPage() {
           </p>
           <Link
             href="/register"
-            className="inline-block bg-white text-indigo-600 px-8 py-3 rounded-lg text-lg font-medium hover:bg-gray-100 transition"
+            className="inline-block bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-8 py-3 rounded-lg text-lg font-medium hover:bg-gray-100 transition"
           >
             เริ่มต้นฟรี
           </Link>
@@ -301,7 +301,7 @@ export default function BlogsPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12">
+      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>&copy; 2024 ExamPrep. All rights reserved.</p>
         </div>

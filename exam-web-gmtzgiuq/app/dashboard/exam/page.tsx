@@ -55,10 +55,10 @@ function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
   const examAttempts = attempts.filter((a) => a.mode === 'exam');
   if (examAttempts.length === 0) return null;
   return (
-    <div className="mb-6 bg-rose-50 border border-rose-200 rounded-2xl p-4">
+    <div className="mb-6 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/50 rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-        <p className="text-sm font-semibold text-rose-700">
+        <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">
           คุณมีข้อสอบจริงที่ยังทำค้างอยู่ {examAttempts.length} ชุด
         </p>
       </div>
@@ -66,16 +66,16 @@ function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
         {examAttempts.map((attempt) => (
           <div
             key={attempt.id}
-            className="flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm"
+            className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl px-4 py-3 shadow-sm"
           >
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                 {attempt.examTitle}
               </p>
-              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 ทำถึงข้อที่{' '}
-                <span className="font-semibold text-rose-600">
+                <span className="font-semibold text-rose-600 dark:text-rose-400">
                   {attempt.currentIndex + 1}
                 </span>{' '}
                 / {attempt.totalQuestions} ข้อ
@@ -108,7 +108,7 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
   });
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
       {exam.bannerImage ? (
         <div className="relative aspect-video overflow-hidden">
           <img src={exam.bannerImage} alt="" className="w-full h-full object-cover" />
@@ -128,10 +128,10 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
         </div>
       )}
       <div className="p-4 flex flex-col flex-1">
-        <p className="font-semibold text-gray-800 text-sm truncate">
+        <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm truncate">
           {catName}: {exam.title}
         </p>
-        <p className="text-xs text-gray-400 mt-0.5 mb-3">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 mb-3">
           {exam.questionCount} ข้อ · {createdDate}
         </p>
         <div className="mt-auto">
@@ -182,7 +182,7 @@ function CategoryDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 bg-white rounded-full text-sm text-gray-600 hover:border-indigo-300 transition whitespace-nowrap"
+        className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-full text-sm text-gray-600 dark:text-gray-400 hover:border-indigo-300 transition whitespace-nowrap"
       >
         {selectedLabel}
         <ChevronDown
@@ -190,7 +190,7 @@ function CategoryDropdown({
         />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-100 rounded-2xl shadow-xl py-2 min-w-48">
+        <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl py-2 min-w-48">
           {options.map((opt) => (
             <button
               key={opt.value}
@@ -200,8 +200,8 @@ function CategoryDropdown({
               }}
               className={`w-full text-left px-4 py-2.5 text-sm transition hover:bg-gray-50 ${
                 value === opt.value
-                  ? 'text-indigo-600 font-semibold bg-indigo-50'
-                  : 'text-gray-700'
+                  ? 'text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/30'
+                  : 'text-gray-700 dark:text-gray-300'
               }`}
             >
               {opt.label}
@@ -285,17 +285,17 @@ export default function RealExamPage() {
   return (
     <FadeIn>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-400 dark:text-gray-500">
           Dashboard /{' '}
-          <span className="text-gray-600 font-medium">ทำข้อสอบจริง</span>
+          <span className="text-gray-600 dark:text-gray-400 font-medium">ทำข้อสอบจริง</span>
         </p>
       </div>
 
       <div className="flex items-center gap-3 mb-2">
-        <GraduationCap className="w-7 h-7 text-rose-600" />
-        <h1 className="text-3xl font-bold text-gray-900">ทำข้อสอบจริง</h1>
+        <GraduationCap className="w-7 h-7 text-rose-600 dark:text-rose-400" />
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">ทำข้อสอบจริง</h1>
       </div>
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
         ไม่มีคำใบ้ ไม่มีการตรวจคำตอบระหว่างทำ เหมือนสอบจริง
       </p>
 
@@ -303,28 +303,28 @@ export default function RealExamPage() {
       <InProgressBanner attempts={inProgress} />
 
       {/* White card container */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6">
         {/* Toolbar */}
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <div className="relative flex-1 min-w-52">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="ค้นหาข้อสอบ..."
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-11 pr-5 py-2.5 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition"
+              className="w-full pl-11 pr-5 py-2.5 border border-gray-200 dark:border-gray-700 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition"
             />
           </div>
           <CategoryDropdown value={category} onChange={handleCategory} categories={categories} />
         </div>
 
         <div className="flex items-center justify-between mb-5">
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             {data ? (
               <>
                 ข้อสอบทั้งหมด{' '}
-                <span className="font-semibold text-gray-700">{data.total}</span>{' '}
+                <span className="font-semibold text-gray-700 dark:text-gray-300">{data.total}</span>{' '}
                 ชุด
               </>
             ) : null}
@@ -339,7 +339,7 @@ export default function RealExamPage() {
         ) : !data || data.items.length === 0 ? (
           <div className="py-24 text-center">
             <BookOpen className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-400 font-medium">ไม่พบข้อสอบที่ตรงกับการค้นหา</p>
+            <p className="text-gray-400 dark:text-gray-500 font-medium">ไม่พบข้อสอบที่ตรงกับการค้นหา</p>
             {(search || category) && (
               <button
                 onClick={() => {
@@ -347,7 +347,7 @@ export default function RealExamPage() {
                   setCategory('');
                   setPage(1);
                 }}
-                className="mt-3 text-sm text-rose-600 hover:underline"
+                className="mt-3 text-sm text-rose-600 dark:text-rose-400 hover:underline"
               >
                 ล้างตัวกรอง
               </button>
@@ -367,7 +367,7 @@ export default function RealExamPage() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               &lt; Previous
             </button>
@@ -378,7 +378,7 @@ export default function RealExamPage() {
                 className={`w-9 h-9 rounded-full text-sm font-medium transition ${
                   page === p
                     ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-gray-500 hover:bg-gray-100'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100'
                 }`}
               >
                 {p}
@@ -387,7 +387,7 @@ export default function RealExamPage() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               Next &gt;
             </button>

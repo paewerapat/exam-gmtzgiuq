@@ -98,7 +98,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
@@ -106,11 +106,11 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
   if (notFound) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">ไม่พบบทความ</h2>
-        <p className="text-gray-600 mb-6">บทความที่คุณค้นหาไม่มีอยู่</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">ไม่พบบทความ</h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-6">บทความที่คุณค้นหาไม่มีอยู่</p>
         <Link
           href="/admin/blogs"
-          className="inline-flex items-center text-indigo-600 hover:text-indigo-700"
+          className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           กลับไปหน้ารายการ
@@ -125,25 +125,25 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
         <div>
           <Link
             href="/admin/blogs"
-            className="flex items-center text-gray-600 hover:text-indigo-600 mb-4"
+            className="flex items-center text-gray-600 dark:text-gray-400 hover:text-indigo-600 mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             กลับไปหน้ารายการ
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">แก้ไขบทความ</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">แก้ไขบทความ</h1>
         </div>
         <div className="flex items-center space-x-3">
           <Link
             href={`/blogs/${formData.slug}`}
             target="_blank"
-            className="flex items-center text-gray-600 hover:text-indigo-600 px-4 py-2 border border-gray-300 rounded-lg"
+            className="flex items-center text-gray-600 dark:text-gray-400 hover:text-indigo-600 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
           >
             <Eye className="w-4 h-4 mr-2" />
             ดูตัวอย่าง
           </Link>
           <button
             onClick={handleDelete}
-            className="flex items-center text-red-600 hover:text-red-700 px-4 py-2 border border-red-300 rounded-lg hover:bg-red-50"
+            className="flex items-center text-red-600 dark:text-red-400 hover:text-red-700 px-4 py-2 border border-red-300 rounded-lg hover:bg-red-50"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             ลบ
@@ -155,12 +155,12 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">เนื้อหา</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">เนื้อหา</h2>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     หัวข้อ *
                   </label>
                   <input
@@ -168,39 +168,39 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                     required
                     value={formData.title}
                     onChange={handleTitleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="ใส่หัวข้อบทความ"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Slug (URL)
                   </label>
                   <input
                     type="text"
                     value={formData.slug}
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="blog-url-slug"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     คำอธิบายย่อ
                   </label>
                   <textarea
                     rows={3}
                     value={formData.excerpt}
                     onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="สรุปเนื้อหาบทความสั้นๆ"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     เนื้อหา *
                   </label>
                   <textarea
@@ -208,7 +208,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                     required
                     value={formData.content}
                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
                     placeholder="เขียนเนื้อหาบทความที่นี่... (รองรับ Markdown)"
                   />
                 </div>
@@ -216,32 +216,32 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
             </div>
 
             {/* SEO Settings */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">ตั้งค่า SEO</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">ตั้งค่า SEO</h2>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Meta Title
                   </label>
                   <input
                     type="text"
                     value={formData.metaTitle}
                     onChange={(e) => setFormData({ ...formData, metaTitle: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="ชื่อสำหรับ SEO (เว้นว่างใช้หัวข้อบทความ)"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Meta Description
                   </label>
                   <textarea
                     rows={3}
                     value={formData.metaDescription}
                     onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="คำอธิบายสำหรับ SEO (เว้นว่างใช้คำอธิบายย่อ)"
                   />
                 </div>
@@ -251,18 +251,18 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">เผยแพร่</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">เผยแพร่</h2>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     หมวดหมู่ *
                   </label>
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value as BlogCategory })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="notes">Notes — บันทึกสั้นๆ เคล็ดลับ</option>
                     <option value="essays">Essays — บทความเชิงลึก</option>
@@ -270,13 +270,13 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     สถานะ
                   </label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="draft">แบบร่าง</option>
                     <option value="published">เผยแพร่</option>
@@ -303,8 +303,8 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">รูปภาพปก</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">รูปภาพปก</h2>
               <ImageUpload
                 value={formData.featuredImage}
                 onChange={(url) => setFormData({ ...formData, featuredImage: url })}

@@ -10,7 +10,7 @@ interface ExamTimerProps {
 
 export default function ExamTimer({ seconds, className = '' }: ExamTimerProps) {
   return (
-    <div className={`flex items-center gap-2 text-gray-700 ${className}`}>
+    <div className={`flex items-center gap-2 text-gray-700 dark:text-gray-300 ${className}`}>
       <Clock className="w-5 h-5" />
       <span className="font-mono text-lg font-semibold">{formatTime(seconds)}</span>
     </div>

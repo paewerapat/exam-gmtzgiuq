@@ -32,7 +32,7 @@ export default function ExplanationPanel({
         disabled={disabled}
         className={`
           inline-flex items-center gap-2 px-4 py-2 rounded-lg
-          bg-blue-50 text-blue-700 border border-blue-200
+          bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50
           hover:bg-blue-100 transition-colors
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
           ${className}
@@ -47,7 +47,7 @@ export default function ExplanationPanel({
   return (
     <div
       className={`
-        relative p-4 rounded-lg bg-blue-50 border border-blue-200
+        relative p-4 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50
         ${className}
       `}
     >
@@ -56,13 +56,13 @@ export default function ExplanationPanel({
         onClick={onHide}
         className="absolute top-2 right-2 p-1 rounded hover:bg-blue-100"
       >
-        <X className="w-4 h-4 text-blue-700" />
+        <X className="w-4 h-4 text-blue-700 dark:text-blue-300" />
       </button>
       <div className="flex items-start gap-3">
-        <BookOpen className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+        <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
         <div className="flex-1">
-          <div className="font-medium text-blue-800 mb-2">คำอธิบาย</div>
-          <div className="text-blue-700 prose prose-sm max-w-none">
+          <div className="font-medium text-blue-800 dark:text-blue-300 mb-2">คำอธิบาย</div>
+          <div className="text-blue-700 dark:text-blue-300 prose prose-sm max-w-none">
             <LatexRenderer content={explanation} />
           </div>
         </div>

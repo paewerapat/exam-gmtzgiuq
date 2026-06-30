@@ -30,7 +30,7 @@ function ExamCard({ exam }: { exam: Exam }) {
   const [from, to] = getBannerGradient(exam.category);
   const catName = categoryDisplayNames[exam.category as QuestionCategory] ?? exam.category;
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
       <div
         className="relative h-24 p-3 flex flex-col justify-end overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
@@ -39,7 +39,7 @@ function ExamCard({ exam }: { exam: Exam }) {
         <h3 className="text-white font-bold text-sm leading-snug line-clamp-2">{exam.title}</h3>
       </div>
       <div className="p-3 flex flex-col flex-1">
-        <p className="text-xs text-gray-400 mb-3">{exam.questionCount} ข้อ</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{exam.questionCount} ข้อ</p>
         <div className="mt-auto">
           <Link
             href={`/exam/${exam.id}`}
@@ -77,17 +77,17 @@ function TopicSection({ topic }: { topic: Topic }) {
   }
 
   return (
-    <div className="border border-gray-100 rounded-2xl overflow-hidden">
+    <div className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden">
       <button
         type="button"
         onClick={handleToggle}
-        className="w-full flex items-center justify-between px-5 py-4 bg-white hover:bg-gray-50 transition text-left"
+        className="w-full flex items-center justify-between px-5 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 transition text-left"
       >
-        <span className="font-medium text-gray-800 flex items-center gap-2">
-          {open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+        <span className="font-medium text-gray-800 dark:text-gray-200 flex items-center gap-2">
+          {open ? <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500" />}
           {topic.name}
         </span>
-        <span className="text-xs text-gray-400">{topic.examCount ?? 0} ชุด</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">{topic.examCount ?? 0} ชุด</span>
       </button>
       {open && (
         <div className="px-5 pb-5 bg-gray-50/60">
@@ -96,7 +96,7 @@ function TopicSection({ topic }: { topic: Topic }) {
               <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
             </div>
           ) : exams.length === 0 ? (
-            <p className="text-sm text-gray-400 py-4 text-center">ยังไม่มีข้อสอบ</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">ยังไม่มีข้อสอบ</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-3">
               {exams.map((exam) => (
@@ -134,7 +134,7 @@ export default function SubjectAllTopicsPage() {
     <FadeIn>
       <Link
         href="/dashboard/library"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6 transition"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 mb-6 transition"
       >
         <ArrowLeft className="w-4 h-4" />
         กลับไปคลังข้อสอบ
@@ -147,7 +147,7 @@ export default function SubjectAllTopicsPage() {
       ) : !subject ? (
         <div className="py-32 text-center">
           <BookOpen className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-400">ไม่พบวิชานี้</p>
+          <p className="text-gray-400 dark:text-gray-500">ไม่พบวิชานี้</p>
         </div>
       ) : (
         <>
@@ -169,14 +169,14 @@ export default function SubjectAllTopicsPage() {
           {chapters.length === 0 ? (
             <div className="py-16 text-center">
               <BookOpen className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400">ยังไม่มีบทเรียน</p>
+              <p className="text-gray-400 dark:text-gray-500">ยังไม่มีบทเรียน</p>
             </div>
           ) : (
             chapters.map((chapter: Chapter) => (
               <div key={chapter.id} className="mb-6">
-                <h2 className="font-bold text-gray-800 text-base mb-3 px-1">
+                <h2 className="font-bold text-gray-800 dark:text-gray-200 text-base mb-3 px-1">
                   {chapter.name}
-                  <span className="ml-2 text-xs font-normal text-gray-400">
+                  <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
                     {chapter.examCount ?? 0} ชุด
                   </span>
                 </h2>

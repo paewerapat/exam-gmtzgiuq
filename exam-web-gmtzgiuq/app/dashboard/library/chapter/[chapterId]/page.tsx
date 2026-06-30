@@ -36,7 +36,7 @@ export default function ChapterPage() {
     <FadeIn>
       <Link
         href="/dashboard/library"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6 transition"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 mb-6 transition"
       >
         <ArrowLeft className="w-4 h-4" />
         กลับไปคลังข้อสอบ
@@ -49,7 +49,7 @@ export default function ChapterPage() {
       ) : !chapter ? (
         <div className="py-32 text-center">
           <BookOpen className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-400">ไม่พบบทนี้</p>
+          <p className="text-gray-400 dark:text-gray-500">ไม่พบบทนี้</p>
         </div>
       ) : (
         <>
@@ -73,7 +73,7 @@ export default function ChapterPage() {
           {topics.length === 0 ? (
             <div className="py-16 text-center">
               <BookOpen className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400">ยังไม่มีหัวข้อในบทนี้</p>
+              <p className="text-gray-400 dark:text-gray-500">ยังไม่มีหัวข้อในบทนี้</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -81,7 +81,7 @@ export default function ChapterPage() {
                 <Link
                   key={topic.id}
                   href={`/practice/topic/${topic.id}`}
-                  className="group flex items-center justify-between bg-white rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition"
+                  className="group flex items-center justify-between bg-white dark:bg-gray-800 rounded-2xl px-5 py-4 shadow-sm hover:shadow-md transition"
                 >
                   <div className="flex items-center gap-3">
                     <div
@@ -89,10 +89,10 @@ export default function ChapterPage() {
                       style={{ backgroundColor: subjectColor }}
                     />
                     <div>
-                      <p className="font-semibold text-gray-800 group-hover:text-indigo-600 transition">
+                      <p className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-indigo-600 transition">
                         {topic.name}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                         {topic.questionCount ?? topic.examCount ?? 0} ข้อ
                       </p>
                     </div>

@@ -48,7 +48,7 @@ function ChapterScoreSection({ session, questions }: { session: ExamSession; que
   const hasChapterData = chapters.some((c) => c.name !== '(ไม่ระบุบท)');
 
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
       {!hasChapterData && (
         <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
@@ -58,27 +58,27 @@ function ChapterScoreSection({ session, questions }: { session: ExamSession; que
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-5 py-3 text-gray-500 font-medium">ชื่อบท / Section</th>
-              <th className="text-center px-4 py-3 text-gray-500 font-medium">คะแนน %</th>
-              <th className="text-center px-4 py-3 text-gray-500 font-medium">ถูก</th>
-              <th className="text-center px-4 py-3 text-gray-500 font-medium">ผิด</th>
-              <th className="text-center px-4 py-3 text-gray-500 font-medium">ข้าม</th>
-              <th className="text-center px-4 py-3 text-gray-500 font-medium">ทั้งหมด</th>
+            <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+              <th className="text-left px-5 py-3 text-gray-500 dark:text-gray-400 font-medium">ชื่อบท / Section</th>
+              <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">คะแนน %</th>
+              <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">ถูก</th>
+              <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">ผิด</th>
+              <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">ข้าม</th>
+              <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">ทั้งหมด</th>
             </tr>
           </thead>
           <tbody>
             {chapters.map((ch) => {
               const pct = ch.total > 0 ? Math.round((ch.correct / ch.total) * 100) : 0;
-              const pctColor = pct >= 70 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-500';
+              const pctColor = pct >= 70 ? 'text-green-600 dark:text-green-400' : pct >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-500';
               return (
                 <tr key={ch.name} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-5 py-3 font-medium text-gray-800">{ch.name}</td>
+                  <td className="px-5 py-3 font-medium text-gray-800 dark:text-gray-200">{ch.name}</td>
                   <td className={`px-4 py-3 text-center font-bold ${pctColor}`}>{pct}%</td>
-                  <td className="px-4 py-3 text-center text-green-600 font-medium">{ch.correct}</td>
+                  <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{ch.correct}</td>
                   <td className="px-4 py-3 text-center text-red-500 font-medium">{ch.incorrect}</td>
-                  <td className="px-4 py-3 text-center text-gray-400">{ch.skipped}</td>
-                  <td className="px-4 py-3 text-center text-gray-600">{ch.total}</td>
+                  <td className="px-4 py-3 text-center text-gray-400 dark:text-gray-500">{ch.skipped}</td>
+                  <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{ch.total}</td>
                 </tr>
               );
             })}
@@ -134,8 +134,8 @@ export default function ExamResultsPage({ params }: PageProps) {
 
   if (loading || !examId || !session || !result) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
@@ -149,21 +149,21 @@ export default function ExamResultsPage({ params }: PageProps) {
   const displayedQuestionIds = showAll ? reviewQuestionIds : reviewQuestionIds.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <FadeIn>
           {/* Back link */}
-          <Link href="/dashboard/practice" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6">
+          <Link href="/dashboard/practice" className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6">
             <ArrowLeft className="w-4 h-4" />
             <span>กลับหน้าเลือกข้อสอบ</span>
           </Link>
 
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
               ผลการทำข้อสอบ: <LatexText text={examTitle} />
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 dark:text-gray-400">
               ทำเสร็จเมื่อ{' '}
               {session.completedAt ? new Date(session.completedAt).toLocaleString('th-TH') : '-'}
             </p>
@@ -183,7 +183,7 @@ export default function ExamResultsPage({ params }: PageProps) {
             </button>
             <button
               onClick={() => setActiveTab('chapter')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium"
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 border border-indigo-300 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 transition-colors font-medium"
             >
               <BarChart2 className="w-5 h-5" />
               <span>ดูคะแนนแยกบท</span>
@@ -197,7 +197,7 @@ export default function ExamResultsPage({ params }: PageProps) {
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition border ${
                 activeTab === 'review'
                   ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50'
               }`}
             >
               ทบทวนคำตอบ
@@ -207,7 +207,7 @@ export default function ExamResultsPage({ params }: PageProps) {
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition border ${
                 activeTab === 'chapter'
                   ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50'
               }`}
             >
               คะแนนแยกบท
@@ -221,14 +221,14 @@ export default function ExamResultsPage({ params }: PageProps) {
 
           {/* Tab: Question review */}
           {activeTab === 'review' && (
-            <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">ทบทวนคำตอบ</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ทบทวนคำตอบ</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setFilter('all')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      filter === 'all' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
+                      filter === 'all' ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                     }`}
                   >
                     ทั้งหมด ({session.questionIds.length})
@@ -236,7 +236,7 @@ export default function ExamResultsPage({ params }: PageProps) {
                   <button
                     onClick={() => setFilter('incorrect')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      filter === 'incorrect' ? 'bg-red-100 text-red-700' : 'text-gray-600 hover:bg-gray-100'
+                      filter === 'incorrect' ? 'bg-red-100 text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                     }`}
                   >
                     ผิด ({result.incorrectQuestionIds.length})
@@ -245,7 +245,7 @@ export default function ExamResultsPage({ params }: PageProps) {
                     <button
                       onClick={() => setFilter('marked')}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        filter === 'marked' ? 'bg-orange-100 text-orange-700' : 'text-gray-600 hover:bg-gray-100'
+                        filter === 'marked' ? 'bg-orange-100 text-orange-700 dark:text-orange-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                       }`}
                     >
                       ทำเครื่องหมาย ({session.markedForReview.length})
@@ -255,7 +255,7 @@ export default function ExamResultsPage({ params }: PageProps) {
               </div>
 
               {reviewQuestionIds.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   {filter === 'incorrect' && 'ยินดีด้วย! คุณตอบถูกทุกข้อ'}
                   {filter === 'marked' && 'ไม่มีข้อที่ทำเครื่องหมายไว้'}
                 </div>
@@ -277,7 +277,7 @@ export default function ExamResultsPage({ params }: PageProps) {
                   {reviewQuestionIds.length > 5 && !showAll && (
                     <button
                       onClick={() => setShowAll(true)}
-                      className="w-full py-3 text-indigo-600 hover:text-indigo-700 font-medium"
+                      className="w-full py-3 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
                     >
                       แสดงทั้งหมด ({reviewQuestionIds.length} ข้อ)
                     </button>

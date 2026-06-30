@@ -62,12 +62,12 @@ function InlineInput({
           if (e.key === 'Escape') onCancel();
         }}
         placeholder="slug เช่น mathematics"
-        className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none w-36 font-mono text-xs"
+        className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none w-36 font-mono text-xs"
       />
-      <button onClick={() => name.trim() && slug.trim() && onSave(name.trim(), slug.trim())} className="text-green-600 hover:text-green-700">
+      <button onClick={() => name.trim() && slug.trim() && onSave(name.trim(), slug.trim())} className="text-green-600 dark:text-green-400 hover:text-green-700">
         <Check className="w-4 h-4" />
       </button>
-      <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+      <button onClick={onCancel} className="text-gray-400 dark:text-gray-500 hover:text-gray-600">
         <X className="w-4 h-4" />
       </button>
     </div>
@@ -130,7 +130,7 @@ export default function AdminCategoriesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
@@ -139,27 +139,27 @@ export default function AdminCategoriesPage() {
     <div className="max-w-3xl mx-auto">
       <FadeIn>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Tag className="w-7 h-7 text-indigo-600" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Tag className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
             จัดการหมวดหมู่
           </h1>
-          <p className="text-gray-500 mt-1">หมวดหมู่ที่ใช้จัดกลุ่มชุดข้อสอบ</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">หมวดหมู่ที่ใช้จัดกลุ่มชุดข้อสอบ</p>
         </div>
 
         {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+          <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 rounded-lg text-sm text-red-600 dark:text-red-400">
             {error}
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
           {/* Header */}
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-sm text-gray-500">{categories.length} หมวดหมู่</span>
+          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+            <span className="text-sm text-gray-500 dark:text-gray-400">{categories.length} หมวดหมู่</span>
             {!adding && (
               <button
                 onClick={() => setAdding(true)}
-                className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                className="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 font-medium"
               >
                 <Plus className="w-4 h-4" />
                 เพิ่มหมวดหมู่
@@ -168,7 +168,7 @@ export default function AdminCategoriesPage() {
           </div>
 
           {/* Column headers */}
-          <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 grid grid-cols-[1fr_160px_80px] gap-2 text-xs font-medium text-gray-500">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 grid grid-cols-[1fr_160px_80px] gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
             <span>ชื่อหมวดหมู่</span>
             <span>Slug (ใช้ในระบบ)</span>
             <span></span>
@@ -176,7 +176,7 @@ export default function AdminCategoriesPage() {
 
           {/* Add row */}
           {adding && (
-            <div className="px-4 py-3 border-b border-gray-100 bg-indigo-50">
+            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-indigo-50 dark:bg-indigo-900/30">
               <InlineInput
                 onSave={handleCreate}
                 onCancel={() => setAdding(false)}
@@ -187,7 +187,7 @@ export default function AdminCategoriesPage() {
 
           {/* List */}
           {categories.length === 0 && !adding ? (
-            <div className="p-12 text-center text-gray-400">
+            <div className="p-12 text-center text-gray-400 dark:text-gray-500">
               <Tag className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p>ยังไม่มีหมวดหมู่ — กด "เพิ่มหมวดหมู่" ด้านบน</p>
             </div>
@@ -209,13 +209,13 @@ export default function AdminCategoriesPage() {
                     </div>
                   ) : (
                     <>
-                      <span className="flex-1 font-medium text-gray-900 text-sm">{cat.name}</span>
-                      <span className="w-40 text-xs text-gray-400 font-mono bg-gray-100 px-2 py-0.5 rounded">{cat.slug}</span>
+                      <span className="flex-1 font-medium text-gray-900 dark:text-gray-100 text-sm">{cat.name}</span>
+                      <span className="w-40 text-xs text-gray-400 dark:text-gray-500 font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{cat.slug}</span>
                       <div className="flex items-center gap-1 ml-auto">
-                        <button onClick={() => setEditingId(cat.id)} className="p-1 text-gray-400 hover:text-indigo-600">
+                        <button onClick={() => setEditingId(cat.id)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-indigo-600">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDelete(cat.id, cat.name)} className="p-1 text-gray-400 hover:text-red-600">
+                        <button onClick={() => handleDelete(cat.id, cat.name)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -227,8 +227,8 @@ export default function AdminCategoriesPage() {
           )}
         </div>
 
-        <p className="mt-4 text-xs text-gray-400">
-          หมายเหตุ: Slug คือค่าที่เก็บในฐานข้อมูล (เช่น <code className="bg-gray-100 px-1 rounded">mathematics</code>) ควรใช้ตัวพิมพ์เล็กและ underscore เท่านั้น
+        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
+          หมายเหตุ: Slug คือค่าที่เก็บในฐานข้อมูล (เช่น <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">mathematics</code>) ควรใช้ตัวพิมพ์เล็กและ underscore เท่านั้น
         </p>
       </FadeIn>
     </div>

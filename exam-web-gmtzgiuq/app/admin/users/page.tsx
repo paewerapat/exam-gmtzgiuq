@@ -22,16 +22,16 @@ import {
 
 function getRoleBadge(role: string) {
   if (role?.toLowerCase() === 'admin') {
-    return 'bg-purple-100 text-purple-700';
+    return 'bg-purple-100 text-purple-700 dark:text-purple-300';
   }
-  return 'bg-gray-100 text-gray-600';
+  return 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400';
 }
 
 function getProviderBadge(provider: string) {
   if (provider === 'google') {
-    return 'bg-blue-50 text-blue-600';
+    return 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
   }
-  return 'bg-gray-50 text-gray-500';
+  return 'bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400';
 }
 
 export default function AdminUsersPage() {
@@ -78,15 +78,15 @@ export default function AdminUsersPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4">
         <FadeIn>
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Users className="w-7 h-7 text-indigo-600" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <Users className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
               จัดการผู้ใช้งาน
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
               ดูข้อมูลและสถิติผู้ใช้งานทั้งหมด
             </p>
           </div>
@@ -94,41 +94,41 @@ export default function AdminUsersPage() {
           {/* Stats cards */}
           {stats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Users className="w-5 h-5 text-indigo-600" />
-                  <span className="text-sm text-gray-500">ผู้ใช้ทั้งหมด</span>
+                  <Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">ผู้ใช้ทั้งหมด</span>
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   {stats.totalUsers}
                 </div>
               </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <UserCheck className="w-5 h-5 text-green-600" />
-                  <span className="text-sm text-gray-500">ใช้งานอยู่</span>
+                  <UserCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">ใช้งานอยู่</span>
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   {stats.activeUsers}
                 </div>
               </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Shield className="w-5 h-5 text-purple-600" />
-                  <span className="text-sm text-gray-500">แอดมิน</span>
+                  <Shield className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">แอดมิน</span>
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   {stats.adminUsers}
                 </div>
               </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Chrome className="w-5 h-5 text-blue-600" />
-                  <span className="text-sm text-gray-500">
+                  <Chrome className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
                     เข้าด้วย Google
                   </span>
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   {stats.googleUsers}
                 </div>
               </div>
@@ -138,13 +138,13 @@ export default function AdminUsersPage() {
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ค้นหาตามชื่อ หรืออีเมล..."
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-800"
               />
             </div>
             <div className="flex gap-2">
@@ -162,7 +162,7 @@ export default function AdminUsersPage() {
                   className={`px-3 py-2 text-sm rounded-lg transition ${
                     roleFilter === role.id
                       ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 border border-gray-200 dark:border-gray-700'
                   }`}
                 >
                   {role.label}
@@ -172,38 +172,38 @@ export default function AdminUsersPage() {
           </div>
 
           {/* Table */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
             {loading ? (
               <div className="p-8 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-2" />
-                <p className="text-gray-500">กำลังโหลด...</p>
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400 mx-auto mb-2" />
+                <p className="text-gray-500 dark:text-gray-400">กำลังโหลด...</p>
               </div>
             ) : !data || data.items.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 ไม่พบผู้ใช้งาน
               </div>
             ) : (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           ผู้ใช้
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           บทบาท
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           วิธีเข้าสู่ระบบ
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           ยืนยันอีเมล
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           สมัครเมื่อ
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           ดูสถิติ
                         </th>
                       </tr>
@@ -215,12 +215,12 @@ export default function AdminUsersPage() {
                             <div className="flex items-center gap-3">
                               <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={36} />
                               <div>
-                                <div className="text-sm font-medium text-gray-900">
+                                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                   {user.firstName
                                     ? `${user.firstName} ${user.lastName || ''}`
                                     : user.email.split('@')[0]}
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
                                   {user.email}
                                 </div>
                               </div>
@@ -252,7 +252,7 @@ export default function AdminUsersPage() {
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                               {new Date(user.createdAt).toLocaleDateString(
                                 'th-TH',
                                 {
@@ -266,7 +266,7 @@ export default function AdminUsersPage() {
                           <td className="px-4 py-3 text-center">
                             <Link
                               href={`/admin/users/${user.id}`}
-                              className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
+                              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline"
                             >
                               ดูสถิติ
                             </Link>
@@ -279,8 +279,8 @@ export default function AdminUsersPage() {
 
                 {/* Pagination */}
                 {data.totalPages > 1 && (
-                  <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-                    <p className="text-sm text-gray-500">
+                  <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       หน้า {data.page} จาก {data.totalPages} (ทั้งหมด{' '}
                       {data.total} คน)
                     </p>
@@ -290,7 +290,7 @@ export default function AdminUsersPage() {
                           setCurrentPage((p) => Math.max(1, p - 1))
                         }
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         ก่อนหน้า
                       </button>
@@ -301,7 +301,7 @@ export default function AdminUsersPage() {
                           )
                         }
                         disabled={currentPage === data.totalPages}
-                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         ถัดไป
                       </button>

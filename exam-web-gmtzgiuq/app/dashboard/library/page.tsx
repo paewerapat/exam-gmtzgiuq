@@ -15,7 +15,7 @@ function SubjectCard({ subject }: { subject: Subject }) {
   const totalQuestions = allTopics.reduce((sum, t) => sum + (t.questionCount ?? t.examCount ?? 0), 0);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
       {/* Colored header */}
       <div className="px-5 py-4 flex items-start justify-between gap-3" style={{ backgroundColor: color }}>
         <div>
@@ -27,7 +27,7 @@ function SubjectCard({ subject }: { subject: Subject }) {
         </div>
         <Link
           href={`/practice/subject/${subject.id}`}
-          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-semibold whitespace-nowrap transition hover:bg-white/90"
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-800 rounded-full text-xs font-semibold whitespace-nowrap transition hover:bg-white/90"
           style={{ color }}
         >
           <PlayCircle className="w-3.5 h-3.5" />
@@ -38,7 +38,7 @@ function SubjectCard({ subject }: { subject: Subject }) {
       {/* Topics list (no chapter level) */}
       <div className="divide-y divide-gray-50 flex-1">
         {allTopics.length === 0 ? (
-          <div className="px-5 py-6 text-sm text-gray-400 text-center">ยังไม่มีหัวข้อ</div>
+          <div className="px-5 py-6 text-sm text-gray-400 dark:text-gray-500 text-center">ยังไม่มีหัวข้อ</div>
         ) : (
           allTopics.map((topic) => (
             <Link
@@ -46,10 +46,10 @@ function SubjectCard({ subject }: { subject: Subject }) {
               href={`/practice/topic/${topic.id}`}
               className="flex items-center justify-between px-5 py-3 hover:bg-indigo-50 transition group"
             >
-              <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-600 transition">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-indigo-600 transition">
                 {topic.name}
               </span>
-              <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+              <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 ml-2">
                 {topic.questionCount ?? topic.examCount ?? 0} ข้อ
               </span>
             </Link>
@@ -76,14 +76,14 @@ export default function LibraryPage() {
     <FadeIn>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-400 dark:text-gray-500">
           Dashboard /{' '}
-          <span className="text-gray-600 font-medium">คลังข้อสอบ</span>
+          <span className="text-gray-600 dark:text-gray-400 font-medium">คลังข้อสอบ</span>
         </p>
       </div>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">คลังข้อสอบ</h1>
-      <p className="text-sm text-gray-500 mb-6">
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">คลังข้อสอบ</h1>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
         เลือกวิชาหรือหัวข้อที่ต้องการทบทวน
       </p>
 
@@ -94,7 +94,7 @@ export default function LibraryPage() {
       ) : subjects.length === 0 ? (
         <div className="py-32 text-center">
           <Library className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-400 font-medium">ยังไม่มีหลักสูตร</p>
+          <p className="text-gray-400 dark:text-gray-500 font-medium">ยังไม่มีหลักสูตร</p>
           <p className="text-gray-300 text-sm mt-1">
             ผู้ดูแลระบบยังไม่ได้เพิ่มวิชาและหัวข้อ
           </p>

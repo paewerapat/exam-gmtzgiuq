@@ -45,7 +45,7 @@ export default function AdminSidebar() {
                 className={`flex items-center px-4 py-3 rounded-lg transition ${
                   isActive
                     ? 'bg-indigo-600 text-white'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                    : 'text-gray-400 dark:text-gray-500 hover:bg-gray-800 hover:text-white'
                 }`}
               >
                 <Icon className="w-5 h-5 mr-3" />
@@ -59,7 +59,7 @@ export default function AdminSidebar() {
         <div className="pt-4 border-t border-gray-700 mt-4">
           <Link
             href="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-800 hover:text-white transition"
           >
             <LayoutGrid className="w-5 h-5" />
             กลับเมนูหลัก

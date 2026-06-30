@@ -68,8 +68,8 @@ export default function ResultsPage({ params }: PageProps) {
 
   if (loading || !category || !session || !result) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
@@ -90,13 +90,13 @@ export default function ResultsPage({ params }: PageProps) {
   const displayedQuestionIds = showAll ? reviewQuestionIds : reviewQuestionIds.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <FadeIn>
           {/* Back link */}
           <Link
             href="/dashboard/practice"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>กลับหน้าเลือกหมวดหมู่</span>
@@ -104,10 +104,10 @@ export default function ResultsPage({ params }: PageProps) {
 
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
               ผลการทำข้อสอบ {categoryName}
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 dark:text-gray-400">
               ทำเสร็จเมื่อ{' '}
               {session.completedAt
                 ? new Date(session.completedAt).toLocaleString('th-TH')
@@ -129,7 +129,7 @@ export default function ResultsPage({ params }: PageProps) {
             </button>
             <Link
               href="/dashboard/practice"
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
             >
               <Home className="w-5 h-5" />
               <span>กลับหน้าหลัก</span>
@@ -137,16 +137,16 @@ export default function ResultsPage({ params }: PageProps) {
           </div>
 
           {/* Question review section */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">ทบทวนคำตอบ</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ทบทวนคำตอบ</h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     filter === 'all'
-                      ? 'bg-indigo-100 text-indigo-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-300'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                   }`}
                 >
                   ทั้งหมด ({session.questionIds.length})
@@ -155,8 +155,8 @@ export default function ResultsPage({ params }: PageProps) {
                   onClick={() => setFilter('incorrect')}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     filter === 'incorrect'
-                      ? 'bg-red-100 text-red-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-red-100 text-red-700 dark:text-red-300'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                   }`}
                 >
                   ผิด ({result.incorrectQuestionIds.length})
@@ -166,8 +166,8 @@ export default function ResultsPage({ params }: PageProps) {
                     onClick={() => setFilter('marked')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       filter === 'marked'
-                        ? 'bg-orange-100 text-orange-700'
-                        : 'text-gray-600 hover:bg-gray-100'
+                        ? 'bg-orange-100 text-orange-700 dark:text-orange-300'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
                     }`}
                   >
                     ทำเครื่องหมาย ({session.markedForReview.length})
@@ -177,7 +177,7 @@ export default function ResultsPage({ params }: PageProps) {
             </div>
 
             {reviewQuestionIds.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 {filter === 'incorrect' && 'ยินดีด้วย! คุณตอบถูกทุกข้อ'}
                 {filter === 'marked' && 'ไม่มีข้อที่ทำเครื่องหมายไว้'}
               </div>
@@ -201,7 +201,7 @@ export default function ResultsPage({ params }: PageProps) {
                 {reviewQuestionIds.length > 5 && !showAll && (
                   <button
                     onClick={() => setShowAll(true)}
-                    className="w-full py-3 text-indigo-600 hover:text-indigo-700 font-medium"
+                    className="w-full py-3 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
                   >
                     แสดงทั้งหมด ({reviewQuestionIds.length} ข้อ)
                   </button>

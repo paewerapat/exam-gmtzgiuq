@@ -7,8 +7,8 @@ import 'react-quill-new/dist/quill.snow.css';
 const ReactQuill = dynamic(() => import('react-quill-new'), {
   ssr: false,
   loading: () => (
-    <div className="h-64 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center">
-      <span className="text-gray-500">Loading editor...</span>
+    <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse flex items-center justify-center">
+      <span className="text-gray-500 dark:text-gray-400">Loading editor...</span>
     </div>
   ),
 });
@@ -75,7 +75,7 @@ export default function RichTextEditor({
         modules={modules}
         formats={formats}
         placeholder={placeholder}
-        className="bg-white rounded-lg"
+        className="bg-white dark:bg-gray-800 rounded-lg"
       />
       <style jsx global>{`
         .rich-text-editor .ql-container {

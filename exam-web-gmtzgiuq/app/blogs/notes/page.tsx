@@ -10,7 +10,7 @@ const ITEMS_PER_PAGE = 6;
 function BlogCard({ blog }: { blog: Blog }) {
   return (
     <Link href={`/blogs/${blog.slug}`} className="block">
-      <article className="bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
+      <article className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
         {blog.featuredImage ? (
           <div className="h-48 overflow-hidden">
             <img
@@ -26,13 +26,13 @@ function BlogCard({ blog }: { blog: Blog }) {
         )}
 
         <div className="p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-emerald-600 transition line-clamp-2">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-emerald-600 transition line-clamp-2">
             {blog.title}
           </h3>
 
-          <p className="text-gray-600 mb-4 line-clamp-2">{blog.excerpt}</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">{blog.excerpt}</p>
 
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
             <div className="flex items-center space-x-4">
               <div className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
@@ -60,7 +60,7 @@ function BlogCard({ blog }: { blog: Blog }) {
 
 function BlogCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden animate-pulse">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden animate-pulse">
       <div className="h-48 bg-gray-200" />
       <div className="p-6">
         <div className="h-6 bg-gray-200 rounded mb-2" />
@@ -106,7 +106,7 @@ function Pagination({
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
@@ -119,7 +119,7 @@ function Pagination({
             className={`px-4 py-2 rounded-lg font-medium transition ${
               currentPage === page
                 ? 'bg-emerald-600 text-white'
-                : 'border border-gray-300 hover:bg-gray-100'
+                : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100'
             }`}
           >
             {page}
@@ -132,7 +132,7 @@ function Pagination({
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         <ChevronRight className="w-5 h-5" />
       </button>
@@ -182,7 +182,7 @@ export default function NotesBlogsPage() {
   }, [fetchBlogs]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header Section */}
       <div className="bg-gradient-to-br from-emerald-600 to-teal-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -209,20 +209,20 @@ export default function NotesBlogsPage() {
         {/* Search Bar */}
         <div className="mb-8">
           <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="ค้นหาบทความ..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
             />
           </div>
         </div>
 
         {/* Blog Count */}
         <div className="mb-8">
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             {loading ? (
               <span className="inline-flex items-center">
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -230,7 +230,7 @@ export default function NotesBlogsPage() {
               </span>
             ) : (
               <>
-                แสดง <span className="font-semibold text-gray-900">{data?.total || 0}</span> บทความ
+                แสดง <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.total || 0}</span> บทความ
                 {debouncedSearch && (
                   <span className="ml-2">
                     สำหรับ "<span className="font-medium">{debouncedSearch}</span>"
@@ -282,10 +282,10 @@ export default function NotesBlogsPage() {
             ) : (
               <div className="text-center py-16">
                 <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-600 mb-2">
+                <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
                   {debouncedSearch ? 'ไม่พบบทความ' : 'ยังไม่มี Notes'}
                 </h3>
-                <p className="text-gray-500">
+                <p className="text-gray-500 dark:text-gray-400">
                   {debouncedSearch ? 'ลองค้นหาด้วยคำอื่นดูนะครับ' : 'กลับมาดูใหม่ภายหลังนะครับ'}
                 </p>
               </div>
@@ -295,7 +295,7 @@ export default function NotesBlogsPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12">
+      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>&copy; 2024 ExamPrep. All rights reserved.</p>
         </div>

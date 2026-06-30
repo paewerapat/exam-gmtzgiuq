@@ -35,7 +35,7 @@ function ExamCard({ exam }: { exam: Exam }) {
     categoryDisplayNames[exam.category as QuestionCategory] ?? exam.category;
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
       <div
         className="relative h-28 p-4 flex flex-col justify-end overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
@@ -48,7 +48,7 @@ function ExamCard({ exam }: { exam: Exam }) {
         </h3>
       </div>
       <div className="p-4 flex flex-col flex-1">
-        <p className="text-xs text-gray-400 mb-4">
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
           {exam.questionCount} ข้อ
         </p>
         <div className="mt-auto">
@@ -88,7 +88,7 @@ export default function TopicExamsPage() {
       {/* Back */}
       <Link
         href="/dashboard/library"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6 transition"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 mb-6 transition"
       >
         <ArrowLeft className="w-4 h-4" />
         กลับไปคลังข้อสอบ
@@ -96,11 +96,11 @@ export default function TopicExamsPage() {
 
       {topic && (
         <>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
             {topic.name}
           </h1>
           {topic.description && (
-            <p className="text-sm text-gray-500 mb-6">{topic.description}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{topic.description}</p>
           )}
         </>
       )}
@@ -112,7 +112,7 @@ export default function TopicExamsPage() {
       ) : exams.length === 0 ? (
         <div className="py-32 text-center">
           <BookOpen className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-400 font-medium">
+          <p className="text-gray-400 dark:text-gray-500 font-medium">
             ยังไม่มีข้อสอบในหัวข้อนี้
           </p>
         </div>

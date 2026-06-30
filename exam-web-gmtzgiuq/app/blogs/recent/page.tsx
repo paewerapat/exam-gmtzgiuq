@@ -14,7 +14,7 @@ function BlogCard({ blog }: { blog: Blog }) {
 
   return (
     <Link href={`/blogs/${blog.slug}`} className="block">
-      <article className="bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
+      <article className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition overflow-hidden group h-full">
         {blog.featuredImage ? (
           <div className="h-48 overflow-hidden">
             <img
@@ -39,13 +39,13 @@ function BlogCard({ blog }: { blog: Blog }) {
             {blog.category === 'notes' ? 'Notes' : 'Essays'}
           </span>
 
-          <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition line-clamp-2">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition line-clamp-2">
             {blog.title}
           </h3>
 
-          <p className="text-gray-600 mb-4 line-clamp-2">{blog.excerpt}</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">{blog.excerpt}</p>
 
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
             <div className="flex items-center space-x-4">
               <div className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
@@ -62,7 +62,7 @@ function BlogCard({ blog }: { blog: Blog }) {
             </div>
           </div>
 
-          <span className="inline-block mt-4 text-indigo-600 group-hover:text-indigo-700 font-medium">
+          <span className="inline-block mt-4 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 font-medium">
             อ่านเพิ่มเติม →
           </span>
         </div>
@@ -73,7 +73,7 @@ function BlogCard({ blog }: { blog: Blog }) {
 
 function BlogCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden animate-pulse">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden animate-pulse">
       <div className="h-48 bg-gray-200" />
       <div className="p-6">
         <div className="h-5 w-16 bg-gray-200 rounded-full mb-3" />
@@ -120,7 +120,7 @@ function Pagination({
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
@@ -133,7 +133,7 @@ function Pagination({
             className={`px-4 py-2 rounded-lg font-medium transition ${
               currentPage === page
                 ? 'bg-indigo-600 text-white'
-                : 'border border-gray-300 hover:bg-gray-100'
+                : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100'
             }`}
           >
             {page}
@@ -146,7 +146,7 @@ function Pagination({
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         <ChevronRight className="w-5 h-5" />
       </button>
@@ -195,7 +195,7 @@ export default function RecentBlogsPage() {
   }, [fetchBlogs]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header Section */}
       <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -222,20 +222,20 @@ export default function RecentBlogsPage() {
         {/* Search Bar */}
         <div className="mb-8">
           <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="ค้นหาบทความ..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
           </div>
         </div>
 
         {/* Blog Count */}
         <div className="mb-8">
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             {loading ? (
               <span className="inline-flex items-center">
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -243,7 +243,7 @@ export default function RecentBlogsPage() {
               </span>
             ) : (
               <>
-                แสดง <span className="font-semibold text-gray-900">{data?.total || 0}</span> บทความ
+                แสดง <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.total || 0}</span> บทความ
                 {debouncedSearch && (
                   <span className="ml-2">
                     สำหรับ "<span className="font-medium">{debouncedSearch}</span>"
@@ -295,8 +295,8 @@ export default function RecentBlogsPage() {
             ) : (
               <div className="text-center py-16">
                 <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-600 mb-2">ไม่พบบทความ</h3>
-                <p className="text-gray-500">ลองค้นหาด้วยคำอื่นดูนะครับ</p>
+                <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">ไม่พบบทความ</h3>
+                <p className="text-gray-500 dark:text-gray-400">ลองค้นหาด้วยคำอื่นดูนะครับ</p>
               </div>
             )}
           </>
@@ -304,7 +304,7 @@ export default function RecentBlogsPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12">
+      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>&copy; 2024 ExamPrep. All rights reserved.</p>
         </div>

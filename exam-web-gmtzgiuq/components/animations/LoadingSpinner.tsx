@@ -57,7 +57,7 @@ export default function LoadingSpinner({
       </motion.svg>
       {text && (
         <motion.p
-          className="mt-3 text-gray-600"
+          className="mt-3 text-gray-600 dark:text-gray-400"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}

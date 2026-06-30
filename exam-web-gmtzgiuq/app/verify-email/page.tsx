@@ -57,41 +57,41 @@ function VerifyEmailContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
           {status === 'loading' && (
             <>
               <div className="inline-block p-4 bg-indigo-100 rounded-full mb-4">
-                <Loader className="w-12 h-12 text-indigo-600 animate-spin" />
+                <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                 Verifying Your Email
               </h2>
-              <p className="text-gray-600">Please wait while we verify your email address...</p>
+              <p className="text-gray-600 dark:text-gray-400">Please wait while we verify your email address...</p>
             </>
           )}
 
           {status === 'success' && (
             <>
               <div className="inline-block p-4 bg-green-100 rounded-full mb-4">
-                <CheckCircle className="w-12 h-12 text-green-600" />
+                <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                 Email Verified!
               </h2>
-              <p className="text-gray-600 mb-6">{message}</p>
-              <p className="text-sm text-gray-500">Redirecting to login page...</p>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Redirecting to login page...</p>
             </>
           )}
 
           {status === 'error' && (
             <>
               <div className="inline-block p-4 bg-red-100 rounded-full mb-4">
-                <XCircle className="w-12 h-12 text-red-600" />
+                <XCircle className="w-12 h-12 text-red-600 dark:text-red-400" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                 Verification Failed
               </h2>
-              <p className="text-gray-600 mb-6">{message}</p>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
               <div className="space-y-3">
                 <Link
                   href="/login"
@@ -101,7 +101,7 @@ function VerifyEmailContent() {
                 </Link>
                 <Link
                   href="/register"
-                  className="block w-full bg-gray-200 text-gray-700 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-300 transition"
+                  className="block w-full bg-gray-200 text-gray-700 dark:text-gray-300 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-300 transition"
                 >
                   Create New Account
                 </Link>
@@ -118,9 +118,9 @@ function LoadingFallback() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-          <Loader className="w-12 h-12 text-indigo-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+          <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     </div>

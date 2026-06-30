@@ -15,17 +15,17 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F7]">
+    <div className="flex min-h-screen bg-[#F0F2F7] dark:bg-gray-900">
       {/* Sidebar — hidden on mobile, visible on md+ */}
       <div className="hidden md:block">
         <DashboardSidebar />
@@ -51,14 +51,14 @@ export default function DashboardLayout({
       {/* Main content */}
       <main className="flex-1 min-w-0 overflow-auto">
         {/* Mobile top bar */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 sticky top-0 z-30">
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-30">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition"
+            className="p-2 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 transition"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span className="font-bold text-indigo-600 text-lg">ExamPrep</span>
+          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg">ExamPrep</span>
         </div>
 
         <div className="p-4 md:p-8">

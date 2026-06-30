@@ -29,9 +29,9 @@ import {
 import { formatTimeReadable } from '@/lib/exam-utils';
 
 function getScoreBadge(score: number) {
-  if (score >= 80) return 'bg-green-100 text-green-700';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-700';
-  return 'bg-red-100 text-red-700';
+  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300';
+  return 'bg-red-100 text-red-700 dark:text-red-300';
 }
 
 export default function AdminUserDetailPage({
@@ -86,19 +86,19 @@ export default function AdminUserDetailPage({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center py-20">
-          <p className="text-gray-500">ไม่พบผู้ใช้</p>
+          <p className="text-gray-500 dark:text-gray-400">ไม่พบผู้ใช้</p>
           <Link
             href="/admin/users"
-            className="text-indigo-600 hover:underline mt-2 inline-block"
+            className="text-indigo-600 dark:text-indigo-400 hover:underline mt-2 inline-block"
           >
             กลับไปรายชื่อผู้ใช้
           </Link>
@@ -137,14 +137,14 @@ export default function AdminUserDetailPage({
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4">
         <FadeIn>
           {/* Header */}
           <div className="mb-6">
             <Link
               href="/admin/users"
-              className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-3"
+              className="inline-flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 mb-3"
             >
               <ArrowLeft className="w-4 h-4" />
               กลับไปรายชื่อผู้ใช้
@@ -152,16 +152,16 @@ export default function AdminUserDetailPage({
           </div>
 
           {/* User Profile Card */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
             <div className="flex items-start gap-4">
               <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={64} />
               <div className="flex-1">
-                <h1 className="text-xl font-bold text-gray-900">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
                   {user.firstName
                     ? `${user.firstName} ${user.lastName || ''}`
                     : user.email.split('@')[0]}
                 </h1>
-                <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-500">
+                <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-500 dark:text-gray-400">
                   <span className="flex items-center gap-1">
                     <Mail className="w-4 h-4" />
                     {user.email}
@@ -169,14 +169,14 @@ export default function AdminUserDetailPage({
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                       user.role?.toLowerCase() === 'admin'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-gray-100 text-gray-600'
+                        ? 'bg-purple-100 text-purple-700 dark:text-purple-300'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
                     }`}
                   >
                     <Shield className="w-3 h-3" />
                     {user.role?.toLowerCase() === 'admin' ? 'Admin' : 'User'}
                   </span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
                     สมัคร{' '}
                     {new Date(user.createdAt).toLocaleDateString('th-TH', {
                       year: 'numeric',
@@ -185,7 +185,7 @@ export default function AdminUserDetailPage({
                     })}
                   </span>
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${user.provider === 'google' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}
+                    className={`text-xs px-2 py-0.5 rounded-full ${user.provider === 'google' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400'}`}
                   >
                     {user.provider === 'google'
                       ? 'Google'
@@ -198,51 +198,51 @@ export default function AdminUserDetailPage({
 
           {/* Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm p-5">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-indigo-100 rounded-lg">
-                  <BookOpen className="w-5 h-5 text-indigo-600" />
+                  <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
-                <span className="text-sm text-gray-500">ทำข้อสอบ</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">ทำข้อสอบ</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {totalAttempts}{' '}
-                <span className="text-sm font-normal text-gray-500">ครั้ง</span>
+                <span className="text-sm font-normal text-gray-500 dark:text-gray-400">ครั้ง</span>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-5">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-yellow-100 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-yellow-600" />
+                  <TrendingUp className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                 </div>
-                <span className="text-sm text-gray-500">คะแนนเฉลี่ย</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนเฉลี่ย</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {avgScore.toFixed(1)}%
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-5">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-green-100 rounded-lg">
-                  <Trophy className="w-5 h-5 text-green-600" />
+                  <Trophy className="w-5 h-5 text-green-600 dark:text-green-400" />
                 </div>
-                <span className="text-sm text-gray-500">คะแนนสูงสุด</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนสูงสุด</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {bestScore.toFixed(1)}%
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-5">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <Clock className="w-5 h-5 text-blue-600" />
+                  <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
-                <span className="text-sm text-gray-500">เวลารวม</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">เวลารวม</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {formatTimeReadable(totalTime)}
               </div>
             </div>
@@ -250,27 +250,27 @@ export default function AdminUserDetailPage({
 
           {/* Category breakdown */}
           {categoryMap.size > 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Target className="w-5 h-5 text-indigo-600" />
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 สถิติแยกหมวดหมู่
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {Array.from(categoryMap.entries()).map(([cat, data]) => (
                   <div
                     key={cat}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg"
                   >
                     <div className="flex items-center gap-2">
                       <span>
                         {categoryIcons[cat as QuestionCategory]}
                       </span>
-                      <span className="text-sm font-medium text-gray-700">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         {categoryDisplayNames[cat as QuestionCategory] || cat}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-sm">
-                      <span className="text-gray-500">
+                      <span className="text-gray-500 dark:text-gray-400">
                         {data.attempts} ครั้ง
                       </span>
                       <span
@@ -286,39 +286,39 @@ export default function AdminUserDetailPage({
           )}
 
           {/* Attempts Table */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 ประวัติการสอบ
               </h2>
             </div>
 
             {!attempts || attempts.items.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 ยังไม่มีประวัติการสอบ
               </div>
             ) : (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                       <tr>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           ชุดข้อสอบ
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           หมวดหมู่
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           คะแนน
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           ผลลัพธ์
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           เวลา
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                           วันที่
                         </th>
                       </tr>
@@ -330,18 +330,18 @@ export default function AdminUserDetailPage({
                             {attempt.examId ? (
                               <Link
                                 href={`/admin/attempts/exam/${attempt.examId}`}
-                                className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
+                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline"
                               >
                                 {attempt.examTitle}
                               </Link>
                             ) : (
-                              <span className="text-sm text-gray-800">
+                              <span className="text-sm text-gray-800 dark:text-gray-200">
                                 {attempt.examTitle}
                               </span>
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
                               {categoryIcons[attempt.category as QuestionCategory]}{' '}
                               {categoryDisplayNames[
                                 attempt.category as QuestionCategory
@@ -356,18 +356,18 @@ export default function AdminUserDetailPage({
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
                               {attempt.correctAnswers}/{attempt.totalQuestions}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-center gap-1">
                               <Clock className="w-3 h-3" />
                               {formatTimeReadable(attempt.totalTime)}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                               {new Date(
                                 attempt.createdAt,
                               ).toLocaleDateString('th-TH', {
@@ -387,8 +387,8 @@ export default function AdminUserDetailPage({
 
                 {/* Pagination */}
                 {attempts.totalPages > 1 && (
-                  <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-                    <p className="text-sm text-gray-500">
+                  <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       หน้า {attempts.page} จาก {attempts.totalPages} (ทั้งหมด{' '}
                       {attempts.total} รายการ)
                     </p>
@@ -398,7 +398,7 @@ export default function AdminUserDetailPage({
                           setCurrentPage((p) => Math.max(1, p - 1))
                         }
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         ก่อนหน้า
                       </button>
@@ -409,7 +409,7 @@ export default function AdminUserDetailPage({
                           )
                         }
                         disabled={currentPage === attempts.totalPages}
-                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         ถัดไป
                       </button>

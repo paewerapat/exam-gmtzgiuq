@@ -26,19 +26,19 @@ export default function QuestionNavigation({
     <div className={`${className}`}>
       {/* Navigation grid */}
       <div className="mb-4">
-        <div className="text-sm font-medium text-gray-700 mb-2">เลือกข้อ</div>
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">เลือกข้อ</div>
         <div className="grid grid-cols-5 gap-2">
           {questionIds.map((qId, index) => {
             const isAnswered = !!answers[qId];
             const isMarked = markedForReview.includes(qId);
             const isCurrent = index === currentIndex;
 
-            let bgColor = 'bg-gray-100 hover:bg-gray-200 text-gray-600';
+            let bgColor = 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-400';
             if (isAnswered) {
-              bgColor = 'bg-green-100 hover:bg-green-200 text-green-700';
+              bgColor = 'bg-green-100 hover:bg-green-200 text-green-700 dark:text-green-300';
             }
             if (isMarked) {
-              bgColor = 'bg-orange-100 hover:bg-orange-200 text-orange-700';
+              bgColor = 'bg-orange-100 hover:bg-orange-200 text-orange-700 dark:text-orange-300';
             }
             if (isCurrent) {
               bgColor = 'bg-indigo-600 text-white';
@@ -67,7 +67,7 @@ export default function QuestionNavigation({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-4">
+      <div className="flex flex-wrap gap-3 text-xs text-gray-600 dark:text-gray-400 mb-4">
         <div className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-gray-200" />
           <span>ยังไม่ตอบ</span>
@@ -94,7 +94,7 @@ export default function QuestionNavigation({
           disabled={isFirst}
           className={`
             flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg
-            border border-gray-300 transition-colors
+            border border-gray-300 dark:border-gray-600 transition-colors
             ${
               isFirst
                 ? 'opacity-50 cursor-not-allowed'
