@@ -41,6 +41,14 @@ import { FeedbackModule } from './feedback/feedback.module';
         entities: [join(__dirname, '**', '*.entity.{ts,js}')],
         synchronize: configService.get('NODE_ENV') === 'development', // Auto-sync in development only
         logging: configService.get('NODE_ENV') === 'development',
+        retryAttempts: 10,
+        retryDelay: 3000,
+        extra: {
+          connectionLimit: 10,
+          connectTimeout: 20000,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 10000,
+        },
       }),
     }),
 
