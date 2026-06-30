@@ -13,6 +13,7 @@ import {
   Loader2,
   GripVertical,
   BookOpen,
+  Timer,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
@@ -37,6 +38,8 @@ interface QuestionForm {
   choices: QuestionChoice[];
   correctAnswer: string;
   topicId: string;
+  chapterId: string;
+  chapter: string;
   explanation: string;
   hint: string;
   expanded: boolean;
@@ -64,6 +67,8 @@ function createEmptyQuestion(): QuestionForm {
     choices: defaultChoices(),
     correctAnswer: '',
     topicId: '',
+    chapterId: '',
+    chapter: '',
     explanation: '',
     hint: '',
     expanded: true,
@@ -92,6 +97,9 @@ export default function NewExamPage() {
   // Banner image
   const [bannerImage, setBannerImage] = useState('');
 
+  // Exam duration (minutes) — drives the countdown timer when taking the exam
+  const [durationMinutes, setDurationMinutes] = useState('');
+
   // Questions
   const [questions, setQuestions] = useState<QuestionForm[]>([createEmptyQuestion()]);
 
@@ -100,15 +108,33 @@ export default function NewExamPage() {
     getPublicCurriculumTree().then(setSubjects).catch(console.error);
   }, []);
 
+  // Chapters under the selected subject (used to resolve a topic's parent chapter)
+  const subjectChapters = subjects.find((s) => s.id === examSubjectId)?.chapters ?? [];
+
   // Topics available for per-question selection (all topics under selected subject)
-  const subjectTopics: Topic[] = (subjects.find((s) => s.id === examSubjectId)?.chapters ?? [])
-    .flatMap((c) => c.topics ?? []);
+  const subjectTopics: Topic[] = subjectChapters.flatMap((c) => c.topics ?? []);
 
   function handleExamSubjectChange(val: string) {
     setExamSubjectId(val);
-    // Reset topicId on all questions when subject changes
-    setQuestions((prev) => prev.map((q) => ({ ...q, topicId: '' })));
+    // Reset topic/chapter tagging on all questions when subject changes
+    setQuestions((prev) => prev.map((q) => ({ ...q, topicId: '', chapterId: '', chapter: '' })));
   }
+
+  const updateQuestionTopic = (tempId: string, topicId: string) => {
+    // Use the topic name itself as the "chapter" tag for score breakdowns —
+    // most subjects only have a single catch-all chapter, so grouping by
+    // chapter would collapse every question into one row. chapterId still
+    // points at the real parent chapter (used elsewhere for browsing).
+    const chapter = subjectChapters.find((c) => c.topics?.some((t) => t.id === topicId));
+    const topic = subjectTopics.find((t) => t.id === topicId);
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.tempId === tempId
+          ? { ...q, topicId, chapterId: chapter?.id || '', chapter: topic?.name || '' }
+          : q,
+      ),
+    );
+  };
 
   const addQuestion = () => {
     setQuestions((prev) => {
@@ -198,6 +224,8 @@ export default function NewExamPage() {
         choices: q.type === 'short_answer' ? [] : q.choices,
         correctAnswer: q.type === 'short_answer' ? q.correctAnswer : undefined,
         topicId: q.topicId || null,
+        chapterId: q.chapterId || null,
+        chapter: q.chapter || null,
         explanation: q.explanation || undefined,
         hint: q.hint || undefined,
         orderIndex: index,
@@ -211,6 +239,7 @@ export default function NewExamPage() {
         questions: examQuestions,
         subjectId: examSubjectId || null,
         bannerImage: bannerImage || null,
+        durationMinutes: durationMinutes ? Number(durationMinutes) : null,
       });
 
       toast.success('สร้างชุดข้อสอบสำเร็จ');
@@ -224,24 +253,24 @@ export default function NewExamPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <FadeIn>
           <Link
             href="/admin/exams"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>กลับรายการชุดข้อสอบ</span>
           </Link>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">สร้างชุดข้อสอบใหม่</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">สร้างชุดข้อสอบใหม่</h1>
 
           {/* Exam metadata */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   ชื่อชุดข้อสอบ <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -249,30 +278,30 @@ export default function NewExamPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="เช่น ข้อสอบภาษาอังกฤษ ชุดที่ 1"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">คำอธิบาย</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">คำอธิบาย</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="รายละเอียดชุดข้อสอบ (ไม่บังคับ)"
                   rows={2}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     หมวดหมู่ <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="">เลือกหมวดหมู่</option>
                     {categories.map((cat) => (
@@ -281,11 +310,11 @@ export default function NewExamPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">สถานะ</label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as QuestionStatus)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="draft">แบบร่าง</option>
                     <option value="published">เผยแพร่</option>
@@ -294,16 +323,16 @@ export default function NewExamPage() {
               </div>
 
               {/* Exam-level: subject only */}
-              <div className="border-t border-gray-100 pt-4">
+              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
                 <div className="flex items-center gap-2 mb-3">
                   <BookOpen className="w-4 h-4 text-indigo-500" />
-                  <span className="text-sm font-medium text-gray-700">วิชา</span>
-                  <span className="text-xs text-gray-400">(ใช้กำหนดหัวข้อที่เลือกได้ในแต่ละข้อ)</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">วิชา</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">(ใช้กำหนดหัวข้อที่เลือกได้ในแต่ละข้อ)</span>
                 </div>
                 <select
                   value={examSubjectId}
                   onChange={(e) => handleExamSubjectChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
                   <option value="">— ไม่ระบุวิชา —</option>
                   {subjects.map((s) => (
@@ -312,11 +341,28 @@ export default function NewExamPage() {
                 </select>
               </div>
 
+              {/* Exam duration */}
+              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Timer className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">เวลาทำข้อสอบ (นาที)</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">(ปล่อยว่างไว้ = ไม่จับเวลาถอยหลัง)</span>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(e.target.value)}
+                  placeholder="เช่น 90"
+                  className="w-full sm:w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100"
+                />
+              </div>
+
               {/* Banner image */}
-              <div className="border-t border-gray-100 pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   ภาพแบนเนอร์ชุดข้อสอบ
-                  <span className="ml-2 text-xs text-gray-400 font-normal">แนะนำ 16:9 (เช่น 1280×720px)</span>
+                  <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 font-normal">แนะนำ 16:9 (เช่น 1280×720px)</span>
                 </label>
                 <ImageUpload
                   value={bannerImage}
@@ -328,39 +374,44 @@ export default function NewExamPage() {
 
           {/* Questions */}
           <div className="space-y-4 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               คำถาม ({questions.length} ข้อ)
             </h2>
 
             {questions.map((q, qIndex) => (
-                <div key={q.tempId} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div key={q.tempId} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
                   {/* Question header */}
                   <div
-                    className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
+                    className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100 dark:border-gray-800"
                     onClick={() => toggleExpand(q.tempId)}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      <span className="font-medium text-gray-900 flex-shrink-0">ข้อที่ {qIndex + 1}</span>
+                      <GripVertical className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                      <span className="font-medium text-gray-900 dark:text-gray-100 flex-shrink-0">ข้อที่ {qIndex + 1}</span>
                       {!q.expanded && q.question && (
-                        <span className="text-sm text-gray-500 truncate">
+                        <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
                           — {q.question.substring(0, 60)}{q.question.length > 60 ? '...' : ''}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {q.chapter && (
+                        <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-medium flex-shrink-0">
+                          {q.chapter}
+                        </span>
+                      )}
                       {questions.length > 1 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); removeQuestion(q.tempId); }}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                       {q.expanded ? (
-                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                        <ChevronUp className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                       ) : (
-                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                        <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                       )}
                     </div>
                   </div>
@@ -372,14 +423,14 @@ export default function NewExamPage() {
                       {/* Topic selector per question */}
                       {examSubjectId && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             หัวข้อ
-                            <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
+                            <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 font-normal">(ไม่บังคับ)</span>
                           </label>
                           <select
                             value={q.topicId}
-                            onChange={(e) => updateQuestion(q.tempId, 'topicId', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            onChange={(e) => updateQuestionTopic(q.tempId, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             disabled={subjectTopics.length === 0}
                           >
                             <option value="">
@@ -389,20 +440,25 @@ export default function NewExamPage() {
                               <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
                           </select>
+                          {q.chapter && (
+                            <p className="mt-1.5 text-xs text-indigo-600 dark:text-indigo-400">
+                              บท: {q.chapter}
+                            </p>
+                          )}
                         </div>
                       )}
 
                       {/* Question type toggle */}
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700">ประเภท:</span>
-                        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">ประเภท:</span>
+                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
                           <button
                             type="button"
                             onClick={() => updateQuestion(q.tempId, 'type', 'multiple_choice')}
                             className={`px-4 py-1.5 font-medium transition ${
                               q.type === 'multiple_choice'
                                 ? 'bg-indigo-600 text-white'
-                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50'
                             }`}
                           >
                             ปรนัย
@@ -410,10 +466,10 @@ export default function NewExamPage() {
                           <button
                             type="button"
                             onClick={() => updateQuestion(q.tempId, 'type', 'short_answer')}
-                            className={`px-4 py-1.5 font-medium transition border-l border-gray-200 ${
+                            className={`px-4 py-1.5 font-medium transition border-l border-gray-200 dark:border-gray-700 ${
                               q.type === 'short_answer'
                                 ? 'bg-indigo-600 text-white'
-                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50'
                             }`}
                           >
                             อัตนัย
@@ -423,7 +479,7 @@ export default function NewExamPage() {
 
                       {/* Question text */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           คำถาม <span className="text-red-500">*</span>
                         </label>
                         <textarea
@@ -431,13 +487,13 @@ export default function NewExamPage() {
                           onChange={(e) => updateQuestion(q.tempId, 'question', e.target.value)}
                           placeholder="พิมพ์คำถาม... (รองรับ LaTeX เช่น $x^2 + y^2$)"
                           rows={3}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
                       </div>
 
                       {/* Question image */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           รูปภาพ (ถ้ามี)
                         </label>
                         <ImageUpload
@@ -449,7 +505,7 @@ export default function NewExamPage() {
                       {/* Choices (ปรนัย only) */}
                       {q.type === 'multiple_choice' && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             ตัวเลือก <span className="text-red-500">*</span>
                           </label>
                           <div className="space-y-2">
@@ -460,10 +516,10 @@ export default function NewExamPage() {
                                   name={`correct-${q.tempId}`}
                                   checked={choice.isCorrect}
                                   onChange={() => updateChoice(q.tempId, cIndex, 'isCorrect', true)}
-                                  className="w-4 h-4 text-green-600 focus:ring-green-500"
+                                  className="w-4 h-4 text-green-600 dark:text-green-400 focus:ring-green-500"
                                   title="เลือกเป็นคำตอบที่ถูก"
                                 />
-                                <span className="text-sm font-medium text-gray-500 w-6">
+                                <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-6">
                                   {String.fromCharCode(65 + cIndex)}.
                                 </span>
                                 <input
@@ -472,13 +528,13 @@ export default function NewExamPage() {
                                   onChange={(e) => updateChoice(q.tempId, cIndex, 'text', e.target.value)}
                                   placeholder={`ตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
                                   className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                                    choice.isCorrect ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                                    choice.isCorrect ? 'border-green-300 bg-green-50 dark:bg-green-900/30' : 'border-gray-300 dark:border-gray-600'
                                   }`}
                                 />
                                 {(q.choices ?? []).length > 2 && (
                                   <button
                                     onClick={() => removeChoice(q.tempId, cIndex)}
-                                    className="p-1 text-gray-400 hover:text-red-500 transition"
+                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 transition"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -489,13 +545,13 @@ export default function NewExamPage() {
                           {(q.choices ?? []).length < 6 && (
                             <button
                               onClick={() => addChoice(q.tempId)}
-                              className="mt-2 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                              className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1"
                             >
                               <Plus className="w-3 h-3" />
                               เพิ่มตัวเลือก
                             </button>
                           )}
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             คลิกวงกลมเพื่อเลือกคำตอบที่ถูกต้อง (สีเขียว = ถูก)
                           </p>
                         </div>
@@ -504,7 +560,7 @@ export default function NewExamPage() {
                       {/* Correct answer (อัตนัย only) */}
                       {q.type === 'short_answer' && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             คำตอบที่ถูกต้อง <span className="text-red-500">*</span>
                           </label>
                           <input
@@ -512,9 +568,9 @@ export default function NewExamPage() {
                             value={q.correctAnswer}
                             onChange={(e) => updateQuestion(q.tempId, 'correctAnswer', e.target.value)}
                             placeholder="พิมพ์คำตอบที่ถูกต้อง"
-                            className="w-full px-4 py-2.5 border border-green-300 bg-green-50 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-green-300 bg-green-50 dark:bg-green-900/30 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                           />
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             ระบบจะตรวจสอบคำตอบของผู้เรียนกับค่านี้ (ตรงทุกตัวอักษร)
                           </p>
                         </div>
@@ -522,7 +578,7 @@ export default function NewExamPage() {
 
                       {/* Explanation */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           คำอธิบายเฉลย
                         </label>
                         <textarea
@@ -530,19 +586,19 @@ export default function NewExamPage() {
                           onChange={(e) => updateQuestion(q.tempId, 'explanation', e.target.value)}
                           placeholder="อธิบายเหตุผลของคำตอบที่ถูก (ไม่บังคับ)"
                           rows={2}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
                       </div>
 
                       {/* Hint */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">คำใบ้</label>
-                        <input
-                          type="text"
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">คำใบ้</label>
+                        <textarea
                           value={q.hint}
                           onChange={(e) => updateQuestion(q.tempId, 'hint', e.target.value)}
                           placeholder="คำใบ้สำหรับผู้ทำข้อสอบ (ไม่บังคับ)"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          rows={2}
+                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         />
                       </div>
 
@@ -555,7 +611,7 @@ export default function NewExamPage() {
           {/* Add question button */}
           <button
             onClick={addQuestion}
-            className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-2 transition mb-6"
+            className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-2 transition mb-6"
           >
             <Plus className="w-5 h-5" />
             เพิ่มข้อใหม่
@@ -565,7 +621,7 @@ export default function NewExamPage() {
           <div className="flex justify-end gap-4">
             <Link
               href="/admin/exams"
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+              className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 transition font-medium"
             >
               ยกเลิก
             </Link>
