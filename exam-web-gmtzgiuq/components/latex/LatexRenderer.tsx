@@ -43,6 +43,7 @@ export default function LatexRenderer({ content, className = '' }: LatexRenderer
   return (
     <div
       className={className}
+      style={{ whiteSpace: 'pre-wrap' }}
       dangerouslySetInnerHTML={{ __html: renderedHtml }}
     />
   );

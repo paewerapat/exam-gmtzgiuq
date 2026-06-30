@@ -60,6 +60,7 @@ export default function LatexText({ text, className = '' }: LatexTextProps) {
   return (
     <span
       className={className}
+      style={{ whiteSpace: 'pre-wrap' }}
       dangerouslySetInnerHTML={{ __html: renderedHtml }}
     />
   );
