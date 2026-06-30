@@ -92,6 +92,7 @@ type Exam {
   category: String!
   createdAt: DateTime!
   description: String
+  durationMinutes: Int
   id: ID!
   questionCount: Int!
   questions: [Question!]!

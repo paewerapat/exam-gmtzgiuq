@@ -44,6 +44,10 @@ export class Exam {
   @Column({ type: 'int', default: 0 })
   questionCount: number;
 
+  @Field(() => Int, { nullable: true })
+  @Column({ type: 'int', nullable: true })
+  durationMinutes: number | null;
+
   @Field(() => [Question])
   @OneToMany(() => Question, (question) => question.exam, { cascade: true })
   questions: Question[];

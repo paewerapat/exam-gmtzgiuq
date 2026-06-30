@@ -21,6 +21,7 @@ export interface Exam {
   author: QuestionAuthor;
   subjectId?: string | null;
   bannerImage?: string | null;
+  durationMinutes?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +52,8 @@ export interface ExamQuestionInput {
   type?: QuestionType;
   orderIndex?: number;
   topicId?: string | null;
+  chapterId?: string | null;
+  chapter?: string | null;
 }
 
 export interface CreateExamInput {
@@ -61,6 +64,7 @@ export interface CreateExamInput {
   questions: ExamQuestionInput[];
   subjectId?: string | null;
   bannerImage?: string | null;
+  durationMinutes?: number | null;
 }
 
 export interface UpdateExamInput {
@@ -71,6 +75,7 @@ export interface UpdateExamInput {
   questions?: ExamQuestionInput[];
   subjectId?: string | null;
   bannerImage?: string | null;
+  durationMinutes?: number | null;
 }
 
 export interface GetExamsParams {

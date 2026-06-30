@@ -92,6 +92,11 @@ export class CreateExamQuestionInput {
   @IsString()
   @IsOptional()
   chapterId?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  chapter?: string;
 }
 
 // Create exam input
@@ -124,6 +129,11 @@ export class CreateExamInput {
   @IsString()
   @IsOptional()
   bannerImage?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsNumber()
+  @IsOptional()
+  durationMinutes?: number | null;
 
   @Field(() => [CreateExamQuestionInput])
   @IsArray()
@@ -164,6 +174,11 @@ export class UpdateExamInput {
   @IsString()
   @IsOptional()
   bannerImage?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsNumber()
+  @IsOptional()
+  durationMinutes?: number | null;
 
   @Field(() => [CreateExamQuestionInput], { nullable: true })
   @IsArray()

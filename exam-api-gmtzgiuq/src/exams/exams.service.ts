@@ -40,6 +40,7 @@ export class ExamsService {
         questionCount: input.questions.length,
         subjectId: input.subjectId ?? null,
         bannerImage: input.bannerImage ?? null,
+        durationMinutes: input.durationMinutes ?? null,
         author,
         authorId: author.id,
       });
@@ -63,6 +64,7 @@ export class ExamsService {
           authorId: author.id,
           topicId: q.topicId || undefined,
           chapterId: q.chapterId || undefined,
+          chapter: q.chapter || undefined,
         }),
       );
       await manager.save(questions);
@@ -163,6 +165,7 @@ export class ExamsService {
       if (input.status !== undefined) exam.status = input.status;
       if (input.subjectId !== undefined) exam.subjectId = input.subjectId ?? null;
       if (input.bannerImage !== undefined) exam.bannerImage = input.bannerImage;
+      if (input.durationMinutes !== undefined) exam.durationMinutes = input.durationMinutes ?? null;
 
       // Replace questions if provided
       if (input.questions) {
@@ -195,6 +198,7 @@ export class ExamsService {
             authorId: exam.authorId,
             topicId: q.topicId || undefined,
             chapterId: q.chapterId || undefined,
+            chapter: q.chapter || undefined,
           }),
         );
         await manager.save(questions);
@@ -211,6 +215,7 @@ export class ExamsService {
         subjectId: exam.subjectId,
         questionCount: exam.questionCount,
         bannerImage: exam.bannerImage,
+        durationMinutes: exam.durationMinutes,
       });
     });
 
