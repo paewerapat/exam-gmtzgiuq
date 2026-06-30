@@ -1,0 +1,11 @@
+{
+  "name": "lumo-deploy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "node deploy.mjs"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.0.5"
+  }
+}
