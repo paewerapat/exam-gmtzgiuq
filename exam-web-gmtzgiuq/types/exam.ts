@@ -14,6 +14,8 @@ export interface ExamSession {
   timePerQuestion: Record<string, number>; // questionId -> seconds
   startedAt: string;
   durationSeconds?: number | null; // optional total duration for the exam in seconds
+  totalPausedMs?: number; // accumulated paused milliseconds for countdown adjustment
+  pausedAt?: number | null; // client timestamp when currently paused
   completedAt?: string;
   status: 'in_progress' | 'completed';
 }
@@ -26,6 +28,7 @@ export interface ExamState {
   showExplanation: boolean;
   answerChecked: boolean;
   isCorrect: boolean | null;
+  isPaused: boolean;
 }
 
 export type ExamAction =
@@ -42,7 +45,9 @@ export type ExamAction =
   | { type: 'HIDE_EXPLANATION' }
   | { type: 'TICK_TIMER' }
   | { type: 'COMPLETE_EXAM' }
-  | { type: 'RESET_QUESTION_STATE' };
+  | { type: 'RESET_QUESTION_STATE' }
+  | { type: 'PAUSE_TIMER'; now: number }
+  | { type: 'RESUME_TIMER'; now: number };
 
 export interface ExamConfig {
   examId: string;

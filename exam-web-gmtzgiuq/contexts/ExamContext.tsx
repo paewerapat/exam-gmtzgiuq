@@ -32,6 +32,8 @@ const initialState: ExamState = {
     timePerQuestion: {},
     startedAt: '',
     durationSeconds: null,
+    totalPausedMs: 0,
+    pausedAt: null,
     status: 'in_progress',
   },
   questions: [],
@@ -40,6 +42,7 @@ const initialState: ExamState = {
   showExplanation: false,
   answerChecked: false,
   isCorrect: null,
+  isPaused: false,
 };
 
 // Reducer
@@ -220,6 +223,28 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
         isCorrect: null,
       };
 
+    case 'PAUSE_TIMER':
+      return {
+        ...state,
+        isPaused: true,
+        session: { ...state.session, pausedAt: action.now },
+      };
+
+    case 'RESUME_TIMER': {
+      const pausedDuration = state.session.pausedAt != null
+        ? action.now - state.session.pausedAt
+        : 0;
+      return {
+        ...state,
+        isPaused: false,
+        session: {
+          ...state.session,
+          pausedAt: null,
+          totalPausedMs: (state.session.totalPausedMs ?? 0) + pausedDuration,
+        },
+      };
+    }
+
     default:
       return state;
   }
@@ -251,6 +276,8 @@ interface ExamContextType {
   hideExplanation: () => void;
   completeExam: () => { session: ExamSession; questions: Question[] };
   clearSession: () => void;
+  pauseTimer: () => void;
+  resumeTimer: () => void;
 }
 
 const ExamContext = createContext<ExamContextType | undefined>(undefined);
@@ -264,18 +291,25 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     if (state.session.id && state.session.status === 'in_progress') {
       const timeoutId = setTimeout(() => {
         const currentQId = state.session.questionIds[state.session.currentIndex];
+        // When paused, fold the current pause duration into totalPausedMs so a
+        // refresh while paused restores the correct remaining time
+        const extraPausedMs = state.isPaused && state.session.pausedAt != null
+          ? Date.now() - state.session.pausedAt
+          : 0;
         const sessionToSave = {
           ...state.session,
           timePerQuestion: {
             ...state.session.timePerQuestion,
             ...(currentQId ? { [currentQId]: state.currentTimer } : {}),
           },
+          totalPausedMs: (state.session.totalPausedMs ?? 0) + extraPausedMs,
+          pausedAt: null, // save as not-paused so timer resumes on next load
         };
         saveExamSession(sessionToSave, state.questions);
       }, 500);
       return () => clearTimeout(timeoutId);
     }
-  }, [state.session, state.questions, state.currentTimer]);
+  }, [state.session, state.questions, state.currentTimer, state.isPaused]);
 
   // Timer tick
   useEffect(() => {
@@ -369,6 +403,14 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     clearExamSession();
   }, []);
 
+  const pauseTimer = useCallback(() => {
+    dispatch({ type: 'PAUSE_TIMER', now: Date.now() });
+  }, []);
+
+  const resumeTimer = useCallback(() => {
+    dispatch({ type: 'RESUME_TIMER', now: Date.now() });
+  }, []);
+
   const getResult = useCallback(() => {
     return calculateExamResult(state.session, state.questions);
   }, [state.session, state.questions]);
@@ -396,6 +438,8 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     hideExplanation: hideExplanationAction,
     completeExam,
     clearSession,
+    pauseTimer,
+    resumeTimer,
   };
 
   return <ExamContext.Provider value={value}>{children}</ExamContext.Provider>;

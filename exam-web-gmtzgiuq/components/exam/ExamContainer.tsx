@@ -42,13 +42,15 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
     showHint,
     hideHint,
     completeExam,
+    pauseTimer,
+    resumeTimer,
   } = useExam();
 
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [groupAnswered, setGroupAnswered] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  const { session, currentTimer, answerChecked, isCorrect } = state;
+  const { session, currentTimer, answerChecked, isCorrect, isPaused } = state;
   const { showHint: isHintVisible } = state;
 
   if (!currentQuestion || !currentQuestionId) {
@@ -142,8 +144,11 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
     const endMs = startMs + (session.durationSeconds || 0) * 1000;
 
     function tick() {
+      // When paused, freeze the display — don't advance or auto-submit
+      if (isPaused) return;
       const serverApproxNow = Date.now() + clockOffset;
-      const rem = Math.max(0, Math.ceil((endMs - serverApproxNow) / 1000));
+      const totalPausedMs = session.totalPausedMs ?? 0;
+      const rem = Math.max(0, Math.ceil((endMs + totalPausedMs - serverApproxNow) / 1000));
       setRemainingSeconds(rem);
       if (rem <= 0) {
         // Time is up — submit/complete the exam
@@ -154,7 +159,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [session, onComplete, clockOffset]);
+  }, [session, onComplete, clockOffset, isPaused]);
 
   return (
     <div className="min-h-screen bg-[#F5F6FA] flex flex-col">
@@ -164,6 +169,10 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
         answeredCount={answeredCount}
         totalQuestions={totalQuestions}
         backUrl={backUrl ?? (mode === 'exam' ? '/dashboard/exam' : '/dashboard/practice')}
+        hasDuration={!!session.durationSeconds}
+        isPaused={isPaused}
+        onPause={pauseTimer}
+        onResume={resumeTimer}
       />
 
       {/* Scrollable content */}
