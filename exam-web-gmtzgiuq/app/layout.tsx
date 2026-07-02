@@ -4,7 +4,7 @@ import Providers from "@/components/Providers";
 import Navbar from "@/components/layout/Navbar";
 
 export const metadata: Metadata = {
-  title: "ExamPrep - Online Exam Practice Platform",
+  title: "LUMO - Online Exam Practice Platform",
   description: "Practice and prepare for your exams with our comprehensive online platform",
 };
 

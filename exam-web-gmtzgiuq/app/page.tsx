@@ -9,7 +9,6 @@ import {
   Award,
   FileQuestion,
   CheckCircle,
-  Star,
   ArrowRight,
   Play,
   BarChart3,
@@ -132,7 +131,7 @@ export default function Home() {
                   viewport={{ once: true }}
                   transition={{ type: 'spring', stiffness: 100, delay: 0.1 }}
                 >
-                  5000+
+                  5,000+
                 </motion.div>
                 <div className="text-gray-600 dark:text-gray-400">ข้อ<br />ให้คุณฝึกได้อย่างต่อเนื่อง</div>
               </div>
@@ -174,7 +173,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <FadeIn className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-              สิ่งที่คุณจะได้จากการฝึกกับ ExamPrep?
+              สิ่งที่คุณจะได้จากการฝึกกับ LUMO?
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
               เพราะเราอยากให้คุณสอบได้อย่างมั่นใจ เราช่วยคุณฝึก เข้าใจ และพัฒนาได้ในที่เดียว
@@ -425,7 +424,7 @@ export default function Home() {
             <StaggerItem direction="up">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/practice"
+                  href="/dashboard/library"
                   className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
                   <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition">
@@ -433,7 +432,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition">
-                      ข้อสอบอื่นๆ ให้คุณฝึก
+                      ฝึกทำข้อสอบแยกบท
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">5,000+ ข้อ</p>
                   </div>
@@ -441,74 +440,6 @@ export default function Home() {
                 </Link>
               </motion.div>
             </StaggerItem>
-          </StaggerContainer>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="py-20 bg-white dark:bg-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <FadeIn className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-              เสียงจากผู้ใช้งานจริง
-            </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-400">
-              หลายคนเริ่มจากไม่มั่นใจ แต่ค่อยๆ พัฒนาและสอบได้สำเร็จ
-            </p>
-          </FadeIn>
-
-          <StaggerContainer className="grid md:grid-cols-3 gap-8" staggerDelay={0.15}>
-            {[
-              {
-                name: 'คุณสมชาย',
-                role: 'ผู้สอบผ่าน ก.พ. ปี 2567',
-                content: 'ข้อสอบครอบคลุมมาก ทำให้ผมมั่นใจก่อนสอบจริง และสอบผ่านได้ในครั้งแรก!',
-                rating: 5,
-              },
-              {
-                name: 'คุณสมหญิง',
-                role: 'นักศึกษาปริญญาตรี',
-                content: 'ใช้ฝึก TOEIC ได้คะแนนเพิ่มขึ้นกว่า 200 คะแนน ขอบคุณ ExamPrep มากค่ะ',
-                rating: 5,
-              },
-              {
-                name: 'คุณวิชัย',
-                role: 'ครูสอนพิเศษ',
-                content: 'ใช้เป็นเครื่องมือสอนนักเรียน ระบบดีมาก วิเคราะห์จุดอ่อนได้ละเอียด',
-                rating: 5,
-              },
-            ].map((testimonial, index) => (
-              <StaggerItem key={index} direction="up">
-                <motion.div
-                  className="bg-gray-50 dark:bg-gray-900 p-8 rounded-2xl"
-                  whileHover={{ y: -5 }}
-                >
-                  <div className="flex mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, scale: 0 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: i * 0.1 }}
-                      >
-                        <Star className="w-5 h-5 text-yellow-400 fill-current" />
-                      </motion.div>
-                    ))}
-                  </div>
-                  <p className="text-gray-700 dark:text-gray-300 mb-6 italic">&ldquo;{testimonial.content}&rdquo;</p>
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold mr-4">
-                      {testimonial.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900 dark:text-gray-100">{testimonial.name}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{testimonial.role}</div>
-                    </div>
-                  </div>
-                </motion.div>
-              </StaggerItem>
-            ))}
           </StaggerContainer>
         </div>
       </section>
@@ -553,7 +484,7 @@ export default function Home() {
             viewport={{ once: true }}
             transition={{ delay: 0.3 }}
           >
-            เริ่มได้ทันที ไม่ต้องใช้บัตรเครดิต ไม่ว่าคุณจะเริ่มจากจุดไหน ExamPrep อยู่ข้างคุณ
+            เริ่มได้ทันที ไม่ต้องใช้บัตรเครดิต ไม่ว่าคุณจะเริ่มจากจุดไหน LUMO อยู่ข้างคุณ
           </motion.p>
         </FadeIn>
       </section>
@@ -563,7 +494,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <h3 className="text-white font-bold text-lg mb-4">ExamPrep</h3>
+              <h3 className="text-white font-bold text-lg mb-4">LUMO</h3>
               <p className="text-sm">
                 แพลตฟอร์มฝึกสอบออนไลน์ฟรี ที่อยู่ข้างคุณในทุกก้าวของการเตรียมสอบ
               </p>
@@ -579,7 +510,7 @@ export default function Home() {
               <h4 className="text-white font-semibold mb-4">บริการ</h4>
               <ul className="space-y-2 text-sm">
                 <li><Link href="/practice" className="hover:text-white transition">ฝึกทำข้อสอบ</Link></li>
-                <li><Link href="/practice" className="hover:text-white transition">คลังข้อสอบ</Link></li>
+                <li><Link href="/dashboard/library" className="hover:text-white transition">ทำข้อสอบแยกบท</Link></li>
                 <li><Link href="/blogs" className="hover:text-white transition">บทความ</Link></li>
                 <li><Link href="/login" className="hover:text-white transition">เข้าสู่ระบบ</Link></li>
                 <li><Link href="/register" className="hover:text-white transition">เริ่มใช้งานฟรี</Link></li>
@@ -599,7 +530,7 @@ export default function Home() {
               <Link href="/terms" className="hover:text-white transition">ข้อกำหนดและเงื่อนไข</Link>
               <Link href="/privacy" className="hover:text-white transition">นโยบายความเป็นส่วนตัว</Link>
             </div>
-            <p>&copy; 2026 ExamPrep. All rights reserved.</p>
+            <p>&copy; 2026 LUMO. All rights reserved.</p>
           </div>
         </div>
       </footer>

@@ -64,11 +64,11 @@ export default function FeedbackModal({ open, onClose, examId }: { open: boolean
           </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ส่งความคิดเห็น</h3>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">เราอยากรับฟังความคิดเห็นของคุณ! ช่วยบอกเราเพื่อพัฒนา ExamPrep ให้ดีขึ้น</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">เราอยากรับฟังความคิดเห็นของคุณ! ช่วยบอกเราเพื่อพัฒนา LUMO ให้ดีขึ้น</p>
 
         <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
           <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-          คุณอยากเห็นอะไรเพิ่มเติมใน ExamPrep?
+          คุณอยากเห็นอะไรเพิ่มเติมใน LUMO?
         </label>
         <textarea
           value={message}

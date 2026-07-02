@@ -189,7 +189,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
       {/* Footer */}
       <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12 mt-16">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p>&copy; 2024 ExamPrep. All rights reserved.</p>
+          <p>&copy; 2024 LUMO. All rights reserved.</p>
         </div>
       </footer>
     </div>

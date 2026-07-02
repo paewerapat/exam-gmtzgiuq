@@ -25,8 +25,8 @@ import {
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/practice', label: 'ฝึกทำข้อสอบ', icon: ClipboardList },
-  { href: '/dashboard/library', label: 'คลังข้อสอบ', icon: Library },
-  { href: '/dashboard/exam', label: 'ทำข้อสอบจริง', icon: GraduationCap },
+  { href: '/dashboard/library', label: 'ทำข้อสอบแยกบท', icon: Library },
+  { href: '/dashboard/exam', label: 'ฝึกทำข้อสอบ(จับเวลา)', icon: GraduationCap },
   { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: Clock },
   { href: '/blogs', label: 'บทความ', icon: BookOpen },
   { href: '/dashboard/profile', label: 'โปรไฟล์', icon: User },
@@ -53,7 +53,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
       {/* Logo */}
       <div className="px-6 pt-7 pb-5">
         <Link href="/" className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 tracking-tight">
-          ExamPrep
+          LUMO
         </Link>
       </div>
 

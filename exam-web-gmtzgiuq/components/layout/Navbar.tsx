@@ -28,7 +28,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="text-2xl font-bold text-indigo-600">
-              ExamPrep
+              LUMO
             </Link>
           </div>
 
@@ -37,7 +37,7 @@ export default function Navbar() {
             <Link href="/practice" className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
               คลังข้อสอบ
             </Link>
-            <Link href="/dashboard/practice" className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
+            <Link href="/dashboard/library" className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
               ฝึกทำแยกบท
             </Link>
 
@@ -133,7 +133,7 @@ export default function Navbar() {
               คลังข้อสอบ
             </Link>
             <Link
-              href="/dashboard/practice"
+              href="/dashboard/library"
               className="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md"
               onClick={() => setMobileMenuOpen(false)}
             >

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { BookOpen, Calendar, Clock, Eye, ArrowRight, FileText, PenTool, Loader2 } from 'lucide-react';
@@ -39,7 +39,7 @@ function BlogCard({ blog }: { blog: Blog }) {
               </div>
               <div className="flex items-center">
                 <Clock className="w-4 h-4 mr-1" />
-                {calculateReadTime(blog.content)} นาที
+                {calculateReadTime(blog.content)} เธเธฒเธ—เธต
               </div>
             </div>
             <div className="flex items-center">
@@ -49,7 +49,7 @@ function BlogCard({ blog }: { blog: Blog }) {
           </div>
 
           <span className="inline-block mt-4 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 font-medium">
-            อ่านเพิ่มเติม →
+            เธญเนเธฒเธเน€เธเธดเนเธกเน€เธ•เธดเธก โ’
           </span>
         </div>
       </article>
@@ -121,7 +121,7 @@ function BlogSection({
           href={viewAllLink}
           className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium transition"
         >
-          ดูทั้งหมด
+          เธ”เธนเธ—เธฑเนเธเธซเธกเธ”
           <ArrowRight className="w-4 h-4 ml-1" />
         </Link>
       </div>
@@ -133,7 +133,7 @@ function BlogSection({
           displayBlogs.map((blog) => <BlogCard key={blog.id} blog={blog} />)
         ) : (
           <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
-            ยังไม่มีบทความในหมวดหมู่นี้
+            เธขเธฑเธเนเธกเนเธกเธตเธเธ—เธเธงเธฒเธกเนเธเธซเธกเธงเธ”เธซเธกเธนเนเธเธตเน
           </div>
         )}
       </div>
@@ -177,9 +177,9 @@ export default function BlogsPage() {
       {/* Header Section */}
       <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">บทความและแหล่งความรู้</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">เธเธ—เธเธงเธฒเธกเนเธฅเธฐเนเธซเธฅเนเธเธเธงเธฒเธกเธฃเธนเน</h1>
           <p className="text-xl text-indigo-100 max-w-2xl">
-            เคล็ดลับ คำแนะนำ และข้อมูลเชิงลึกจากผู้เชี่ยวชาญเพื่อช่วยให้คุณประสบความสำเร็จในการสอบ
+            เน€เธเธฅเนเธ”เธฅเธฑเธ เธเธณเนเธเธฐเธเธณ เนเธฅเธฐเธเนเธญเธกเธนเธฅเน€เธเธดเธเธฅเธถเธเธเธฒเธเธเธนเนเน€เธเธตเนเธขเธงเธเธฒเธเน€เธเธทเนเธญเธเนเธงเธขเนเธซเนเธเธธเธ“เธเธฃเธฐเธชเธเธเธงเธฒเธกเธชเธณเน€เธฃเนเธเนเธเธเธฒเธฃเธชเธญเธ
           </p>
         </div>
       </div>
@@ -188,8 +188,8 @@ export default function BlogsPage() {
         {/* Featured Post */}
         <div className="mb-12">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center">
-            <span className="bg-indigo-600 text-white text-sm px-3 py-1 rounded-full mr-3">ล่าสุด</span>
-            บทความแนะนำ
+            <span className="bg-indigo-600 text-white text-sm px-3 py-1 rounded-full mr-3">เธฅเนเธฒเธชเธธเธ”</span>
+            เธเธ—เธเธงเธฒเธกเนเธเธฐเธเธณ
           </h2>
 
           {loading ? (
@@ -221,7 +221,7 @@ export default function BlogsPage() {
                     </span>
                     <span className="flex items-center">
                       <Clock className="w-4 h-4 mr-1" />
-                      {calculateReadTime(featuredPost.content)} นาที
+                      {calculateReadTime(featuredPost.content)} เธเธฒเธ—เธต
                     </span>
                     <span className="flex items-center">
                       <Eye className="w-4 h-4 mr-1" />
@@ -238,7 +238,7 @@ export default function BlogsPage() {
                   </p>
 
                   <span className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-semibold group-hover:text-indigo-700">
-                    อ่านเพิ่มเติม
+                    เธญเนเธฒเธเน€เธเธดเนเธกเน€เธ•เธดเธก
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition" />
                   </span>
                 </div>
@@ -246,14 +246,14 @@ export default function BlogsPage() {
             </Link>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-12 text-center text-gray-500 dark:text-gray-400">
-              ยังไม่มีบทความ
+              เธขเธฑเธเนเธกเนเธกเธตเธเธ—เธเธงเธฒเธก
             </div>
           )}
         </div>
 
         {/* Recent Blogs Section */}
         <BlogSection
-          title="บทความล่าสุด"
+          title="เธเธ—เธเธงเธฒเธกเธฅเนเธฒเธชเธธเธ”"
           icon={BookOpen}
           blogs={recentBlogs}
           viewAllLink="/blogs/recent"
@@ -286,16 +286,16 @@ export default function BlogsPage() {
       <div className="bg-indigo-600 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">
-            พร้อมที่จะเริ่มฝึกสอบแล้วหรือยัง?
+            เธเธฃเนเธญเธกเธ—เธตเนเธเธฐเน€เธฃเธดเนเธกเธเธถเธเธชเธญเธเนเธฅเนเธงเธซเธฃเธทเธญเธขเธฑเธ?
           </h2>
           <p className="text-xl text-indigo-100 mb-8">
-            เข้าร่วมกับนักเรียนหลายพันคนที่กำลังพัฒนาผลการสอบของตน
+            เน€เธเนเธฒเธฃเนเธงเธกเธเธฑเธเธเธฑเธเน€เธฃเธตเธขเธเธซเธฅเธฒเธขเธเธฑเธเธเธเธ—เธตเนเธเธณเธฅเธฑเธเธเธฑเธ’เธเธฒเธเธฅเธเธฒเธฃเธชเธญเธเธเธญเธเธ•เธ
           </p>
           <Link
             href="/register"
             className="inline-block bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-8 py-3 rounded-lg text-lg font-medium hover:bg-gray-100 transition"
           >
-            เริ่มต้นฟรี
+            เน€เธฃเธดเนเธกเธ•เนเธเธเธฃเธต
           </Link>
         </div>
       </div>
@@ -303,7 +303,7 @@ export default function BlogsPage() {
       {/* Footer */}
       <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p>&copy; 2024 ExamPrep. All rights reserved.</p>
+          <p>&copy; 2024 LUMO. All rights reserved.</p>
         </div>
       </footer>
     </div>

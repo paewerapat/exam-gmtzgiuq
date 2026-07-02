@@ -58,7 +58,7 @@ export default function DashboardLayout({
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg">ExamPrep</span>
+          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg">LUMO</span>
         </div>
 
         <div className="p-4 md:p-8">
