@@ -2,7 +2,6 @@ import { InputType, Field, ObjectType, Int, Float } from '@nestjs/graphql';
 import {
   IsString,
   IsOptional,
-  IsEnum,
   IsArray,
   IsNumber,
   IsInt,
@@ -10,7 +9,6 @@ import {
   IsDateString,
   IsUUID,
 } from 'class-validator';
-import { QuestionCategory } from '../../questions/question.entity';
 import { ExamAttempt } from '../attempt.entity';
 
 @InputType()
@@ -24,8 +22,8 @@ export class SubmitAttemptInput {
   examTitle: string;
 
   @Field()
-  @IsEnum(QuestionCategory)
-  category: QuestionCategory;
+  @IsString()
+  category: string;
 
   @Field(() => Int)
   @IsInt()

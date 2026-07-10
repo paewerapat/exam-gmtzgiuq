@@ -103,7 +103,7 @@ type Exam {
 }
 
 type ExamAttempt {
-  category: QuestionCategory!
+  category: String!
   completedAt: DateTime
   correctAnswers: Int!
   createdAt: DateTime!

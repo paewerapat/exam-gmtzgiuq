@@ -10,7 +10,6 @@ import {
 import { ObjectType, Field, ID, Int, Float } from '@nestjs/graphql';
 import { User } from '../users/user.entity';
 import { Exam } from '../exams/exam.entity';
-import { QuestionCategory } from '../questions/question.entity';
 
 @ObjectType()
 @Entity('exam_attempts')
@@ -39,9 +38,9 @@ export class ExamAttempt {
   @Column({ type: 'varchar', length: 255 })
   examTitle: string;
 
-  @Field(() => QuestionCategory)
-  @Column({ type: 'enum', enum: QuestionCategory })
-  category: QuestionCategory;
+  @Field()
+  @Column({ type: 'varchar', length: 100 })
+  category: string;
 
   @Field(() => Int)
   @Column({ type: 'int' })
