@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'react-toastify';
 import { MessageSquareHeart, Sparkles, MessageCircle, User, X, Loader2, Send } from 'lucide-react';
 import { sendFeedback, FeedbackInput } from '@/lib/api/feedback';
@@ -11,8 +12,11 @@ export default function FeedbackModal({ open, onClose, examId }: { open: boolean
   const [message, setMessage] = useState('');
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!open) return null;
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!open || !mounted) return null;
 
   async function handleSend() {
     if (!message.trim()) {
@@ -45,8 +49,8 @@ export default function FeedbackModal({ open, onClose, examId }: { open: boolean
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 z-10 border border-gray-100 dark:border-gray-700">
@@ -134,6 +138,7 @@ export default function FeedbackModal({ open, onClose, examId }: { open: boolean
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
