@@ -514,8 +514,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
       mode: 'exam' as const,
     };
 
-    // Clear local session first
-    clearRealExamSession(examId);
+    // Save completed session so results page can read it
+    const completedSession = { ...savedSession, status: 'completed' as const, completedAt: payload.completedAt };
+    saveRealExamSession(examId, completedSession, savedQuestions);
+
     const storedAttemptId = attemptIdRef.current;
     clearBackendAttemptId(examId);
 
@@ -528,13 +530,9 @@ function RealExamPageContent({ examId }: { examId: string }) {
       }
     } catch (err) {
       console.error('Failed to submit attempt:', err);
-      // Still show result even if submit fails
     }
 
-    setResult({
-      examTitle: savedSession.examTitle,
-      ...examResult,
-    });
+    router.push(`/exam/${examId}/results`);
   };
 
   function handleRetry() {

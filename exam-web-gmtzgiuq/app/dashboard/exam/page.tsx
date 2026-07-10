@@ -214,7 +214,7 @@ function CategoryDropdown({
 }
 
 // ── Page ─────────────────────────────────────────────────────
-const LIMIT = 8;
+const LIMIT = 16;
 
 function isLoggedIn() {
   return typeof window !== 'undefined' && !!localStorage.getItem('token');
