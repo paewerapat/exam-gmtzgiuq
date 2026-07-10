@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Menu, Loader2, LayoutDashboard, LogOut, Moon, Sun } from 'lucide-react';
@@ -27,8 +28,8 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link href="/" className="text-2xl font-bold text-indigo-600">
-              LUMO
+            <Link href="/" className="flex items-center">
+              <Image src="/logo-wordmark.png" alt="LUMO" width={110} height={33} priority />
             </Link>
           </div>
 

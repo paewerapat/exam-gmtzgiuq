@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Menu, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardSidebar from '@/components/layout/DashboardSidebar';
@@ -58,7 +59,7 @@ export default function DashboardLayout({
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg">LUMO</span>
+          <Image src="/logo-wordmark.png" alt="LUMO" width={88} height={26} />
         </div>
 
         <div className="p-4 md:p-8">

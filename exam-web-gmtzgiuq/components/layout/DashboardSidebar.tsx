@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -52,8 +53,8 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
     <aside className="w-64 bg-white dark:bg-gray-800 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-gray-100 dark:border-gray-800 flex-shrink-0">
       {/* Logo */}
       <div className="px-6 pt-7 pb-5">
-        <Link href="/" className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 tracking-tight">
-          LUMO
+        <Link href="/" className="flex items-center">
+          <Image src="/logo-wordmark.png" alt="LUMO" width={110} height={33} priority />
         </Link>
       </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   BookOpen,
@@ -494,7 +495,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <h3 className="text-white font-bold text-lg mb-4">LUMO</h3>
+              <Image src="/logo-wordmark.png" alt="LUMO" width={110} height={33} className="mb-4" />
               <p className="text-sm">
                 แพลตฟอร์มฝึกสอบออนไลน์ฟรี ที่อยู่ข้างคุณในทุกก้าวของการเตรียมสอบ
               </p>
