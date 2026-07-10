@@ -162,7 +162,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
   }, [session, onComplete, clockOffset, isPaused]);
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA] flex flex-col">
+    <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-900 flex flex-col">
       {/* Sticky top header */}
       <ExamHeader
         timer={remainingSeconds ?? currentTimer}
@@ -194,11 +194,11 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                     type="button"
                     onClick={isHintVisible ? hideHint : showHint}
                     title="คำใบ้"
-                    className="p-2 rounded-xl transition hover:bg-gray-100"
+                    className="p-3 rounded-xl transition hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <Lightbulb
-                      className={`w-5 h-5 transition-colors ${
-                        isHintVisible ? 'text-yellow-400' : 'text-gray-300'
+                      className={`w-6 h-6 transition-colors ${
+                        isHintVisible ? 'text-yellow-400' : 'text-gray-400 dark:text-gray-500'
                       }`}
                       fill={isHintVisible ? 'currentColor' : 'none'}
                     />
@@ -209,11 +209,11 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   type="button"
                   onClick={() => toggleMarkReview(currentQuestionId)}
                   title="ทำเครื่องหมาย"
-                  className="p-2 rounded-xl transition hover:bg-gray-100"
+                  className="p-3 rounded-xl transition hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <Bookmark
-                    className={`w-5 h-5 transition-colors ${
-                      isMarked ? 'text-orange-500' : 'text-gray-300'
+                    className={`w-6 h-6 transition-colors ${
+                      isMarked ? 'text-orange-500' : 'text-gray-400 dark:text-gray-500'
                     }`}
                     fill={isMarked ? 'currentColor' : 'none'}
                   />
@@ -245,7 +245,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
 
                 {/* Hint box — practice mode only */}
                 {mode === 'practice' && isHintVisible && currentQuestion.hint && (
-                  <div className="mt-5 px-4 py-4 bg-amber-50 rounded-2xl">
+                  <div className="mt-5 px-4 py-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl">
                     <div className="flex items-center gap-2 mb-1.5">
                       <Lightbulb
                         className="w-4 h-4 text-yellow-400 flex-shrink-0"
