@@ -60,7 +60,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              แพลตฟอร์มฝึกสอบออนไลน์อันดับ 1
+              แพลตฟอร์มฝึกสอบออนไลน์ฟรี
             </motion.span>
             <motion.h1
               className="text-5xl md:text-6xl font-bold mb-6 leading-tight"
