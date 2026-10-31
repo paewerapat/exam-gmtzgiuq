@@ -1,0 +1,176 @@
+{
+  "schema": "lumo-import/0.1-proposal",
+  "exam": {
+    "title": "A-LEVEL MATH2 2567 (ตัวอย่าง 7 ข้อ)",
+    "category": "A-LEVEL MATH",
+    "year_be": 2567,
+    "duration_minutes": 90,
+    "status": "draft",
+    "note": "คำอธิบายและคำใบ้เขียนโดย AI ไม่ใช่เฉลยทางการ"
+  },
+  "passage_groups": [
+    {
+      "id": "reading-1",
+      "_example_only": true,
+      "title": "บทอ่านที่ 1 (ตัวอย่าง)",
+      "body": null,
+      "images": [
+        { "file": "images/q02-venn.png", "alt": "ตัวอย่าง: รูปบทอ่านที่ใช้ร่วมกันหลายข้อ" }
+      ],
+      "applies_to": [6]
+    }
+  ],
+  "questions": [
+    {
+      "no": 1,
+      "source_id": "2",
+      "topic": "เซต",
+      "type": "mcq",
+      "stem": "จากแผนภาพเวนน์ในรูป เซต $(A-B)\\cup(B-A)$ มีจำนวนสมาชิกเท่ากับข้อใด",
+      "images": [
+        { "file": "images/q02-venn.png", "alt": "แผนภาพเวนน์ของเซต A และ B" }
+      ],
+      "choices": [
+        { "label": "A", "text": "2" },
+        { "label": "B", "text": "3" },
+        { "label": "C", "text": "4" },
+        { "label": "D", "text": "5" },
+        { "label": "E", "text": "6" }
+      ],
+      "correct": "D",
+      "correct_value": null,
+      "hint": "1. เลือกเฉพาะสมาชิกที่อยู่ใน $A$ หรือ $B$ เพียงเซตเดียว\n2. ไม่นับ $c$ เพราะอยู่ใน $A\\cap B$ และไม่นับ $f$ เพราะอยู่นอกทั้งสองเซต",
+      "explanation": "จากแผนภาพ $A-B=\\{a,b\\}$ และ $B-A=\\{d,e,g\\}$ ดังนั้น $(A-B)\\cup(B-A)=\\{a,b,d,e,g\\}$ มี 5 ตัว ตอบข้อ D",
+      "passage_group": null,
+      "qc_status": "AUTO_CHECKED"
+    },
+    {
+      "no": 2,
+      "source_id": "8",
+      "topic": "เลขยกกำลัง",
+      "type": "mcq",
+      "stem": "ค่าของ $2^{\\frac14}\\left(1+2^{\\frac12}+2^{\\frac34}\\right)\\left(2^{-\\frac14}+2^{\\frac14}-2^{\\frac12}\\right)$ เท่ากับข้อใด",
+      "images": [],
+      "choices": [
+        { "label": "A", "text": "$1$" },
+        { "label": "B", "text": "$2^{\\frac12}$" },
+        { "label": "C", "text": "$2$" },
+        { "label": "D", "text": "$3$" },
+        { "label": "E", "text": "$4$" }
+      ],
+      "correct": "D",
+      "correct_value": null,
+      "hint": "1. ให้ $t=2^{\\frac14}$ แล้วเขียนทุกพจน์เป็นกำลังของ $t$\n2. จัดรูปให้เป็น $(1+t^2)^2-t^6$",
+      "explanation": "ให้ $t=2^{\\frac14}$ จะได้ $t^4=2$ นิพจน์เป็น $(1+t^2+t^3)(1+t^2-t^3)=(1+t^2)^2-t^6=1+2t^2+t^4-t^6=3$ ตอบข้อ D",
+      "passage_group": null,
+      "qc_status": "AUTO_CHECKED"
+    },
+    {
+      "no": 3,
+      "source_id": "10",
+      "topic": "การนับ",
+      "type": "mcq",
+      "stem": "บอยต้องการระบายสีลูกรักบี้ลูกหนึ่ง ซึ่งถูกแบ่งออกเป็น 4 ส่วนดังรูป ถ้ามีสีทั้งหมด 5 สี แล้วระบายโดยส่วนที่อยู่ติดกันไม่ระบายสีเดียวกันได้ทั้งหมดกี่วิธี",
+      "images": [
+        { "file": "images/q10-rugby-sections.png", "alt": "ลูกรักบี้แบ่งเป็น 4 ส่วน" }
+      ],
+      "choices": [
+        { "label": "A", "text": "60 วิธี" },
+        { "label": "B", "text": "90 วิธี" },
+        { "label": "C", "text": "120 วิธี" },
+        { "label": "D", "text": "180 วิธี" },
+        { "label": "E", "text": "240 วิธี" }
+      ],
+      "correct": "D",
+      "correct_value": null,
+      "hint": "1. พิจารณาความติดกันของทั้ง 4 ส่วนจากรูปก่อนนับ\n2. ระบายส่วนบนก่อน แล้วตามด้วยส่วนล่าง ส่วนซ้าย และส่วนขวา",
+      "explanation": "ส่วนบนและส่วนล่างติดกัน เลือกสีได้ $5\\cdot4$ วิธี ส่วนซ้ายติดกับทั้งสองส่วน เหลือ 3 สี ส่วนขวาติดกับทั้งสองส่วนแต่ไม่ติดกับส่วนซ้าย เลือกได้ 3 สี รวม $5\\cdot4\\cdot3\\cdot3=180$ วิธี ตอบข้อ D",
+      "passage_group": null,
+      "qc_status": "AUTO_CHECKED",
+      "review_note": "ยังไม่มีเฉลยทางการยืนยัน (180 ตามรูป, ฉบับก่อนหน้าตอบ 120)"
+    },
+    {
+      "no": 4,
+      "source_id": "19",
+      "topic": "สถิติ",
+      "type": "mcq",
+      "stem": "ในการสำรวจระดับคอเลสเตอรอลของคุณครู พบข้อมูลดังตาราง\n\n| ระดับคอเลสเตอรอล (มก./ดล.) | ความถี่สะสม |\n|---|---|\n| 61–67 | 5 |\n| 68–74 | $x$ |\n| 75–81 | 15 |\n| 82–88 | 20 |\n\nถ้าค่าเฉลี่ยเลขคณิตเท่ากับ 74.5 แล้วคุณครูที่อยู่ในช่วง 68–74 มีกี่คน",
+      "images": [],
+      "choices": [
+        { "label": "A", "text": "2 คน" },
+        { "label": "B", "text": "3 คน" },
+        { "label": "C", "text": "4 คน" },
+        { "label": "D", "text": "5 คน" },
+        { "label": "E", "text": "10 คน" }
+      ],
+      "correct": "D",
+      "correct_value": null,
+      "hint": "1. แปลงความถี่สะสมเป็นความถี่ของแต่ละชั้นก่อน\n2. ใช้จุดกึ่งกลางชั้น 64, 71, 78, 85 หาค่าเฉลี่ย",
+      "explanation": "ความถี่แต่ละชั้นคือ $5,\\ x-5,\\ 15-x,\\ 5$ ใช้ค่าเฉลี่ย $\\dfrac{5(64)+(x-5)(71)+(15-x)(78)+5(85)}{20}=74.5$ ได้ $x=10$ จึงช่วง 68–74 มี $x-5=5$ คน ตอบข้อ D",
+      "passage_group": null,
+      "qc_status": "AUTO_CHECKED",
+      "table_format": "markdown"
+    },
+    {
+      "no": 5,
+      "source_id": "26",
+      "topic": "สถิติ",
+      "type": "numeric",
+      "stem": "ให้ $a_1,a_2,\\ldots,a_{11}$ เป็นข้อมูลที่มีค่าเฉลี่ยเลขคณิตเท่ากับ 22 ถ้า $\\displaystyle\\sum_{i=1}^{11}(a_i-24)^2=1034$ แล้วความแปรปรวนของข้อมูลชุดนี้เท่ากับเท่าใด",
+      "images": [],
+      "choices": [],
+      "correct": null,
+      "correct_value": "90",
+      "hint": "1. ใช้สมบัติ $\\sum(a_i-c)^2=\\sum(a_i-\\bar a)^2+n(\\bar a-c)^2$",
+      "explanation": "$1034=\\sum(a_i-22)^2+11(22-24)^2$ จึง $\\sum(a_i-22)^2=990$ ความแปรปรวน $=990/11=90$",
+      "passage_group": null,
+      "qc_status": "AUTO_CHECKED"
+    },
+    {
+      "no": 6,
+      "source_id": "EXAMPLE-ONLY",
+      "topic": "(ตัวอย่างโครงสร้างข้อชุดบทอ่าน ไม่ใช่ข้อสอบจริง)",
+      "type": "mcq",
+      "stem": "ตามบทอ่านข้างต้น ข้อใดสรุปใจความสำคัญได้ถูกต้อง",
+      "images": [],
+      "choices": [
+        { "label": "A", "text": "ตัวเลือก ก" },
+        { "label": "B", "text": "ตัวเลือก ข" },
+        { "label": "C", "text": "ตัวเลือก ค" },
+        { "label": "D", "text": "ตัวเลือก ง" },
+        { "label": "E", "text": "ตัวเลือก จ" }
+      ],
+      "correct": "C",
+      "correct_value": null,
+      "hint": "1. หาประโยคใจความหลักของแต่ละย่อหน้า",
+      "explanation": "ตัวอย่างโครงสร้างเท่านั้น",
+      "passage_group": "reading-1",
+      "qc_status": "AUTO_CHECKED",
+      "_example_only": true
+    },
+    {
+      "no": 7,
+      "source_id": "EXAMPLE-ONLY",
+      "topic": "(ตัวอย่างโครงสร้างข้อที่ตอบได้หลายตัวเลือก เช่น TGAT3)",
+      "type": "mcq",
+      "stem": "ข้อใดเป็นการตัดสินใจที่เหมาะสม (ตอบได้มากกว่า 1 ข้อ)",
+      "images": [],
+      "choices": [
+        { "label": "A", "text": "ตัวเลือก ก" },
+        { "label": "B", "text": "ตัวเลือก ข" },
+        { "label": "C", "text": "ตัวเลือก ค" },
+        { "label": "D", "text": "ตัวเลือก ง" },
+        { "label": "E", "text": "ตัวเลือก จ" }
+      ],
+      "correct": "B",
+      "correct_value": null,
+      "hint": "",
+      "explanation": "ตัวอย่างโครงสร้างเท่านั้น",
+      "passage_group": null,
+      "qc_status": "AUTO_CHECKED",
+      "_example_only": true,
+      "correct_multi": ["B", "C", "D"],
+      "grading": "all_or_none"
+    }
+  ]
+}
