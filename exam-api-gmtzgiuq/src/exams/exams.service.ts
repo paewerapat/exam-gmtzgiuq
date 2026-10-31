@@ -157,6 +157,13 @@ export class ExamsService {
   async update(id: string, input: UpdateExamInput): Promise<Exam> {
     const exam = await this.findOne(id);
 
+    // Remember the current question images; files are only removed after commit
+    const oldImageUrls = input.questions
+      ? exam.questions
+          .map((q) => q.questionImage)
+          .filter((url): url is string => !!url)
+      : [];
+
     await this.dataSource.transaction(async (manager) => {
       // Update exam fields
       if (input.title !== undefined) exam.title = input.title;
@@ -169,13 +176,6 @@ export class ExamsService {
 
       // Replace questions if provided
       if (input.questions) {
-        // Delete old question images
-        for (const oldQuestion of exam.questions) {
-          if (oldQuestion.questionImage) {
-            this.uploadService.deleteByUrl(oldQuestion.questionImage);
-          }
-        }
-
         // Delete old questions
         await manager.delete(Question, { examId: id });
 
@@ -219,7 +219,43 @@ export class ExamsService {
       });
     });
 
+    // Transaction committed: drop only the image files no longer referenced
+    if (input.questions) {
+      this.deleteUnusedQuestionImages(
+        oldImageUrls,
+        input.questions.map((q) => q.questionImage),
+      );
+    }
+
     return this.findOne(id);
+  }
+
+  /**
+   * Delete old question image files that are not used by the new questions.
+   * Compares by upload filename (not full URL) so the same file served from a
+   * different host still counts as in use. Never throws.
+   */
+  private deleteUnusedQuestionImages(
+    oldUrls: string[],
+    newUrls: (string | null | undefined)[],
+  ): void {
+    const inUse = new Set<string>();
+    for (const url of newUrls) {
+      const filename = url ? this.uploadService.extractFilename(url) : null;
+      if (filename) inUse.add(filename);
+    }
+
+    const handled = new Set<string>();
+    for (const url of oldUrls) {
+      const filename = this.uploadService.extractFilename(url);
+      if (!filename || inUse.has(filename) || handled.has(filename)) continue;
+      handled.add(filename);
+      try {
+        this.uploadService.deleteByUrl(url);
+      } catch (err) {
+        console.error(`Failed to delete question image: ${filename}`, err);
+      }
+    }
   }
 
   async remove(id: string): Promise<boolean> {
