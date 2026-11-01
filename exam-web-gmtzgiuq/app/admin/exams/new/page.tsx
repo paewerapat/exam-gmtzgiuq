@@ -29,6 +29,7 @@ import {
 } from '@/lib/api/curriculum';
 import { toast } from 'react-toastify';
 import ImageUpload from '@/components/upload/ImageUpload';
+import { formatChoiceLetters, getCorrectChoiceIds, nextChoiceId } from '@/lib/exam-utils';
 
 interface QuestionForm {
   tempId: string;
@@ -51,7 +52,7 @@ function generateTempId() {
 
 function defaultChoices(): QuestionChoice[] {
   return [
-    { id: 'a', text: '', isCorrect: true },
+    { id: 'a', text: '', isCorrect: false },
     { id: 'b', text: '', isCorrect: false },
     { id: 'c', text: '', isCorrect: false },
     { id: 'd', text: '', isCorrect: false },
@@ -164,13 +165,10 @@ export default function NewExamPage() {
     setQuestions((prev) =>
       prev.map((q) => {
         if (q.tempId !== tempId) return q;
-        const newChoices = (q.choices ?? defaultChoices()).map((c, i) => {
-          if (i !== choiceIndex) {
-            if (field === 'isCorrect' && value === true) return { ...c, isCorrect: false };
-            return c;
-          }
-          return { ...c, [field]: value };
-        });
+        // isCorrect ติ๊กได้หลายตัว (ข้อที่ตอบถูกหลายตัว) — ไม่ล้างตัวอื่น
+        const newChoices = (q.choices ?? defaultChoices()).map((c, i) =>
+          i === choiceIndex ? { ...c, [field]: value } : c,
+        );
         return { ...q, choices: newChoices };
       }),
     );
@@ -182,7 +180,9 @@ export default function NewExamPage() {
         if (q.tempId !== tempId) return q;
         const choices = q.choices ?? defaultChoices();
         if (choices.length >= 6) return q;
-        const nextId = String.fromCharCode(97 + choices.length);
+        // ตัวอักษรแรกที่ยังว่าง (หลังลบตัวเลือก id จะไม่ซ้ำ)
+        const nextId = nextChoiceId(choices);
+        if (!nextId) return q;
         return { ...q, choices: [...choices, { id: nextId, text: '', isCorrect: false }] };
       }),
     );
@@ -512,12 +512,12 @@ export default function NewExamPage() {
                             {(q.choices ?? defaultChoices()).map((choice, cIndex) => (
                               <div key={cIndex} className="flex items-center gap-3">
                                 <input
-                                  type="radio"
-                                  name={`correct-${q.tempId}`}
+                                  type="checkbox"
                                   checked={choice.isCorrect}
-                                  onChange={() => updateChoice(q.tempId, cIndex, 'isCorrect', true)}
-                                  className="w-4 h-4 text-green-600 dark:text-green-400 focus:ring-green-500"
+                                  onChange={() => updateChoice(q.tempId, cIndex, 'isCorrect', !choice.isCorrect)}
+                                  className="w-4 h-4 rounded accent-green-600 focus:ring-green-500"
                                   title="เลือกเป็นคำตอบที่ถูก"
+                                  aria-label={`ตัวเลือก ${String.fromCharCode(65 + cIndex)} เป็นคำตอบที่ถูก`}
                                 />
                                 <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-6">
                                   {String.fromCharCode(65 + cIndex)}.
@@ -552,8 +552,24 @@ export default function NewExamPage() {
                             </button>
                           )}
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            คลิกวงกลมเพื่อเลือกคำตอบที่ถูกต้อง (สีเขียว = ถูก)
+                            ติ๊กช่องหน้าตัวเลือกที่ถูกต้อง (สีเขียว = ถูก) ติ๊กได้มากกว่า 1 ข้อ
                           </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            ถ้าติ๊กหลายข้อ นักเรียนต้องเลือกครบทุกข้อที่ถูกจึงได้คะแนน
+                          </p>
+                          {(() => {
+                            const correctIds = getCorrectChoiceIds({ choices: q.choices ?? [] });
+                            if (correctIds.length < 2) return null;
+                            return (
+                              <p
+                                role="status"
+                                className="mt-2 px-3 py-2 rounded-lg border text-sm font-medium border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300"
+                              >
+                                ข้อนี้เป็นแบบตอบได้หลายข้อ — นักเรียนต้องเลือกครบ {correctIds.length} ตัว (
+                                {formatChoiceLetters({ choices: q.choices ?? [] }, correctIds)}) จึงได้คะแนน
+                              </p>
+                            );
+                          })()}
                         </div>
                       )}
 

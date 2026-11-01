@@ -481,10 +481,39 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
       if (choiceImage) issues.push(warn('ยังไม่รองรับรูปในตัวเลือก รูปในตัวเลือกจะไม่ถูกนำเข้า'));
 
       const correct = asText(q.correct).trim().toUpperCase();
-      if (!correct) {
+      // correct_multi (array ไม่ว่าง) ใช้แทน correct — ตัดซ้ำ, ตัวเดียว = ข้อปกติ
+      const multiRaw = Array.isArray(q.correct_multi) ? q.correct_multi : [];
+      if (
+        !Array.isArray(q.correct_multi) &&
+        q.correct_multi !== undefined &&
+        q.correct_multi !== null &&
+        q.correct_multi !== ''
+      ) {
+        issues.push(warn('correct_multi ต้องเป็น array เช่น ["B","C"] — ไม่ได้ใช้ค่านี้ ใช้ correct แทน'));
+      }
+      const correctSet = new Set<string>();
+      if (multiRaw.length > 0) {
+        const multi = [...new Set(multiRaw.map((v) => asText(v).trim().toUpperCase()))];
+        const unknown = multi.filter((l) => !labels.includes(l));
+        if (unknown.length > 0) {
+          const shown = unknown.map((l) => `"${l || '(ว่าง)'}"`).join(', ');
+          issues.push(err(`คำตอบที่ถูก (correct_multi) ${shown} ไม่ตรงกับตัวเลือกใด`));
+        }
+        multi.filter((l) => labels.includes(l)).forEach((l) => correctSet.add(l));
+        if (correct && !multi.includes(correct)) {
+          issues.push(warn(`correct "${correct}" ไม่อยู่ใน correct_multi ใช้ correct_multi เป็นเฉลย`));
+        }
+      } else if (!correct) {
         issues.push(err('ไม่ได้ระบุคำตอบที่ถูก (correct)'));
       } else if (!labels.includes(correct)) {
         issues.push(err(`คำตอบที่ถูก "${correct}" ไม่ตรงกับตัวเลือกใด`));
+      } else {
+        correctSet.add(correct);
+      }
+
+      const grading = asText(q.grading).trim();
+      if (grading && grading !== 'all_or_none') {
+        issues.push(warn(`วิธีให้คะแนน (grading) "${grading}" ไม่รองรับ ระบบรองรับเฉพาะ all_or_none (ต้องเลือกครบทุกข้อที่ถูกจึงได้คะแนน)`));
       }
 
       // เกิน 6 ตัว (error ไปแล้ว) → ใช้ 6 ตัวแรก (a–f) ให้หน้าแก้ไข/หน้าทำข้อสอบรองรับ
@@ -492,12 +521,8 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
         // label เพี้ยน → ใช้ a, b, c, ... ตามลำดับ ให้หน้าแก้ไขเปิดได้
         id: labelProblem ? String.fromCharCode(97 + i) : label.toLowerCase(),
         text: texts[i],
-        isCorrect: !!correct && label === correct,
+        isCorrect: correctSet.has(label),
       }));
-
-      if (Array.isArray(q.correct_multi) && q.correct_multi.length > 1) {
-        issues.push(warn('ยังไม่รองรับตอบถูกหลายข้อ ใช้ correct ข้อเดียวไปก่อน'));
-      }
     } else if (base.type === 'short_answer' && rawType === 'numeric') {
       const value = asText(q.correct_value).trim();
       if (!value) {

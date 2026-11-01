@@ -11,7 +11,14 @@ import FadeIn from '@/components/animations/FadeIn';
 import { getMyAttempt, type ExamAttempt } from '@/lib/api/attempts';
 import { getPublicExam, type Exam } from '@/lib/api/exams';
 import { categoryDisplayNames, type QuestionCategory } from '@/lib/api/questions';
-import { formatTimeReadable } from '@/lib/exam-utils';
+import {
+  formatTimeReadable,
+  getAnswerStatus,
+  getCorrectChoiceIds,
+  isMultiAnswer,
+  parseChoiceAnswer,
+  formatChoiceLetters,
+} from '@/lib/exam-utils';
 import LatexText from '@/components/latex/LatexText';
 
 interface PageProps {
@@ -55,10 +62,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
     const userAnswer = attempt.answers[qId];
     const timeSpent = attempt.timePerQuestion?.[qId] || 0;
     if (!question) return { qId, question: null, userAnswer, timeSpent, status: 'unknown' as const };
-    const correctChoice = question.choices.find((c) => c.isCorrect);
-    if (!userAnswer) return { qId, question, userAnswer, timeSpent, correctChoice, status: 'unanswered' as const };
-    if (correctChoice && userAnswer === correctChoice.id) return { qId, question, userAnswer, timeSpent, correctChoice, status: 'correct' as const };
-    return { qId, question, userAnswer, timeSpent, correctChoice, status: 'incorrect' as const };
+    return { qId, question, userAnswer, timeSpent, status: getAnswerStatus(question, userAnswer) };
   });
 
   const counts = {
@@ -119,8 +123,14 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
               {filtered.map((item) => {
                 if (!item.question) return null;
                 const globalIdx = attempt.questionIds.indexOf(item.qId) + 1;
+                // ข้อหลายคำตอบแสดงเป็นตัวอักษร "B, C, D" ข้อปกติแสดงข้อความตัวเลือกเหมือนเดิม
+                const isMulti = isMultiAnswer(item.question);
                 const userAnswerChoice = item.question.choices.find((c) => c.id === item.userAnswer);
-                const correctChoice = item.correctChoice;
+                const correctIds = getCorrectChoiceIds(item.question);
+                const correctChoice = item.question.choices.find((c) => c.id === correctIds[0]);
+                const selectedIds = parseChoiceAnswer(item.userAnswer);
+                const correctLetters = isMulti ? formatChoiceLetters(item.question, correctIds) : '';
+                const userLetters = isMulti && selectedIds.length > 0 ? formatChoiceLetters(item.question, selectedIds) : '';
                 const isExpanded = expandedIds.has(item.qId);
                 const hasExplanation = !!item.question.explanation;
 
@@ -158,10 +168,12 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                         )}
                       </td>
                       <td className="px-4 py-3 text-green-600 dark:text-green-400 font-medium text-xs">
-                        {correctChoice ? <LatexText text={correctChoice.text} /> : '-'}
+                        {isMulti ? correctLetters : correctChoice ? <LatexText text={correctChoice.text} /> : '-'}
                       </td>
                       <td className={`px-4 py-3 text-xs ${userAnswerColor}`}>
-                        {userAnswerChoice ? <LatexText text={userAnswerChoice.text} /> : <span className="text-gray-300">ไม่ตอบ</span>}
+                        {isMulti
+                          ? userLetters || <span className="text-gray-300 dark:text-gray-600">ไม่ตอบ</span>
+                          : userAnswerChoice ? <LatexText text={userAnswerChoice.text} /> : <span className="text-gray-300">ไม่ตอบ</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {hasExplanation && (
@@ -235,10 +247,9 @@ function buildChapterStats(attempt: ExamAttempt, exam: Exam): ChapterStats[] {
     }
     const stat = chapterMap.get(chapterKey)!;
     stat.total++;
-    const userAnswer = attempt.answers[qId];
-    if (!userAnswer) { stat.skipped++; return; }
-    const correctChoice = question.choices.find((c) => c.isCorrect);
-    if (correctChoice && userAnswer === correctChoice.id) stat.correct++;
+    const status = getAnswerStatus(question, attempt.answers[qId]);
+    if (status === 'unanswered') stat.skipped++;
+    else if (status === 'correct') stat.correct++;
     else stat.incorrect++;
   });
 

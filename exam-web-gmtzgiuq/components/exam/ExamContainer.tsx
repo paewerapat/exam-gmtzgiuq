@@ -11,9 +11,17 @@ import {
   Check,
   X,
   ListFilter,
+  ListChecks,
 } from 'lucide-react';
 import { useExam } from '@/contexts/ExamContext';
-import { getCorrectChoiceId, saveExamSession, prettyMathAnswer } from '@/lib/exam-utils';
+import {
+  getCorrectChoiceIds,
+  isMultiAnswer,
+  parseChoiceAnswer,
+  formatChoiceLetters,
+  saveExamSession,
+  prettyMathAnswer,
+} from '@/lib/exam-utils';
 import { fetchClockOffset } from '@/lib/api/serverTime';
 import ExamHeader from './ExamHeader';
 import ChoiceButton from './ChoiceButton';
@@ -34,6 +42,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
     isLastQuestion,
     answeredCount,
     selectAnswer,
+    toggleChoice,
     nextQuestion,
     prevQuestion,
     jumpToQuestion,
@@ -66,8 +75,10 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
   const userAnswer = session.answers[currentQuestionId];
   const isMarked = session.markedForReview.includes(currentQuestionId);
   const isShortAnswer = currentQuestion.type === 'short_answer';
-  const hasAnswered = isShortAnswer ? userAnswer?.trim().length > 0 : !!userAnswer;
-  const correctChoiceId = getCorrectChoiceId(currentQuestion);
+  const isMulti = isMultiAnswer(currentQuestion);
+  const selectedChoiceIds = isShortAnswer ? [] : parseChoiceAnswer(userAnswer);
+  const correctChoiceIds = getCorrectChoiceIds(currentQuestion);
+  const hasAnswered = isShortAnswer ? userAnswer?.trim().length > 0 : selectedChoiceIds.length > 0;
   const isFirst = currentIndex === 0;
 
   const handleFinish = async () => {
@@ -288,6 +299,14 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                         {isCorrect ? 'คำตอบถูกต้อง !' : 'คำตอบไม่ถูกต้อง !'}
                       </span>
                     </div>
+                    {isMulti && !isCorrect && (
+                      <p className="mb-2 text-sm text-gray-700 dark:text-gray-300">
+                        ต้องเลือกให้ครบทุกข้อที่ถูก — คำตอบที่ถูก:{' '}
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">
+                          {formatChoiceLetters(currentQuestion, correctChoiceIds)}
+                        </span>
+                      </p>
+                    )}
                     {currentQuestion.explanation && (
                       <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed prose prose-sm max-w-none">
                         <LatexRenderer content={currentQuestion.explanation} />
@@ -337,19 +356,44 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   </div>
                 ) : (
                   /* Multiple-choice buttons */
-                  <div className="space-y-2.5 mb-5">
-                    {(currentQuestion.choices ?? []).map((choice, index) => (
-                      <ChoiceButton
-                        key={choice.id}
-                        index={index}
-                        text={choice.text}
-                        isSelected={userAnswer === choice.id}
-                        isCorrect={answerChecked ? choice.id === correctChoiceId : null}
-                        showResult={answerChecked}
-                        disabled={answerChecked}
-                        onClick={() => selectAnswer(currentQuestionId, choice.id)}
-                      />
-                    ))}
+                  <div className="mb-5">
+                    {isMulti && (
+                      <div
+                        id={`multi-hint-${currentQuestionId}`}
+                        className={`inline-flex items-center gap-1.5 mb-3 px-3 py-1 rounded-full text-xs font-semibold ${
+                          mode === 'exam'
+                            ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'
+                            : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                        }`}
+                      >
+                        <ListChecks className="w-3.5 h-3.5" />
+                        เลือกได้มากกว่า 1 ข้อ
+                      </div>
+                    )}
+                    <div
+                      className="space-y-2.5"
+                      {...(isMulti
+                        ? { role: 'group', 'aria-describedby': `multi-hint-${currentQuestionId}` }
+                        : {})}
+                    >
+                      {(currentQuestion.choices ?? []).map((choice, index) => (
+                        <ChoiceButton
+                          key={choice.id}
+                          index={index}
+                          text={choice.text}
+                          multi={isMulti}
+                          isSelected={selectedChoiceIds.includes(choice.id)}
+                          isCorrect={answerChecked ? correctChoiceIds.includes(choice.id) : null}
+                          showResult={answerChecked}
+                          disabled={answerChecked}
+                          onClick={() =>
+                            isMulti
+                              ? toggleChoice(currentQuestionId, choice.id)
+                              : selectAnswer(currentQuestionId, choice.id)
+                          }
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
 

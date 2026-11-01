@@ -141,7 +141,9 @@ function IssueList({ issues }: { issues: ImportIssue[] }) {
 }
 
 function typeLabel(q: ResolvedImportQuestion): string {
-  if (q.rawType === 'mcq') return 'ปรนัย';
+  if (q.rawType === 'mcq') {
+    return q.choices.filter((c) => c.isCorrect).length >= 2 ? 'ปรนัย (ตอบได้หลายข้อ)' : 'ปรนัย';
+  }
   if (q.rawType === 'numeric') return 'อัตนัย';
   return q.rawType || '-';
 }
@@ -723,6 +725,14 @@ function QuestionRow({
                       </li>
                     ))}
                   </ul>
+                )}
+                {q.type === 'multiple_choice' && q.choices.length > 0 && (
+                  <p className="text-gray-700 dark:text-gray-300">
+                    คำตอบที่ถูก:{' '}
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {q.choices.filter((c) => c.isCorrect).map((c) => c.id.toUpperCase()).join(', ') || '-'}
+                    </span>
+                  </p>
                 )}
                 {q.type === 'short_answer' && (
                   <p className="text-gray-700 dark:text-gray-300">

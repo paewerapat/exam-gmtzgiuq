@@ -8,7 +8,7 @@ export interface ExamSession {
   difficulty?: QuestionDifficulty;
   questionIds: string[];
   currentIndex: number;
-  answers: Record<string, string>; // questionId -> choiceId
+  answers: Record<string, string>; // questionId -> choiceId ("c") / ข้อตอบได้หลายตัว "b,c,d" / short answer ข้อความ
   checkedAnswers?: Record<string, boolean>; // questionId -> correct(true)/incorrect(false)
   markedForReview: string[];
   timePerQuestion: Record<string, number>; // questionId -> seconds
@@ -34,6 +34,7 @@ export interface ExamState {
 export type ExamAction =
   | { type: 'INIT_EXAM'; session: ExamSession; questions: Question[] }
   | { type: 'SELECT_ANSWER'; questionId: string; choiceId: string }
+  | { type: 'TOGGLE_CHOICE'; questionId: string; choiceId: string }
   | { type: 'NEXT_QUESTION' }
   | { type: 'PREV_QUESTION' }
   | { type: 'JUMP_TO_QUESTION'; index: number }

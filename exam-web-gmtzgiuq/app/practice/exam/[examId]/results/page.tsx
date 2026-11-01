@@ -11,6 +11,7 @@ import {
   loadExamSession,
   clearExamSession,
   calculateExamResult,
+  getAnswerStatus,
 } from '@/lib/exam-utils';
 import type { ExamSession, ExamResult } from '@/types/exam';
 import LatexText from '@/components/latex/LatexText';
@@ -32,10 +33,9 @@ function ChapterScoreSection({ session, questions }: { session: ExamSession; que
     if (!chapterMap.has(key)) chapterMap.set(key, { total: 0, correct: 0, incorrect: 0, skipped: 0 });
     const stat = chapterMap.get(key)!;
     stat.total++;
-    const userAnswer = session.answers[qId];
-    if (!userAnswer) { stat.skipped++; return; }
-    const correctChoice = question.choices.find((c) => c.isCorrect);
-    if (correctChoice && userAnswer === correctChoice.id) stat.correct++;
+    const status = getAnswerStatus(question, session.answers[qId]);
+    if (status === 'unanswered') stat.skipped++;
+    else if (status === 'correct') stat.correct++;
     else stat.incorrect++;
   });
 

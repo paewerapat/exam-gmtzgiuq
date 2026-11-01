@@ -48,9 +48,71 @@ export function formatTimeReadable(seconds: number): string {
 
 /**
  * Get the correct choice ID for a multiple-choice question
+ * (ตัวแรกที่ถูก — ข้อที่ถูกหลายตัวให้ใช้ getCorrectChoiceIds)
  */
 export function getCorrectChoiceId(question: Question): string | undefined {
   return question.choices?.find((c) => c.isCorrect)?.id;
+}
+
+/**
+ * แปลงคำตอบแบบเลือกตัวเลือกที่เก็บใน session/attempt ("b,c,d" หรือ "c") เป็น array
+ * เรียงตามตัวอักษร ไม่ซ้ำ ตัดค่าว่าง
+ */
+export function parseChoiceAnswer(answer: string | null | undefined): string[] {
+  if (!answer) return [];
+  return [...new Set(answer.split(',').map((s) => s.trim()).filter(Boolean))].sort();
+}
+
+/**
+ * แปลง id ตัวเลือกที่เลือกเป็นรูปแบบที่เก็บ: เรียงตามตัวอักษร คั่นด้วย "," ไม่มีช่องว่าง ("b,c,d")
+ * ไม่ได้เลือกเลย = ""
+ */
+export function formatChoiceAnswer(ids: string[]): string {
+  return [...new Set(ids.map((s) => s.trim()).filter(Boolean))].sort().join(',');
+}
+
+/** เลือก/ยกเลิกตัวเลือกหนึ่งตัวในข้อที่ตอบได้หลายตัว คืนคำตอบใหม่ ("" = ไม่เหลือตัวที่เลือก) */
+export function toggleChoiceAnswer(answer: string | null | undefined, choiceId: string): string {
+  const current = parseChoiceAnswer(answer);
+  const next = current.includes(choiceId)
+    ? current.filter((id) => id !== choiceId)
+    : [...current, choiceId];
+  return formatChoiceAnswer(next);
+}
+
+/** id ตัวเลือกที่ถูกทั้งหมด (ตามลำดับตัวเลือก) */
+export function getCorrectChoiceIds(question: Pick<Question, 'choices'>): string[] {
+  return (question.choices ?? []).filter((c) => c.isCorrect).map((c) => c.id);
+}
+
+/**
+ * ข้อแบบเลือกตัวเลือก (ทุก type ที่ไม่ใช่ short_answer) — เงื่อนไขเดียวกับที่ isAnswerCorrect ใช้เทียบเซต
+ */
+function isChoiceQuestion(question: Pick<Question, 'type'>): boolean {
+  return question.type !== 'short_answer';
+}
+
+/** ข้อแบบเลือกตัวเลือกที่มีคำตอบถูก ≥ 2 ตัว (นักเรียนต้องเลือกครบทุกตัวจึงได้คะแนน) */
+export function isMultiAnswer(question: Question): boolean {
+  return isChoiceQuestion(question) && getCorrectChoiceIds(question).length >= 2;
+}
+
+const CHOICE_IDS = ['a', 'b', 'c', 'd', 'e', 'f'];
+
+/** id ตัวเลือกถัดไปสำหรับฟอร์มแอดมิน: ตัวอักษรแรกใน a–f ที่ยังไม่ถูกใช้ (null = เต็มแล้ว) */
+export function nextChoiceId(choices: { id: string }[]): string | null {
+  const used = new Set(choices.map((c) => c.id));
+  return CHOICE_IDS.find((id) => !used.has(id)) ?? null;
+}
+
+/** แปลง id ตัวเลือกเป็นตัวอักษรตามตำแหน่งตัวเลือก เรียงตามตำแหน่ง เช่น ["d","b","c"] → "B, C, D" */
+export function formatChoiceLetters(question: Pick<Question, 'choices'>, ids: string[]): string {
+  const choices = question.choices ?? [];
+  return [...new Set(ids)]
+    .map((id) => ({ id, index: choices.findIndex((c) => c.id === id) }))
+    .sort((a, b) => (a.index === -1 ? 99 : a.index) - (b.index === -1 ? 99 : b.index))
+    .map(({ id, index }) => (index >= 0 ? getChoiceLetter(index) : id.toUpperCase()))
+    .join(', ');
 }
 
 /**
@@ -134,7 +196,23 @@ export function isAnswerCorrect(question: Question, userAnswer: string): boolean
 
     return false;
   }
-  return getCorrectChoiceId(question) === userAnswer;
+  // ปรนัย: ชุดที่เลือกต้องตรงกับชุดที่ถูกทุกตัว (all-or-none) — ข้อถูกตัวเดียว "c" ผลเหมือนเดิม
+  const selected = parseChoiceAnswer(userAnswer);
+  const correct = parseChoiceAnswer(getCorrectChoiceIds(question).join(','));
+  if (selected.length === 0 || correct.length === 0) return false;
+  return selected.length === correct.length && selected.every((id, i) => id === correct[i]);
+}
+
+export type AnswerStatus = 'correct' | 'incorrect' | 'unanswered';
+
+/**
+ * สถานะคำตอบของข้อหนึ่ง ใช้ทั้งคิดคะแนนและหน้าผลลัพธ์/ประวัติ
+ * ปรนัยที่ไม่มีตัวเลือกเหลือ ("" หรือ ",") = ยังไม่ตอบ
+ */
+export function getAnswerStatus(question: Question, userAnswer: string | null | undefined): AnswerStatus {
+  if (!userAnswer) return 'unanswered';
+  if (isChoiceQuestion(question) && parseChoiceAnswer(userAnswer).length === 0) return 'unanswered';
+  return isAnswerCorrect(question, userAnswer) ? 'correct' : 'incorrect';
 }
 
 const SUPERSCRIPT: Record<string, string> = {
@@ -227,10 +305,11 @@ export function calculateExamResult(
 
     if (!question) continue;
 
-    if (!userAnswer) {
+    const status = getAnswerStatus(question, userAnswer);
+    if (status === 'unanswered') {
       // Unanswered - count as incorrect
       incorrectQuestionIds.push(questionId);
-    } else if (isAnswerCorrect(question, userAnswer)) {
+    } else if (status === 'correct') {
       correctAnswers++;
     } else {
       incorrectAnswers++;

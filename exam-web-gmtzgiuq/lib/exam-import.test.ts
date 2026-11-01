@@ -157,11 +157,18 @@ describe('parseImportFile — fixture zip', () => {
     expect(q5.correctAnswer).toBe('90');
   });
 
-  it('ข้อ 6 เตือนบทอ่านร่วม, ข้อ 7 เตือนตอบหลายข้อ', () => {
+  it('ข้อ 6 เตือนบทอ่านร่วม', () => {
     expect(resolved.questions[5].status).toBe('warning');
     expect(messages(resolved.questions[5], 'warning').join()).toContain('บทอ่านร่วม');
-    expect(resolved.questions[6].status).toBe('warning');
-    expect(messages(resolved.questions[6], 'warning').join()).toContain('ตอบถูกหลายข้อ');
+  });
+
+  it('ข้อ 7 correct_multi ["B","C","D"] → b,c,d ถูก ไม่มี warning "ยังไม่รองรับ" (task 06 AC6)', () => {
+    const q7 = resolved.questions[6];
+    expect(q7.choices.filter((c) => c.isCorrect).map((c) => c.id)).toEqual(['b', 'c', 'd']);
+    expect(messages(q7).join()).not.toContain('ยังไม่รองรับ');
+    expect(messages(q7, 'error')).toEqual([]);
+    // เหลือแค่เตือน topic ไม่มีในหลักสูตร
+    expect(messages(q7, 'warning').join()).not.toContain('correct');
   });
 
   it('รูปที่ต้องอัปมี 2 รูป (รูปของ passage_groups ไม่นับ)', () => {
@@ -213,6 +220,66 @@ describe('parseImportFile — fixture zip', () => {
     expect(input.questions[4]).toMatchObject({ type: 'short_answer', correctAnswer: '90', choices: [] });
     expect(input.questions[0]).toMatchObject({ topicId: 't-set', chapterId: 'ch-math', chapter: 'เซต' });
     expect(input.questions[6].hint).toBeUndefined(); // hint ว่าง
+    expect(input.questions[6].choices!.filter((c) => c.isCorrect).map((c) => c.id)).toEqual(['b', 'c', 'd']);
+  });
+});
+
+describe('parseImportFile — correct_multi (task 06)', () => {
+  function q7With(patch: Json): ResolvedImport {
+    const json = clone(sample) as Json;
+    const qs = json.questions as Json[];
+    qs[6] = { ...qs[6], ...patch };
+    return resolve(parseImportFile('x.zip', sampleZip(json)));
+  }
+  const correctIds = (r: ResolvedImport) => r.questions[6].choices.filter((c) => c.isCorrect).map((c) => c.id);
+
+  it('label ที่ไม่มีในตัวเลือก → error ระบุ label', () => {
+    const r = q7With({ correct_multi: ['B', 'F', 'Z'] });
+    expect(r.questions[6].status).toBe('error');
+    const e = messages(r.questions[6], 'error').join();
+    expect(e).toContain('"F"');
+    expect(e).toContain('"Z"');
+    expect(e).toContain('correct_multi');
+    expect(correctIds(r)).toEqual(['b']);
+  });
+
+  it('ไม่มี correct แต่มี correct_multi → ไม่ error, ตัวพิมพ์เล็ก/ซ้ำ → ตัดซ้ำ', () => {
+    const r = q7With({ correct: null, correct_multi: ['d', 'B', 'b', ' C '] });
+    expect(messages(r.questions[6], 'error')).toEqual([]);
+    expect(correctIds(r)).toEqual(['b', 'c', 'd']);
+  });
+
+  it('correct_multi ตัวเดียว = ข้อปกติ', () => {
+    const r = q7With({ correct: null, correct_multi: ['E'] });
+    expect(messages(r.questions[6], 'error')).toEqual([]);
+    expect(correctIds(r)).toEqual(['e']);
+  });
+
+  it('correct ไม่อยู่ใน correct_multi → เตือน แล้วใช้ correct_multi', () => {
+    const r = q7With({ correct: 'A', correct_multi: ['B', 'C'] });
+    expect(messages(r.questions[6], 'warning').join()).toContain('ไม่อยู่ใน correct_multi');
+    expect(correctIds(r)).toEqual(['b', 'c']);
+  });
+
+  it('correct_multi ว่าง → ใช้ correct เหมือนเดิม', () => {
+    const r = q7With({ correct: 'A', correct_multi: [] });
+    expect(correctIds(r)).toEqual(['a']);
+    const none = q7With({ correct: null, correct_multi: [] });
+    expect(messages(none.questions[6], 'error').join()).toContain('ไม่ได้ระบุคำตอบที่ถูก');
+  });
+
+  it('correct_multi ไม่ใช่ array (เช่น "B,C,D") → เตือน แล้วใช้ correct', () => {
+    const r = q7With({ correct: 'B', correct_multi: 'B,C,D' });
+    expect(messages(r.questions[6], 'warning').join()).toContain('correct_multi ต้องเป็น array');
+    expect(correctIds(r)).toEqual(['b']);
+    const ok = q7With({ correct: 'B', correct_multi: null });
+    expect(messages(ok.questions[6]).join()).not.toContain('correct_multi');
+  });
+
+  it('grading ไม่ใช่ all_or_none → เตือน', () => {
+    const r = q7With({ grading: 'partial' });
+    expect(messages(r.questions[6], 'warning').join()).toContain('รองรับเฉพาะ all_or_none');
+    expect(correctIds(r)).toEqual(['b', 'c', 'd']);
   });
 });
 

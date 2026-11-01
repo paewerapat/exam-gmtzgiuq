@@ -1,9 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Check, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, X, ListChecks } from 'lucide-react';
 import type { Question } from '@/lib/api/questions';
-import { getChoiceLetter, getCorrectChoiceId } from '@/lib/exam-utils';
+import {
+  getChoiceLetter,
+  getCorrectChoiceIds,
+  getAnswerStatus,
+  isMultiAnswer,
+  parseChoiceAnswer,
+  formatChoiceLetters,
+} from '@/lib/exam-utils';
 import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
 
@@ -21,9 +28,12 @@ export default function QuestionReview({
   className = '',
 }: QuestionReviewProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const correctChoiceId = getCorrectChoiceId(question);
-  const isCorrect = userAnswer === correctChoiceId;
-  const isUnanswered = !userAnswer;
+  const status = getAnswerStatus(question, userAnswer);
+  const isCorrect = status === 'correct';
+  const isUnanswered = status === 'unanswered';
+  const isMulti = isMultiAnswer(question);
+  const correctChoiceIds = getCorrectChoiceIds(question);
+  const selectedChoiceIds = question.type === 'short_answer' ? [] : parseChoiceAnswer(userAnswer);
 
   return (
     <div
@@ -94,22 +104,53 @@ export default function QuestionReview({
             </div>
           )}
 
+          {/* ข้อหลายคำตอบ: บอกชุดที่เลือกและชุดที่ถูกเป็นตัวอักษร */}
+          {isMulti && (
+            <div className="mb-3 space-y-1 text-sm">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                <ListChecks className="w-3.5 h-3.5" />
+                เลือกได้มากกว่า 1 ข้อ (ต้องเลือกครบทุกข้อที่ถูก)
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                คำตอบของคุณ:{' '}
+                <span className="font-semibold text-gray-900 dark:text-gray-100">
+                  {selectedChoiceIds.length > 0 ? formatChoiceLetters(question, selectedChoiceIds) : 'ไม่ได้ตอบ'}
+                </span>
+              </p>
+              <p className="text-gray-600 dark:text-gray-400">
+                คำตอบที่ถูก:{' '}
+                <span className="font-semibold text-green-700 dark:text-green-300">
+                  {formatChoiceLetters(question, correctChoiceIds)}
+                </span>
+              </p>
+            </div>
+          )}
+
           {/* Choices */}
           <div className="space-y-2 mb-4">
             {question.choices.map((choice, index) => {
-              const isUserAnswer = choice.id === userAnswer;
-              const isCorrectAnswer = choice.id === correctChoiceId;
+              const isUserAnswer = selectedChoiceIds.includes(choice.id);
+              const isCorrectAnswer = correctChoiceIds.includes(choice.id);
+              const isMissed = isMulti && isCorrectAnswer && !isUserAnswer;
 
               let bgColor = 'bg-gray-50 dark:bg-gray-900';
               let textColor = 'text-gray-700 dark:text-gray-300';
               let icon = null;
 
-              if (isCorrectAnswer) {
-                bgColor = 'bg-green-100';
+              if (isMissed) {
+                bgColor = 'bg-white dark:bg-gray-800 border-2 border-dashed border-green-400 dark:border-green-600';
+                textColor = 'text-green-700 dark:text-green-300';
+                icon = (
+                  <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                    ข้อที่ถูก (ไม่ได้เลือก)
+                  </span>
+                );
+              } else if (isCorrectAnswer) {
+                bgColor = 'bg-green-100 dark:bg-green-900/30';
                 textColor = 'text-green-700 dark:text-green-300';
                 icon = <Check className="w-4 h-4 text-green-600 dark:text-green-400" />;
               } else if (isUserAnswer && !isCorrectAnswer) {
-                bgColor = 'bg-red-100';
+                bgColor = 'bg-red-100 dark:bg-red-900/30';
                 textColor = 'text-red-700 dark:text-red-300';
                 icon = <X className="w-4 h-4 text-red-600 dark:text-red-400" />;
               }

@@ -14,8 +14,8 @@ import {
   loadExamSession,
   clearExamSession,
   calculateExamResult,
-  getCorrectChoiceId,
   isAnswerCorrect,
+  toggleChoiceAnswer,
 } from '@/lib/exam-utils';
 
 // Initial state
@@ -68,6 +68,24 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
           answers: newAnswers,
         },
         // Reset check state when selecting new answer
+        answerChecked: false,
+        isCorrect: null,
+        showExplanation: false,
+      };
+    }
+
+    // ข้อที่ตอบได้หลายตัว: กดซ้ำ = ยกเลิก เก็บเป็น "b,c,d" เลือกออกหมด = ลบ key (ยังไม่ตอบ)
+    case 'TOGGLE_CHOICE': {
+      const nextAnswer = toggleChoiceAnswer(state.session.answers[action.questionId], action.choiceId);
+      const newAnswers = { ...state.session.answers };
+      if (nextAnswer) newAnswers[action.questionId] = nextAnswer;
+      else delete newAnswers[action.questionId];
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          answers: newAnswers,
+        },
         answerChecked: false,
         isCorrect: null,
         showExplanation: false,
@@ -265,6 +283,7 @@ interface ExamContextType {
   // Actions
   initExam: (session: ExamSession, questions: Question[]) => void;
   selectAnswer: (questionId: string, choiceId: string) => void;
+  toggleChoice: (questionId: string, choiceId: string) => void;
   nextQuestion: () => void;
   prevQuestion: () => void;
   jumpToQuestion: (index: number) => void;
@@ -344,6 +363,10 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
 
   const selectAnswer = useCallback((questionId: string, choiceId: string) => {
     dispatch({ type: 'SELECT_ANSWER', questionId, choiceId });
+  }, []);
+
+  const toggleChoice = useCallback((questionId: string, choiceId: string) => {
+    dispatch({ type: 'TOGGLE_CHOICE', questionId, choiceId });
   }, []);
 
   const nextQuestion = useCallback(() => {
@@ -427,6 +450,7 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     getResult,
     initExam,
     selectAnswer,
+    toggleChoice,
     nextQuestion,
     prevQuestion,
     jumpToQuestion,
