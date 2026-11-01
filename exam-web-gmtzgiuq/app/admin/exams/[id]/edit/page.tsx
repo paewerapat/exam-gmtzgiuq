@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -29,6 +29,16 @@ import {
 } from '@/lib/api/curriculum';
 import { toast } from 'react-toastify';
 import ImageUpload from '@/components/upload/ImageUpload';
+import QuestionImagesEditor from '@/components/upload/QuestionImagesEditor';
+import { useSessionUploads } from '@/components/upload/useSessionUploads';
+import {
+  choiceHasContent,
+  collectFormImageUrls,
+  getQuestionImages,
+  imagesToDiscard,
+  MAX_QUESTION_IMAGES,
+  toChoiceInput,
+} from '@/lib/question-images';
 import { formatChoiceLetters, getCorrectChoiceIds, nextChoiceId } from '@/lib/exam-utils';
 
 interface PageProps {
@@ -39,7 +49,8 @@ interface QuestionForm {
   tempId: string;
   type: 'multiple_choice' | 'short_answer';
   question: string;
-  questionImage: string;
+  /** รูปของโจทย์ตามลำดับ (≤ 6) */
+  questionImages: string[];
   choices: QuestionChoice[];
   correctAnswer: string;
   topicId: string;
@@ -68,7 +79,7 @@ function createEmptyQuestion(): QuestionForm {
     tempId: generateTempId(),
     type: 'multiple_choice',
     question: '',
-    questionImage: '',
+    questionImages: [],
     choices: defaultChoices(),
     correctAnswer: '',
     topicId: '',
@@ -91,6 +102,14 @@ export default function EditExamPage({ params }: PageProps) {
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState<QuestionStatus>('draft');
   const [questions, setQuestions] = useState<QuestionForm[]>([]);
+  // URL ที่อัปในหน้านี้รอบนี้ — ลบไฟล์ได้เฉพาะชุดนี้ (URL ที่พิมพ์/วางเอง หรือรูปที่บันทึกแล้วไม่ลบเด็ดขาด
+  // รูปที่บันทึกแล้วให้ API ลบหลังบันทึกสำเร็จ ไม่งั้นกดยกเลิกแล้วรูปหาย)
+  const { uploadedRef, recordUpload, discardUploads, holdUploads, restoreUploads } = useSessionUploads();
+  // ค่าล่าสุดของ questions สำหรับ commitQuestions (อัปโหลดรูปเสร็จทีหลังได้)
+  const questionsRef = useRef(questions);
+  useEffect(() => {
+    questionsRef.current = questions;
+  }, [questions]);
 
   // Categories
   const [categories, setCategories] = useState<Category[]>([]);
@@ -126,22 +145,23 @@ export default function EditExamPage({ params }: PageProps) {
         setCategory(exam.category);
         setStatus(exam.status as QuestionStatus);
 
-        setQuestions(
-          exam.questions.map((q) => ({
-            tempId: q.id || generateTempId(),
-            type: (q.type === 'short_answer' ? 'short_answer' : 'multiple_choice') as 'multiple_choice' | 'short_answer',
-            question: q.question,
-            questionImage: q.questionImage || '',
-            choices: q.type === 'short_answer' ? [] : (q.choices?.length ? q.choices : defaultChoices()),
-            correctAnswer: q.correctAnswer || '',
-            topicId: q.topicId || '',
-            chapterId: q.chapterId || '',
-            chapter: q.chapter || '',
-            explanation: q.explanation || '',
-            hint: q.hint || '',
-            expanded: false,
-          })),
-        );
+        const loaded = exam.questions.map((q): QuestionForm => ({
+          tempId: q.id || generateTempId(),
+          type: (q.type === 'short_answer' ? 'short_answer' : 'multiple_choice') as 'multiple_choice' | 'short_answer',
+          question: q.question,
+          // ข้อเก่าที่มีแค่ questionImage → เป็นรูปที่ 1
+          questionImages: getQuestionImages(q),
+          choices: q.type === 'short_answer' ? [] : (q.choices?.length ? q.choices : defaultChoices()),
+          correctAnswer: q.correctAnswer || '',
+          topicId: q.topicId || '',
+          chapterId: q.chapterId || '',
+          chapter: q.chapter || '',
+          explanation: q.explanation || '',
+          hint: q.hint || '',
+          expanded: false,
+        }));
+        questionsRef.current = loaded;
+        setQuestions(loaded);
 
         // Restore exam-level subject
         if (exam.subjectId) {
@@ -217,7 +237,7 @@ export default function EditExamPage({ params }: PageProps) {
 
   const removeQuestion = (tempId: string) => {
     if (questions.length <= 1) return;
-    setQuestions((prev) => prev.filter((q) => q.tempId !== tempId));
+    commitQuestions((prev) => prev.filter((q) => q.tempId !== tempId));
   };
 
   const toggleExpand = (tempId: string) => {
@@ -229,6 +249,61 @@ export default function EditExamPage({ params }: PageProps) {
   const updateQuestion = (tempId: string, field: keyof QuestionForm, value: any) => {
     setQuestions((prev) =>
       prev.map((q) => (q.tempId === tempId ? { ...q, [field]: value } : q)),
+    );
+  };
+
+  // แก้รายการข้อแบบที่อาจเอารูปออก: รูปที่ไม่ได้ใช้ในฟอร์มแล้ว ถ้าเป็นไฟล์ที่อัปในรอบนี้ลบทิ้งทันที
+  const commitQuestions = (update: (prev: QuestionForm[]) => QuestionForm[]) => {
+    const prev = questionsRef.current;
+    const next = update(prev);
+    if (next === prev) return;
+    questionsRef.current = next;
+    setQuestions(next);
+    discardUploads(imagesToDiscard(prev, next, uploadedRef.current));
+  };
+
+  const updateQuestionImages = (tempId: string, update: (prev: string[]) => string[]) => {
+    commitQuestions((prev) =>
+      prev.map((q) => (q.tempId === tempId ? { ...q, questionImages: update(q.questionImages) } : q)),
+    );
+  };
+
+  // เพิ่มรูปโจทย์ — ตรวจกับค่าล่าสุด เพราะอัปโหลดเสร็จทีหลังได้ (ข้อถูกลบ/รูปครบ 6 แล้ว → ลบไฟล์ที่เพิ่งอัป)
+  const addQuestionImage = (tempId: string, url: string) => {
+    const target = questionsRef.current.find((q) => q.tempId === tempId);
+    if (!target) {
+      discardUploads([url]);
+      return;
+    }
+    if (target.questionImages.includes(url)) return;
+    if (target.questionImages.length >= MAX_QUESTION_IMAGES) {
+      toast.error(`ข้อนี้มีรูปครบ ${MAX_QUESTION_IMAGES} รูปแล้ว รูปที่อัปล่าสุดไม่ได้ถูกเพิ่ม`);
+      discardUploads([url]);
+      return;
+    }
+    commitQuestions((prev) =>
+      prev.map((q) => (q.tempId === tempId ? { ...q, questionImages: [...q.questionImages, url] } : q)),
+    );
+  };
+
+  // รูปตัวเลือก อ้างด้วย choice id (ตัวเลือกถูกลบระหว่างอัปโหลด → ลบไฟล์ที่เพิ่งอัป)
+  const updateChoiceImage = (tempId: string, choiceId: string, url: string) => {
+    const target = questionsRef.current.find((q) => q.tempId === tempId);
+    if (!target?.choices?.some((c) => c.id === choiceId)) {
+      if (url) discardUploads([url]);
+      return;
+    }
+    commitQuestions((prev) =>
+      prev.map((q) =>
+        q.tempId === tempId
+          ? {
+              ...q,
+              choices: (q.choices ?? []).map((c) =>
+                c.id === choiceId ? { ...c, image: url.trim() || null } : c,
+              ),
+            }
+          : q,
+      ),
     );
   };
 
@@ -260,7 +335,7 @@ export default function EditExamPage({ params }: PageProps) {
   };
 
   const removeChoice = (tempId: string, choiceIndex: number) => {
-    setQuestions((prev) =>
+    commitQuestions((prev) =>
       prev.map((q) => {
         if (q.tempId !== tempId) return q;
         const choices = q.choices ?? defaultChoices();
@@ -282,17 +357,25 @@ export default function EditExamPage({ params }: PageProps) {
         if (!q.correctAnswer.trim()) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกคำตอบที่ถูกต้อง`); return; }
       } else {
         if (!(q.choices ?? []).some((c) => c.isCorrect)) { toast.error(`ข้อที่ ${i + 1}: กรุณาเลือกคำตอบที่ถูกต้อง`); return; }
-        if ((q.choices ?? []).find((c) => !c.text?.trim())) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกตัวเลือกให้ครบ`); return; }
+        const emptyChoice = (q.choices ?? []).findIndex((c) => !choiceHasContent(c));
+        if (emptyChoice >= 0) {
+          toast.error(`ข้อที่ ${i + 1}: ตัวเลือก ${String.fromCharCode(65 + emptyChoice)} ต้องมีข้อความหรือรูป`);
+          return;
+        }
       }
     }
 
     setSaving(true);
+    // URL ที่อัปรอบนี้และอยู่ใน payload: ห้ามลบระหว่างรอบันทึกและหลังบันทึก (บันทึกล้มค่อยใส่คืน)
+    let heldUploads: string[] = [];
     try {
       const examQuestions: ExamQuestionInput[] = questions.map((q, index) => ({
         question: q.question,
-        questionImage: q.questionImage || undefined,
+        // ส่ง questionImages ทุกครั้ง ([] = ไม่มีรูป) ไม่งั้น API ถือว่าเป็นข้อแบบรูปเดียวและลบรูปที่เหลือ
+        questionImages: q.questionImages,
+        questionImage: q.questionImages[0] || undefined,
         type: q.type,
-        choices: q.type === 'short_answer' ? [] : q.choices,
+        choices: q.type === 'short_answer' ? [] : q.choices.map(toChoiceInput),
         correctAnswer: q.type === 'short_answer' ? q.correctAnswer : undefined,
         topicId: q.topicId || null,
         chapterId: q.chapterId || null,
@@ -301,6 +384,8 @@ export default function EditExamPage({ params }: PageProps) {
         hint: q.hint || undefined,
         orderIndex: index,
       }));
+
+      heldUploads = holdUploads(collectFormImageUrls(examQuestions));
 
       await updateExam(examId, {
         title,
@@ -313,9 +398,14 @@ export default function EditExamPage({ params }: PageProps) {
         durationMinutes: durationMinutes ? Number(durationMinutes) : null,
       });
 
+      // ที่เหลือในชุด = อัปรอบนี้แต่ไม่ได้อยู่ในข้อสอบที่บันทึก (เช่นรูปตัวเลือกของข้อที่เปลี่ยนเป็นอัตนัย) → ลบไฟล์
+      // หลังจากนี้ชุดว่าง กดลบอะไรระหว่างเปลี่ยนหน้าก็ไม่ลบไฟล์ที่เพิ่งบันทึก
+      discardUploads([...uploadedRef.current]);
+      heldUploads = [];
       toast.success('อัพเดทชุดข้อสอบสำเร็จ');
       router.push('/admin/exams');
     } catch (err: any) {
+      restoreUploads(heldUploads);
       console.error('Failed to update exam:', err);
       toast.error(`ไม่สามารถอัพเดทชุดข้อสอบได้: ${err.message || err}`);
     } finally {
@@ -479,7 +569,8 @@ export default function EditExamPage({ params }: PageProps) {
                       {questions.length > 1 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); removeQuestion(q.tempId); }}
-                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                          disabled={saving}
+                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -525,7 +616,8 @@ export default function EditExamPage({ params }: PageProps) {
                           <button
                             type="button"
                             onClick={() => updateQuestion(q.tempId, 'type', 'multiple_choice')}
-                            className={`px-4 py-1.5 font-medium transition ${
+                            disabled={saving}
+                            className={`px-4 py-1.5 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed ${
                               q.type === 'multiple_choice'
                                 ? 'bg-indigo-600 text-white'
                                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50'
@@ -536,7 +628,8 @@ export default function EditExamPage({ params }: PageProps) {
                           <button
                             type="button"
                             onClick={() => updateQuestion(q.tempId, 'type', 'short_answer')}
-                            className={`px-4 py-1.5 font-medium transition border-l border-gray-200 dark:border-gray-700 ${
+                            disabled={saving}
+                            className={`px-4 py-1.5 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed border-l border-gray-200 dark:border-gray-700 ${
                               q.type === 'short_answer'
                                 ? 'bg-indigo-600 text-white'
                                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50'
@@ -560,13 +653,13 @@ export default function EditExamPage({ params }: PageProps) {
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">รูปภาพ (ถ้ามี)</label>
-                        <ImageUpload
-                          value={q.questionImage}
-                          onChange={(url) => updateQuestion(q.tempId, 'questionImage', url)}
-                        />
-                      </div>
+                      <QuestionImagesEditor
+                        images={q.questionImages}
+                        onChange={(update) => updateQuestionImages(q.tempId, update)}
+                        onAdd={(url) => addQuestionImage(q.tempId, url)}
+                        onUploaded={recordUpload}
+                        disabled={saving}
+                      />
 
                       {/* Choices (ปรนัย only) */}
                       {q.type === 'multiple_choice' && (
@@ -576,7 +669,8 @@ export default function EditExamPage({ params }: PageProps) {
                           </label>
                           <div className="space-y-2">
                             {(q.choices ?? defaultChoices()).map((choice, cIndex) => (
-                              <div key={cIndex} className="flex items-center gap-3">
+                              <div key={cIndex}>
+                              <div className="flex items-center gap-3">
                                 <input
                                   type="checkbox"
                                   checked={!!choice.isCorrect}
@@ -600,18 +694,32 @@ export default function EditExamPage({ params }: PageProps) {
                                 {(q.choices ?? []).length > 2 && (
                                   <button
                                     onClick={() => removeChoice(q.tempId, cIndex)}
-                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 transition"
+                                    disabled={saving}
+                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 transition disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 )}
+                              </div>
+                              <div className="mt-1.5 pl-16">
+                                <ImageUpload
+                                  compact
+                                  value={choice.image ?? ''}
+                                  onChange={(url) => updateChoiceImage(q.tempId, choice.id, url)}
+                                  onUploaded={recordUpload}
+                                  deleteOnRemove={false}
+                                  disabled={saving}
+                                  label={`รูปตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
+                                />
+                              </div>
                               </div>
                             ))}
                           </div>
                           {(q.choices ?? []).length < 6 && (
                             <button
                               onClick={() => addChoice(q.tempId)}
-                              className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1"
+                              disabled={saving}
+                              className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Plus className="w-3 h-3" /> เพิ่มตัวเลือก
                             </button>

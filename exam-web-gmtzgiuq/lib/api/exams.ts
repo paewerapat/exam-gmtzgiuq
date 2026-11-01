@@ -43,7 +43,10 @@ export interface ExamStats {
 
 export interface ExamQuestionInput {
   question: string;
+  /** รูปแรก (client เก่า) — API ใช้เฉพาะเมื่อไม่ส่ง questionImages */
   questionImage?: string;
+  /** รูปทั้งหมดตามลำดับ (≤ 6) ส่งทุกครั้งตอนแก้ข้อสอบ — [] = ไม่มีรูป */
+  questionImages?: string[];
   choices?: QuestionChoice[];
   correctAnswer?: string;
   explanation?: string;

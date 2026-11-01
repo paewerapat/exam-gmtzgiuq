@@ -173,3 +173,112 @@ describe('ImportExamPage', () => {
     expect(await screen.findByRole('button', { name: 'สร้างแบบร่าง (มีปัญหา 2 ข้อ)' })).toBeInTheDocument();
   });
 });
+
+describe('ImportExamPage — หลายรูปต่อข้อ + รูปในตัวเลือก (task 07 AC6)', () => {
+  const imageJson = {
+    exam: { title: 'ชุดรูป', category: 'A-LEVEL MATH' },
+    questions: [
+      {
+        no: 1,
+        type: 'mcq',
+        stem: 'วงจรและกราฟ',
+        images: [{ file: 'images/circuit.png' }, { file: 'images/graph.png' }],
+        choices: [
+          { label: 'A', text: '', image: 'images/a.png' },
+          { label: 'B', text: '', image: { file: 'images/b.png' } },
+          { label: 'C', text: 'สาม', image: 'images/circuit.png' },
+        ],
+        correct: 'B',
+        explanation: 'เฉลย',
+      },
+    ],
+  };
+  const imageZip = (files: Record<string, Uint8Array>) =>
+    new File([zipSync({ 'exam.json': strToU8(JSON.stringify(imageJson)), ...files })], 'set.zip', {
+      type: 'application/zip',
+    });
+  const allFiles = {
+    'images/circuit.png': PNG,
+    'images/graph.png': PNG,
+    'images/a.png': PNG,
+    'images/b.png': PNG,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getCategories as jest.Mock).mockResolvedValue([
+      { id: 'c1', name: 'A-LEVEL MATH', slug: 'a-level-math', orderIndex: 0, createdAt: '', updatedAt: '' },
+    ]);
+    (getPublicCurriculumTree as jest.Mock).mockResolvedValue([]);
+    let n = 0;
+    mockedUpload.mockImplementation(async (file: File) => {
+      n += 1;
+      return { url: `http://api/uploads/${n}-${file.name}`, filename: `${n}-${file.name}` };
+    });
+    mockedDelete.mockResolvedValue(undefined);
+  });
+
+  it('preview แสดงจำนวนรูปโจทย์/ตัวเลือก และรูปตัวเลือก → สร้างแล้วอัปรูปละครั้ง ส่ง questionImages + choices[].image', async () => {
+    asAdmin();
+    mockedCreateExam.mockResolvedValue({ id: 'exam-2', title: 'ชุดรูป' });
+    const user = userEvent.setup();
+    render(<ImportExamPage />);
+    await waitFor(() => expect(getCategories).toHaveBeenCalled());
+    await selectFile(imageZip(allFiles));
+
+    expect(screen.getByText('4 รูป')).toBeInTheDocument();
+    expect(screen.getByText(/โจทย์ 2 รูป/)).toBeInTheDocument();
+    expect(screen.getByText(/ตัวเลือก 3 รูป/)).toBeInTheDocument();
+    expect(screen.queryByText(/ใช้ได้แค่รูปแรก/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ยังไม่รองรับรูปในตัวเลือก/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('วงจรและกราฟ', { selector: 'td *' }));
+    expect(screen.getByText('รูปที่ 2')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'graph.png' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'a.png' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'b.png' })).toBeInTheDocument();
+
+    const button = await screen.findByRole('button', { name: 'สร้างแบบร่าง' });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+    await screen.findByText('สร้างแบบร่างแล้ว');
+
+    expect(mockedUpload).toHaveBeenCalledTimes(4);
+    const q = mockedCreateExam.mock.calls[0][0].questions[0];
+    expect(q.questionImages).toEqual(['http://api/uploads/1-circuit.png', 'http://api/uploads/2-graph.png']);
+    expect(q.questionImage).toBe('http://api/uploads/1-circuit.png');
+    expect(q.choices).toEqual([
+      { id: 'a', text: '', isCorrect: false, image: 'http://api/uploads/3-a.png' },
+      { id: 'b', text: '', isCorrect: true, image: 'http://api/uploads/4-b.png' },
+      { id: 'c', text: 'สาม', isCorrect: false, image: 'http://api/uploads/1-circuit.png' },
+    ]);
+  });
+
+  it('รูปตัวเลือกหายจาก zip → error ระบุตัวเลือกในแถวข้อ', async () => {
+    asAdmin();
+    render(<ImportExamPage />);
+    await waitFor(() => expect(getCategories).toHaveBeenCalled());
+    const { 'images/b.png': _b, ...rest } = allFiles;
+    void _b;
+    await selectFile(imageZip(rest));
+    expect(screen.getByText('ตัวเลือก B: ไม่พบรูป "images/b.png" ใน zip')).toBeInTheDocument();
+    expect(screen.getByText(/ใช้ไม่ได้ 1 รูป/)).toBeInTheDocument();
+  });
+
+  it('สร้างไม่สำเร็จ → ลบรูปที่อัปไปแล้วทุกตัว (รวมรูปตัวเลือก)', async () => {
+    asAdmin();
+    mockedCreateExam.mockRejectedValue(new Error('boom'));
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    const user = userEvent.setup();
+    render(<ImportExamPage />);
+    await waitFor(() => expect(getCategories).toHaveBeenCalled());
+    await selectFile(imageZip(allFiles));
+    const button = await screen.findByRole('button', { name: 'สร้างแบบร่าง' });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+    await waitFor(() => expect(mockedDelete).toHaveBeenCalledTimes(4));
+    expect(mockedDelete.mock.calls.map((c) => c[0]).sort()).toEqual(
+      ['1-circuit.png', '2-graph.png', '3-a.png', '4-b.png'].sort(),
+    );
+  });
+});

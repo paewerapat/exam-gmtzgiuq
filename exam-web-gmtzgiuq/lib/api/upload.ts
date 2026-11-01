@@ -30,6 +30,19 @@ export async function uploadImage(file: File): Promise<UploadResult> {
   return res.json();
 }
 
+/**
+ * ลบไฟล์จาก URL ที่ได้จาก POST /upload — ทำเฉพาะ URL ของ API เรา (`${API_URL}/uploads/<file>`)
+ * URL ภายนอกที่บังเอิญมี /uploads/ จะไม่ถูกส่งไปลบ (คืน false)
+ */
+export async function deleteUploadedImageByUrl(url: string): Promise<boolean> {
+  const prefix = `${API_URL}/uploads/`;
+  if (!url.startsWith(prefix)) return false;
+  const filename = url.slice(prefix.length);
+  if (!filename || filename.includes('/') || filename.includes('?') || filename.includes('#')) return false;
+  await deleteUploadedImage(filename);
+  return true;
+}
+
 export async function deleteUploadedImage(filename: string): Promise<void> {
   const res = await fetchWithAuth(`${API_URL}/upload/${encodeURIComponent(filename)}`, {
     method: 'DELETE',

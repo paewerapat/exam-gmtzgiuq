@@ -68,3 +68,34 @@ describe('QuestionReview — ข้อที่ตอบถูกหลายต
     expect(screen.getAllByText('ไม่ได้ตอบ').length).toBeGreaterThan(0);
   });
 });
+
+describe('QuestionReview — หลายรูปต่อข้อ + รูปในตัวเลือก (task 07 AC5)', () => {
+  it('แสดงรูปโจทย์ทุกรูปและรูปตัวเลือก (รูปล้วน) พร้อมไฮไลต์ถูก/ผิด', async () => {
+    const q: Question = {
+      ...mcq('img', ['b']),
+      questionImage: '/uploads/q1.png',
+      questionImages: ['/uploads/q1.png', '/uploads/q2.png'],
+      choices: ['a', 'b', 'c'].map((id) => ({
+        id,
+        text: id === 'c' ? 'ข้อความกับรูป' : '',
+        isCorrect: id === 'b',
+        image: `/uploads/choice-${id}.png`,
+      })),
+    };
+    await renderOpen(q, 'a');
+    expect(
+      screen.getAllByRole('img', { name: /รูปประกอบโจทย์/ }).map((img) => img.getAttribute('src')),
+    ).toEqual(['/uploads/q1.png', '/uploads/q2.png']);
+    const choiceRow = (letter: string) => screen.getByRole('img', { name: `รูปตัวเลือก ${letter}` }).closest('div')!;
+    expect(choiceRow('A').className).toContain('bg-red-100');
+    expect(choiceRow('B').className).toContain('bg-green-100');
+    expect(choiceRow('C')).toHaveTextContent('ข้อความกับรูป');
+  });
+
+  it('ข้อเก่าที่มีแค่ questionImage → รูปเดียว', async () => {
+    await renderOpen({ ...mcq('old', ['a']), questionImage: '/uploads/old.png', questionImages: null }, 'a');
+    const imgs = screen.getAllByRole('img', { name: /รูปประกอบโจทย์/ });
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]).toHaveAttribute('src', '/uploads/old.png');
+  });
+});

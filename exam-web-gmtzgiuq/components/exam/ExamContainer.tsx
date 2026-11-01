@@ -25,6 +25,8 @@ import {
 import { fetchClockOffset } from '@/lib/api/serverTime';
 import ExamHeader from './ExamHeader';
 import ChoiceButton from './ChoiceButton';
+import QuestionImages from './QuestionImages';
+import { getQuestionImages } from '@/lib/question-images';
 import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
 
@@ -57,7 +59,6 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
 
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [groupAnswered, setGroupAnswered] = useState(false);
-  const [imageError, setImageError] = useState(false);
 
   const { session, currentTimer, answerChecked, isCorrect, isPaused } = state;
   const { showHint: isHintVisible } = state;
@@ -242,17 +243,13 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   <LatexRenderer content={currentQuestion.question} />
                 </div>
 
-                {/* Question image */}
-                {currentQuestion.questionImage && !imageError && (
-                  <div className="mt-4">
-                    <img
-                      src={currentQuestion.questionImage}
-                      alt="Question image"
-                      className="max-w-full h-auto rounded-xl border border-gray-200 dark:border-gray-700"
-                      onError={() => setImageError(true)}
-                    />
-                  </div>
-                )}
+                {/* Question images (ทุกรูปเรียงลงมา; key ตามข้อ ให้สถานะโหลดรูปไม่ได้รีเซ็ตเมื่อเปลี่ยนข้อ) */}
+                <QuestionImages
+                  key={currentQuestionId}
+                  images={getQuestionImages(currentQuestion)}
+                  className="mt-4"
+                />
+
 
                 {/* Hint box — practice mode only */}
                 {mode === 'practice' && isHintVisible && currentQuestion.hint && (
@@ -381,6 +378,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                           key={choice.id}
                           index={index}
                           text={choice.text}
+                          image={choice.image}
                           multi={isMulti}
                           isSelected={selectedChoiceIds.includes(choice.id)}
                           isCorrect={answerChecked ? correctChoiceIds.includes(choice.id) : null}

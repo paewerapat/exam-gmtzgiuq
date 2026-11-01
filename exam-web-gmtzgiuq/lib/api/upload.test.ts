@@ -1,4 +1,4 @@
-import { uploadImage, deleteUploadedImage } from './upload';
+import { uploadImage, deleteUploadedImage, deleteUploadedImageByUrl } from './upload';
 
 describe('upload API', () => {
   beforeEach(() => {
@@ -61,6 +61,33 @@ describe('upload API', () => {
     expect(fetchMock.mock.calls[0][1].headers).toEqual({
       'Content-Type': 'application/json',
       Authorization: 'Bearer tkn',
+    });
+  });
+
+  // task 07: ฟอร์มข้อสอบลบรูปที่อัปแล้วยังไม่บันทึกจาก URL
+  describe('deleteUploadedImageByUrl', () => {
+    // ใน jest ไม่มี NEXT_PUBLIC_API_URL → ใช้ค่า fallback ของโมดูล
+    const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+    it('URL จาก POST /upload ของ API เรา → DELETE /upload/:filename', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      await expect(deleteUploadedImageByUrl(`${API}/uploads/1-a.png`)).resolves.toBe(true);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe(`${API}/upload/1-a.png`);
+      expect(init.method).toBe('DELETE');
+    });
+
+    it('URL ภายนอกที่มี /uploads/ หรือ path แปลก → ไม่ส่งไปลบ', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      await expect(deleteUploadedImageByUrl('https://other.example.com/uploads/1-a.png')).resolves.toBe(false);
+      await expect(deleteUploadedImageByUrl(`${API}/uploads/sub/1-a.png`)).resolves.toBe(false);
+      await expect(deleteUploadedImageByUrl(`${API}/uploads/`)).resolves.toBe(false);
+      expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 });

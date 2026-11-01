@@ -214,3 +214,84 @@ describe('ExamContainer — ข้อที่ตอบถูกหลายต�
     unmount();
   });
 });
+
+describe('ExamContainer — หลายรูปต่อข้อ + รูปในตัวเลือก (task 07 AC5)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  // ตัวเลือก A–E เป็นรูปล้วน ข้อถูก B และ D (ข้อหลายคำตอบจาก task 06)
+  const imageQ: Question = {
+    ...mcq('img', ['b', 'd']),
+    questionImage: '/uploads/q1.png',
+    questionImages: ['/uploads/q1.png', '/uploads/q2.png', '/uploads/q3.png'],
+    choices: ['a', 'b', 'c', 'd', 'e'].map((id) => ({
+      id,
+      text: '',
+      isCorrect: id === 'b' || id === 'd',
+      image: `/uploads/choice-${id}.png`,
+    })),
+  };
+  const legacyQ: Question = { ...mcq('old', ['a']), questionImage: '/uploads/old.png', questionImages: null };
+  const imgChoice = (letter: string) => screen.getByRole('button', { name: new RegExp(`รูปตัวเลือก ${letter}`) });
+
+  it('แสดงรูปโจทย์ทุกรูปตามลำดับ และรูปในทุกตัวเลือก', async () => {
+    const { unmount } = setup([imageQ]);
+    await screen.findByText('โจทย์ img');
+    const questionImgs = screen.getAllByRole('img', { name: /รูปประกอบโจทย์/ });
+    expect(questionImgs.map((img) => img.getAttribute('src'))).toEqual([
+      '/uploads/q1.png',
+      '/uploads/q2.png',
+      '/uploads/q3.png',
+    ]);
+    expect(questionImgs.map((img) => img.getAttribute('alt'))).toEqual([
+      'รูปประกอบโจทย์ 1',
+      'รูปประกอบโจทย์ 2',
+      'รูปประกอบโจทย์ 3',
+    ]);
+    ['A', 'B', 'C', 'D', 'E'].forEach((l) =>
+      expect(screen.getByRole('img', { name: `รูปตัวเลือก ${l}` })).toHaveAttribute(
+        'src',
+        `/uploads/choice-${l.toLowerCase()}.png`,
+      ),
+    );
+    unmount();
+  });
+
+  it('practice: เลือกตัวเลือกรูปล้วนได้ ตรวจแล้วไฮไลต์ถูก/ผิด/ถูกแต่ไม่ได้เลือก', async () => {
+    const { user, unmount } = setup([imageQ]);
+    await screen.findByText('เลือกได้มากกว่า 1 ข้อ');
+    await user.click(imgChoice('B'));
+    await user.click(imgChoice('C'));
+    expect(imgChoice('B')).toHaveAttribute('aria-pressed', 'true');
+    expect(imgChoice('C')).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'ตรวจคำตอบ' }));
+    expect(screen.getByText('คำตอบไม่ถูกต้อง !')).toBeInTheDocument();
+    expect(imgChoice('B').className).toContain('border-green-400');
+    expect(imgChoice('C').className).toContain('border-red-400');
+    expect(imgChoice('D')).toHaveTextContent('ข้อที่ถูก (ไม่ได้เลือก)');
+    unmount();
+  });
+
+  it('exam: ข้อเดี่ยวที่ตัวเลือกเป็นรูปล้วน เลือกได้', async () => {
+    const single: Question = { ...imageQ, id: 'single', choices: imageQ.choices.map((c) => ({ ...c, isCorrect: c.id === 'c' })) };
+    const { user, unmount } = setup([single], 'exam');
+    await screen.findByText('โจทย์ img');
+    await user.click(imgChoice('C'));
+    expect(imgChoice('C')).toHaveAttribute('aria-pressed', 'true');
+    expect(imgChoice('C').className).toContain('border-indigo-400');
+    unmount();
+  });
+
+  it('ข้อเก่าที่มีแค่ questionImage ยังแสดงรูปเดียว', async () => {
+    const { unmount } = setup([legacyQ]);
+    await screen.findByText('โจทย์ old');
+    const imgs = screen.getAllByRole('img', { name: /รูปประกอบโจทย์/ });
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]).toHaveAttribute('src', '/uploads/old.png');
+    expect(imgs[0]).toHaveAttribute('alt', 'รูปประกอบโจทย์');
+    unmount();
+  });
+});

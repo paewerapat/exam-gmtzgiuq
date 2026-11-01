@@ -2,11 +2,13 @@
 
 import { Check, X } from 'lucide-react';
 import { getChoiceLetter } from '@/lib/exam-utils';
-import LatexText from '@/components/latex/LatexText';
+import ChoiceContent from './ChoiceContent';
 
 interface ChoiceButtonProps {
   index: number;
   text: string;
+  /** รูปของตัวเลือก (ข้อความว่างได้ถ้ามีรูป) */
+  image?: string | null;
   isSelected: boolean;
   /** ตัวเลือกนี้อยู่ในชุดคำตอบที่ถูกหรือไม่ (ส่งเมื่อ showResult) */
   isCorrect?: boolean | null;
@@ -20,6 +22,7 @@ interface ChoiceButtonProps {
 export default function ChoiceButton({
   index,
   text,
+  image,
   isSelected,
   isCorrect,
   showResult,
@@ -70,7 +73,7 @@ export default function ChoiceButton({
       disabled={disabled || showResult}
       aria-pressed={isSelected}
       className={`
-        w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all
+        w-full flex ${image ? 'items-start' : 'items-center'} gap-3 px-4 py-3 rounded-2xl border-2 transition-all
         ${cardStyle}
         ${disabled || showResult ? 'cursor-not-allowed' : 'cursor-pointer'}
       `}
@@ -94,8 +97,8 @@ export default function ChoiceButton({
       >
         {letter}
       </span>
-      <span className="flex-1 text-left text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
-        <LatexText text={text} />
+      <span className="flex-1 min-w-0 text-left text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+        <ChoiceContent text={text} image={image} letter={letter} />
         {isMissed && (
           <span className="block w-fit mt-1 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
             ข้อที่ถูก (ไม่ได้เลือก)

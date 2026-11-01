@@ -17,6 +17,10 @@ import {
   QuestionStatus,
 } from '../../questions/question.entity';
 import { Exam } from '../exam.entity';
+import {
+  IsOptionalImageUrl,
+  IsQuestionImageUrls,
+} from '../../questions/dto/image-url.validators';
 
 // Choice input for exam questions
 @InputType()
@@ -32,6 +36,11 @@ export class ExamChoiceInput {
   @Field()
   @IsBoolean()
   isCorrect: boolean;
+
+  // Image shown with the choice; text may be empty when an image is set
+  @Field(() => String, { nullable: true })
+  @IsOptionalImageUrl('รูปตัวเลือก')
+  image?: string | null;
 }
 
 // Individual question within an exam
@@ -41,10 +50,15 @@ export class CreateExamQuestionInput {
   @IsString()
   question: string;
 
+  // Legacy single image; used as [questionImage] when questionImages is not sent
   @Field({ nullable: true })
-  @IsString()
-  @IsOptional()
+  @IsOptionalImageUrl('รูปโจทย์')
   questionImage?: string;
+
+  // All question images in display order (max 6); questionImage = [0]
+  @Field(() => [String], { nullable: true })
+  @IsQuestionImageUrls()
+  questionImages?: string[] | null;
 
   @Field(() => [ExamChoiceInput], { nullable: true })
   @IsArray()

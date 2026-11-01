@@ -18,6 +18,12 @@ import {
 } from './dto/exam.dto';
 import { User } from '../users/user.entity';
 import { UploadService } from '../upload/upload.service';
+import {
+  collectQuestionImageUrls,
+  deleteUnusedImages,
+  normalizeChoices,
+  resolveQuestionImages,
+} from '../questions/question-images';
 
 @Injectable()
 export class ExamsService {
@@ -49,8 +55,8 @@ export class ExamsService {
       const questions = input.questions.map((q, index) =>
         manager.create(Question, {
           question: q.question,
-          questionImage: q.questionImage,
-          choices: q.choices ?? [],
+          ...resolveQuestionImages(q),
+          choices: normalizeChoices(q.choices),
           correctAnswer: q.correctAnswer,
           explanation: q.explanation,
           hint: q.hint,
@@ -123,7 +129,13 @@ export class ExamsService {
     category?: QuestionCategory,
     search?: string,
   ): Promise<PaginatedExams> {
-    return this.findAll(page, limit, QuestionStatus.PUBLISHED, category, search);
+    return this.findAll(
+      page,
+      limit,
+      QuestionStatus.PUBLISHED,
+      category,
+      search,
+    );
   }
 
   async findOne(id: string): Promise<Exam> {
@@ -157,11 +169,10 @@ export class ExamsService {
   async update(id: string, input: UpdateExamInput): Promise<Exam> {
     const exam = await this.findOne(id);
 
-    // Remember the current question images; files are only removed after commit
+    // Remember every image the current questions use (question images and
+    // choice images); files are only removed after commit
     const oldImageUrls = input.questions
-      ? exam.questions
-          .map((q) => q.questionImage)
-          .filter((url): url is string => !!url)
+      ? exam.questions.flatMap((q) => collectQuestionImageUrls(q))
       : [];
 
     await this.dataSource.transaction(async (manager) => {
@@ -170,9 +181,11 @@ export class ExamsService {
       if (input.description !== undefined) exam.description = input.description;
       if (input.category !== undefined) exam.category = input.category;
       if (input.status !== undefined) exam.status = input.status;
-      if (input.subjectId !== undefined) exam.subjectId = input.subjectId ?? null;
+      if (input.subjectId !== undefined)
+        exam.subjectId = input.subjectId ?? null;
       if (input.bannerImage !== undefined) exam.bannerImage = input.bannerImage;
-      if (input.durationMinutes !== undefined) exam.durationMinutes = input.durationMinutes ?? null;
+      if (input.durationMinutes !== undefined)
+        exam.durationMinutes = input.durationMinutes ?? null;
 
       // Replace questions if provided
       if (input.questions) {
@@ -184,8 +197,8 @@ export class ExamsService {
         const questions = input.questions.map((q, index) =>
           manager.create(Question, {
             question: q.question,
-            questionImage: q.questionImage,
-            choices: q.choices ?? [],
+            ...resolveQuestionImages(q),
+            choices: normalizeChoices(q.choices),
             correctAnswer: q.correctAnswer,
             explanation: q.explanation,
             hint: q.hint,
@@ -221,58 +234,39 @@ export class ExamsService {
 
     // Transaction committed: drop only the image files no longer referenced
     if (input.questions) {
-      this.deleteUnusedQuestionImages(
+      deleteUnusedImages(
+        this.uploadService,
         oldImageUrls,
-        input.questions.map((q) => q.questionImage),
+        input.questions.flatMap((q) =>
+          collectQuestionImageUrls({
+            ...resolveQuestionImages(q),
+            choices: q.choices,
+          }),
+        ),
       );
     }
 
     return this.findOne(id);
   }
 
-  /**
-   * Delete old question image files that are not used by the new questions.
-   * Compares by upload filename (not full URL) so the same file served from a
-   * different host still counts as in use. Never throws.
-   */
-  private deleteUnusedQuestionImages(
-    oldUrls: string[],
-    newUrls: (string | null | undefined)[],
-  ): void {
-    const inUse = new Set<string>();
-    for (const url of newUrls) {
-      const filename = url ? this.uploadService.extractFilename(url) : null;
-      if (filename) inUse.add(filename);
-    }
-
-    const handled = new Set<string>();
-    for (const url of oldUrls) {
-      const filename = this.uploadService.extractFilename(url);
-      if (!filename || inUse.has(filename) || handled.has(filename)) continue;
-      handled.add(filename);
-      try {
-        this.uploadService.deleteByUrl(url);
-      } catch (err) {
-        console.error(`Failed to delete question image: ${filename}`, err);
-      }
-    }
-  }
-
   async remove(id: string): Promise<boolean> {
     const exam = await this.findOne(id);
-
-    // Delete question images
-    for (const question of exam.questions) {
-      if (question.questionImage) {
-        this.uploadService.deleteByUrl(question.questionImage);
-      }
-    }
+    const imageUrls = exam.questions.flatMap((q) =>
+      collectQuestionImageUrls(q),
+    );
 
     await this.examsRepository.remove(exam);
+
+    // Exam deleted: remove every image its questions referred to
+    deleteUnusedImages(this.uploadService, imageUrls, []);
     return true;
   }
 
-  async findByTopic(topicId: string, page = 1, limit = 20): Promise<PaginatedExams> {
+  async findByTopic(
+    topicId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedExams> {
     const skip = (page - 1) * limit;
     const [items, total] = await this.examsRepository
       .createQueryBuilder('exam')

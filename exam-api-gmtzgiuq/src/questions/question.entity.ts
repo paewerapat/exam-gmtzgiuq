@@ -54,6 +54,10 @@ export class QuestionChoice {
 
   @Field()
   isCorrect: boolean;
+
+  // Optional image URL shown with the choice (text may be empty when set)
+  @Field(() => String, { nullable: true })
+  image?: string | null;
 }
 
 @ObjectType()
@@ -67,9 +71,16 @@ export class Question {
   @Column({ type: 'longtext' })
   question: string;
 
-  @Field({ nullable: true })
-  @Column({ nullable: true })
-  questionImage: string;
+  // First image of questionImages (kept for old rows and single-image readers)
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'varchar', nullable: true })
+  questionImage: string | null;
+
+  // All question images in display order (max 6). questionImage mirrors [0];
+  // old rows have null here and only questionImage.
+  @Field(() => [String], { nullable: true })
+  @Column({ type: 'json', nullable: true })
+  questionImages: string[] | null;
 
   @Field(() => [QuestionChoice], { nullable: true })
   @Column({ type: 'json', nullable: true })

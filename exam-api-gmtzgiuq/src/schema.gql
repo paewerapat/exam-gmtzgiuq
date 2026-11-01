@@ -48,6 +48,7 @@ type CategoryCount {
 
 input ChoiceInput {
   id: String!
+  image: String
   isCorrect: Boolean!
   text: String!
 }
@@ -75,6 +76,7 @@ input CreateQuestionInput {
   hint: String
   question: String!
   questionImage: String
+  questionImages: [String!]
   status: QuestionStatus
   tags: [String!]
   topicId: String
@@ -190,6 +192,7 @@ type Question {
   orderIndex: Int
   question: String!
   questionImage: String
+  questionImages: [String!]
   status: QuestionStatus!
   tags: [String!]
   topicId: String
@@ -211,6 +214,7 @@ enum QuestionCategory {
 
 type QuestionChoice {
   id: String!
+  image: String
   isCorrect: Boolean!
   text: String!
 }
@@ -274,6 +278,7 @@ input UpdateQuestionInput {
   hint: String
   question: String
   questionImage: String
+  questionImages: [String!]
   status: QuestionStatus
   tags: [String!]
   topicId: String

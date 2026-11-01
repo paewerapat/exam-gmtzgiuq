@@ -79,14 +79,21 @@ function toDataUrl(image: ImportImage): string {
   return `data:${image.mimeType};base64,${btoa(binary)}`;
 }
 
-function ImagePreview({ image }: { image: ImportImage }) {
+function ImagePreview({
+  image,
+  className = 'max-w-full sm:max-w-md h-auto',
+}: {
+  image: ImportImage;
+  /** ขนาดรูป (ค่าเริ่มต้นสำหรับรูปโจทย์) */
+  className?: string;
+}) {
   const src = useMemo(() => toDataUrl(image), [image]);
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={image.fileName}
-      className="max-w-full sm:max-w-md h-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+      className={`block ${className} rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900`}
     />
   );
 }
@@ -572,7 +579,7 @@ export default function ImportExamPage() {
                           <th className="px-4 py-3 w-20">ประเภท</th>
                           <th className="px-4 py-3">โจทย์</th>
                           <th className="px-4 py-3 w-40">หัวข้อ</th>
-                          <th className="px-4 py-3 w-24">รูป</th>
+                          <th className="px-4 py-3 w-32">รูป</th>
                           <th className="px-4 py-3 w-28">สถานะ</th>
                           <th className="px-2 py-3 w-8" />
                         </tr>
@@ -580,13 +587,12 @@ export default function ImportExamPage() {
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {resolved.questions.map((q) => {
                           const isOpen = expanded.has(q.orderIndex);
-                          const image = q.imagePath ? imageMap.get(q.imagePath) : undefined;
                           return (
                             <QuestionRow
                               key={q.orderIndex}
                               q={q}
                               isOpen={isOpen}
-                              image={image}
+                              imageMap={imageMap}
                               onToggle={() => toggleExpand(q.orderIndex)}
                             />
                           );
@@ -638,14 +644,23 @@ export default function ImportExamPage() {
 function QuestionRow({
   q,
   isOpen,
-  image,
+  imageMap,
   onToggle,
 }: {
   q: ResolvedImportQuestion;
   isOpen: boolean;
-  image: ImportImage | undefined;
+  imageMap: Map<string, ImportImage>;
   onToggle: () => void;
 }) {
+  const questionImages = q.imagePaths
+    .map((path) => imageMap.get(path))
+    .filter((img): img is ImportImage => !!img);
+  const choiceImageRefs = q.choices.filter((c) => c.imageRef).length;
+  const choiceImagesOk = q.choices.filter((c) => c.imagePath).length;
+  const brokenImages =
+    q.imageRefs.length - q.imagePaths.length + (choiceImageRefs - choiceImagesOk);
+  const hasAnyImage = q.imageRefs.length > 0 || choiceImageRefs > 0;
+
   return (
     <>
       <tr
@@ -677,16 +692,24 @@ function QuestionRow({
           )}
         </td>
         <td className="px-4 py-3">
-          {q.imageRef ? (
-            q.imagePath ? (
-              <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-300">
-                <ImageIcon className="w-3.5 h-3.5" /> มีรูป
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs text-red-700 dark:text-red-300">
-                <XCircle className="w-3.5 h-3.5" /> ใช้ไม่ได้
-              </span>
-            )
+          {hasAnyImage ? (
+            <div className="space-y-0.5 text-xs">
+              {q.imageRefs.length > 0 && (
+                <span className="flex items-center gap-1 text-green-700 dark:text-green-300 whitespace-nowrap">
+                  <ImageIcon className="w-3.5 h-3.5 flex-shrink-0" /> โจทย์ {q.imagePaths.length} รูป
+                </span>
+              )}
+              {choiceImageRefs > 0 && (
+                <span className="flex items-center gap-1 text-green-700 dark:text-green-300 whitespace-nowrap">
+                  <ImageIcon className="w-3.5 h-3.5 flex-shrink-0" /> ตัวเลือก {choiceImagesOk} รูป
+                </span>
+              )}
+              {brokenImages > 0 && (
+                <span className="flex items-center gap-1 text-red-700 dark:text-red-300 whitespace-nowrap">
+                  <XCircle className="w-3.5 h-3.5 flex-shrink-0" /> ใช้ไม่ได้ {brokenImages} รูป
+                </span>
+              )}
+            </div>
           ) : (
             <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
           )}
@@ -708,22 +731,49 @@ function QuestionRow({
                 {q.question.trim() && (
                   <LatexRenderer content={q.question} className="break-words leading-relaxed" />
                 )}
-                {image && <ImagePreview image={image} />}
+                {questionImages.length > 0 && (
+                  <div className="space-y-2">
+                    {questionImages.map((img, i) => (
+                      <div key={`${i}-${img.path}`}>
+                        {questionImages.length > 1 && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">รูปที่ {i + 1}</p>
+                        )}
+                        <ImagePreview image={img} />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {q.type === 'multiple_choice' && q.choices.length > 0 && (
                   <ul className="space-y-1">
-                    {q.choices.map((c) => (
-                      <li
-                        key={c.id}
-                        className={`flex items-start gap-2 px-3 py-1.5 rounded-lg border ${
-                          c.isCorrect
-                            ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        <span className="font-medium uppercase">{c.id}.</span>
-                        <LatexText text={c.text} />
-                      </li>
-                    ))}
+                    {q.choices.map((c) => {
+                      const choiceImage = c.imagePath ? imageMap.get(c.imagePath) : undefined;
+                      return (
+                        <li
+                          key={c.id}
+                          className={`flex items-start gap-2 px-3 py-1.5 rounded-lg border ${
+                            c.isCorrect
+                              ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200'
+                              : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          <span className="font-medium uppercase">{c.id}.</span>
+                          <div className="min-w-0">
+                            {c.text.trim() && <LatexText text={c.text} />}
+                            {choiceImage && (
+                              <ImagePreview
+                                image={choiceImage}
+                                className={`${c.text.trim() ? 'mt-1' : ''} max-h-32 max-w-full w-auto`}
+                              />
+                            )}
+                            {c.imageRef && !choiceImage && (
+                              <span className="block text-xs text-red-700 dark:text-red-300">
+                                รูปใช้ไม่ได้: {c.imageRef}
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 {q.type === 'multiple_choice' && q.choices.length > 0 && (

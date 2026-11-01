@@ -12,7 +12,9 @@ import {
   formatChoiceLetters,
 } from '@/lib/exam-utils';
 import LatexRenderer from '@/components/latex/LatexRenderer';
-import LatexText from '@/components/latex/LatexText';
+import { getQuestionImages } from '@/lib/question-images';
+import QuestionImages from './QuestionImages';
+import ChoiceContent from './ChoiceContent';
 
 interface QuestionReviewProps {
   question: Question;
@@ -93,16 +95,12 @@ export default function QuestionReview({
             <LatexRenderer content={question.question} />
           </div>
 
-          {/* Question image */}
-          {question.questionImage && (
-            <div className="mb-4">
-              <img
-                src={question.questionImage}
-                alt="Question"
-                className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
-              />
-            </div>
-          )}
+          {/* Question images */}
+          <QuestionImages
+            images={getQuestionImages(question)}
+            className="mb-4"
+            imageClassName="block max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+          />
 
           {/* ข้อหลายคำตอบ: บอกชุดที่เลือกและชุดที่ถูกเป็นตัวอักษร */}
           {isMulti && (
@@ -158,7 +156,7 @@ export default function QuestionReview({
               return (
                 <div
                   key={choice.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg ${bgColor}`}
+                  className={`flex ${choice.image ? 'items-start' : 'items-center'} gap-3 p-3 rounded-lg ${bgColor}`}
                 >
                   <span
                     className={`
@@ -169,8 +167,13 @@ export default function QuestionReview({
                   >
                     {getChoiceLetter(index)}
                   </span>
-                  <span className={`flex-1 ${textColor}`}>
-                    <LatexText text={choice.text} />
+                  <span className={`flex-1 min-w-0 ${textColor}`}>
+                    <ChoiceContent
+                      text={choice.text}
+                      image={choice.image}
+                      letter={getChoiceLetter(index)}
+                      imageSizeClassName="max-h-32 sm:max-h-40"
+                    />
                   </span>
                   {icon}
                 </div>

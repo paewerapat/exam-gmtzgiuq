@@ -18,8 +18,13 @@ import {
   isMultiAnswer,
   parseChoiceAnswer,
   formatChoiceLetters,
+  getChoiceLetter,
 } from '@/lib/exam-utils';
+import { getQuestionImages } from '@/lib/question-images';
 import LatexText from '@/components/latex/LatexText';
+import QuestionImages from '@/components/exam/QuestionImages';
+import ChoiceContent from '@/components/exam/ChoiceContent';
+import type { Question } from '@/lib/api/questions';
 
 interface PageProps {
   params: Promise<{ attemptId: string }>;
@@ -38,6 +43,73 @@ function getScoreBorderColor(score: number) {
 }
 
 // ── Tab 1: Question result table ─────────────────────────────
+
+/** ตัวเลือกในช่องเฉลย/คำตอบ: ข้อความ + รูปย่อ (ตัวเลือกที่เป็นรูปล้วนแสดงตัวอักษรนำ) */
+function ChoiceCell({ question, choiceId }: { question: Question; choiceId: string }) {
+  const index = question.choices.findIndex((c) => c.id === choiceId);
+  const choice = question.choices[index];
+  if (!choice) return null;
+  const letter = getChoiceLetter(index);
+  return (
+    <>
+      {!choice.text?.trim() && <span>{letter}</span>}
+      <ChoiceContent text={choice.text} image={choice.image} letter={letter} imageSizeClassName="max-h-16" />
+    </>
+  );
+}
+
+/** รายการตัวเลือกทั้งหมด (แสดงเมื่อข้อมีรูปในตัวเลือก ให้เห็นรูปแม้ข้อหลายคำตอบที่ตารางแสดงแค่ตัวอักษร) */
+function ChoiceImageList({
+  question,
+  correctIds,
+  selectedIds,
+}: {
+  question: Question;
+  correctIds: string[];
+  selectedIds: string[];
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+      {question.choices.map((choice, index) => {
+        const isCorrectChoice = correctIds.includes(choice.id);
+        const isSelected = selectedIds.includes(choice.id);
+        const style = isCorrectChoice
+          ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30'
+          : isSelected
+            ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30'
+            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800';
+        return (
+          <div key={choice.id} className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${style}`}>
+            <span
+              className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full font-semibold ${
+                isCorrectChoice
+                  ? 'bg-green-600 text-white'
+                  : isSelected
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              {getChoiceLetter(index)}
+            </span>
+            <div className="flex-1 min-w-0 text-gray-700 dark:text-gray-300">
+              <ChoiceContent
+                text={choice.text}
+                image={choice.image}
+                letter={getChoiceLetter(index)}
+                imageSizeClassName="max-h-28"
+              />
+              {isSelected && (
+                <span className={`block mt-1 font-semibold ${isCorrectChoice ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
+                  คำตอบของคุณ
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 type FilterType = 'all' | 'correct' | 'incorrect' | 'unanswered';
 
@@ -133,6 +205,9 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                 const userLetters = isMulti && selectedIds.length > 0 ? formatChoiceLetters(item.question, selectedIds) : '';
                 const isExpanded = expandedIds.has(item.qId);
                 const hasExplanation = !!item.question.explanation;
+                const questionImages = getQuestionImages(item.question);
+                const hasChoiceImages = item.question.choices.some((c) => !!c.image);
+                const canExpand = hasExplanation || questionImages.length > 0 || hasChoiceImages;
 
                 const statusIcon =
                   item.status === 'correct' ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto" /> :
@@ -146,7 +221,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
 
                 return (
                   <>
-                    <tr key={item.qId} className={isExpanded ? 'bg-indigo-50/40' : 'hover:bg-gray-50/60'}>
+                    <tr key={item.qId} className={isExpanded ? 'bg-indigo-50/40 dark:bg-indigo-900/20' : 'hover:bg-gray-50/60 dark:hover:bg-gray-700/30'}>
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{globalIdx}</span>
@@ -168,15 +243,15 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                         )}
                       </td>
                       <td className="px-4 py-3 text-green-600 dark:text-green-400 font-medium text-xs">
-                        {isMulti ? correctLetters : correctChoice ? <LatexText text={correctChoice.text} /> : '-'}
+                        {isMulti ? correctLetters : correctChoice ? <ChoiceCell question={item.question} choiceId={correctChoice.id} /> : '-'}
                       </td>
                       <td className={`px-4 py-3 text-xs ${userAnswerColor}`}>
                         {isMulti
                           ? userLetters || <span className="text-gray-300 dark:text-gray-600">ไม่ตอบ</span>
-                          : userAnswerChoice ? <LatexText text={userAnswerChoice.text} /> : <span className="text-gray-300">ไม่ตอบ</span>}
+                          : userAnswerChoice ? <ChoiceCell question={item.question} choiceId={userAnswerChoice.id} /> : <span className="text-gray-300">ไม่ตอบ</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {hasExplanation && (
+                        {canExpand && (
                           <button
                             onClick={() => toggleExpand(item.qId)}
                             className={`text-xs font-medium px-3 py-1 rounded-lg transition ${
@@ -191,12 +266,21 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr key={`${item.qId}-exp`} className="bg-indigo-50/40">
+                      <tr key={`${item.qId}-exp`} className="bg-indigo-50/40 dark:bg-indigo-900/20">
                         <td />
                         <td colSpan={5} className="px-4 pb-4 pt-1">
-                          {item.question.questionImage && (
-                            <img src={item.question.questionImage} alt="" className="max-w-xs rounded-lg mb-3" />
+                          {/* ตารางกว้างกว่าจอมือถือ (เลื่อนข้าง) → จำกัดเนื้อหาแถวขยายให้พอดีจอ:
+                              100vw − padding หน้า (2×1rem) − คอลัมน์ข้อที่ (3.5rem) − padding ช่อง (2×1rem) */}
+                          <div className="max-w-[calc(100vw-7.5rem)] md:max-w-md lg:max-w-none">
+                          <QuestionImages
+                            images={questionImages}
+                            className="mb-3"
+                            imageClassName="block max-w-full sm:max-w-xs h-auto rounded-lg"
+                          />
+                          {hasChoiceImages && (
+                            <ChoiceImageList question={item.question} correctIds={correctIds} selectedIds={selectedIds} />
                           )}
+                          {hasExplanation && (
                           <div className={`rounded-xl border p-3 text-sm ${
                             item.status === 'correct' ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800/50' :
                             item.status === 'incorrect' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800/50' :
@@ -209,6 +293,8 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                             <div className="text-gray-700 dark:text-gray-300 leading-relaxed">
                               <LatexText text={item.question.explanation!} />
                             </div>
+                          </div>
+                          )}
                           </div>
                         </td>
                       </tr>

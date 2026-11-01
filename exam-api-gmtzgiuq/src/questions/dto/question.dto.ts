@@ -15,6 +15,10 @@ import {
   QuestionType,
   QuestionStatus,
 } from '../question.entity';
+import {
+  IsOptionalImageUrl,
+  IsQuestionImageUrls,
+} from './image-url.validators';
 
 @InputType()
 export class ChoiceInput {
@@ -29,6 +33,10 @@ export class ChoiceInput {
   @Field()
   @IsBoolean()
   isCorrect: boolean;
+
+  @Field(() => String, { nullable: true })
+  @IsOptionalImageUrl('รูปตัวเลือก')
+  image?: string | null;
 }
 
 @InputType()
@@ -38,9 +46,12 @@ export class CreateQuestionInput {
   question: string;
 
   @Field({ nullable: true })
-  @IsString()
-  @IsOptional()
+  @IsOptionalImageUrl('รูปโจทย์')
   questionImage?: string;
+
+  @Field(() => [String], { nullable: true })
+  @IsQuestionImageUrls()
+  questionImages?: string[] | null;
 
   @Field(() => [ChoiceInput], { nullable: true })
   @IsArray()
@@ -112,9 +123,12 @@ export class UpdateQuestionInput {
   question?: string;
 
   @Field({ nullable: true })
-  @IsString()
-  @IsOptional()
+  @IsOptionalImageUrl('รูปโจทย์')
   questionImage?: string;
+
+  @Field(() => [String], { nullable: true })
+  @IsQuestionImageUrls()
+  questionImages?: string[] | null;
 
   @Field(() => [ChoiceInput], { nullable: true })
   @IsArray()

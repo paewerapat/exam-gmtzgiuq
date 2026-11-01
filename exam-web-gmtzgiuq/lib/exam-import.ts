@@ -3,6 +3,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import type { CreateExamInput, ExamQuestionInput } from '@/lib/api/exams';
 import type { QuestionChoice } from '@/lib/api/questions';
+import { MAX_QUESTION_IMAGES, toChoiceInput } from '@/lib/question-images';
 import type { Category } from '@/lib/api/categories';
 import type { Subject } from '@/lib/api/curriculum';
 
@@ -36,8 +37,16 @@ export interface ImportImage {
   fileName: string;
   mimeType: string;
   data: Uint8Array;
-  /** เลขข้อที่ใช้รูปนี้ */
+  /** เลขข้อที่ใช้รูปนี้ (รูปโจทย์หรือรูปตัวเลือก ไม่ซ้ำ) */
   usedBy: number[];
+}
+
+/** ตัวเลือกที่นำเข้า: รูปเก็บเป็น path ใน zip (แปลงเป็น URL ตอนสร้างข้อสอบ) */
+export interface ImportChoice extends QuestionChoice {
+  /** path รูปที่ใช้ได้ (key ของ images) */
+  imagePath: string | null;
+  /** path รูปตามที่ไฟล์อ้าง (แม้รูปจะใช้ไม่ได้) */
+  imageRef: string | null;
 }
 
 export type ImportQuestionType = 'multiple_choice' | 'short_answer';
@@ -50,15 +59,15 @@ export interface ParsedImportQuestion {
   rawType: string;
   type: ImportQuestionType;
   question: string;
-  choices: QuestionChoice[];
+  choices: ImportChoice[];
   correctAnswer: string | null;
   explanation: string | null;
   hint: string | null;
   topicName: string | null;
-  /** path รูปที่ใช้ได้ (มีใน zip, นามสกุลถูก, ไม่เกิน 5MB) — key ของ images */
-  imagePath: string | null;
-  /** path รูปตามที่ไฟล์อ้าง (แสดงในตาราง แม้รูปจะใช้ไม่ได้) */
-  imageRef: string | null;
+  /** path รูปโจทย์ที่ใช้ได้ตามลำดับ (มีใน zip, นามสกุลถูก, ไม่เกิน 5MB) — key ของ images */
+  imagePaths: string[];
+  /** path รูปโจทย์ตามที่ไฟล์อ้าง (แสดงในตาราง แม้รูปจะใช้ไม่ได้) */
+  imageRefs: string[];
   issues: ImportIssue[];
 }
 
@@ -150,17 +159,34 @@ export function normalizeZipPath(raw: string): string | null {
   return segments.join('/');
 }
 
-/** path รูปที่ข้อสอบอ้างถึง (images[0].file ของแต่ละข้อ) normalize แล้ว */
+/** ไม่ได้ใส่รูป (ไม่มี key / null / สตริงว่าง) */
+function isNoImage(v: unknown): boolean {
+  return v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+}
+
+/** path รูปตามที่ไฟล์อ้าง: รับ `"images/a.png"` หรือ `{ "file": "images/a.png", "alt": "..." }` (ระบุไม่ได้ → '') */
+function imageRefOf(v: unknown): string {
+  if (typeof v === 'string') return v.trim();
+  if (isRecord(v)) return asText(v.file).trim();
+  return '';
+}
+
+/** path รูปที่ข้อสอบอ้างถึง (images[] ทุกรูป + choices[].image ของทุกข้อ) normalize แล้ว */
 function referencedImagePaths(json: unknown): string[] {
   if (!isRecord(json) || !Array.isArray(json.questions)) return [];
-  const out: string[] = [];
+  const out = new Set<string>();
+  const add = (v: unknown) => {
+    const path = isNoImage(v) ? null : normalizeZipPath(imageRefOf(v));
+    if (path) out.add(path);
+  };
   for (const q of json.questions) {
-    if (!isRecord(q) || !Array.isArray(q.images) || q.images.length === 0) continue;
-    const first = q.images[0];
-    const path = isRecord(first) ? normalizeZipPath(asText(first.file)) : null;
-    if (path) out.push(path);
+    if (!isRecord(q)) continue;
+    if (Array.isArray(q.images)) q.images.slice(0, MAX_QUESTION_IMAGES).forEach(add);
+    if (Array.isArray(q.choices)) {
+      q.choices.slice(0, CHOICE_LABELS.length).forEach((c) => isRecord(c) && add(c.image));
+    }
   }
-  return out;
+  return [...out];
 }
 
 function isZip(bytes: Uint8Array): boolean {
@@ -387,9 +413,47 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
       explanation: null,
       hint: null,
       topicName: null,
-      imagePath: null,
-      imageRef: null,
+      imagePaths: [],
+      imageRefs: [],
       issues,
+    };
+
+    /** ตรวจรูปหนึ่งรูป (path/ชนิด/มีใน zip/ขนาด) คืน path ที่ใช้ได้ หรือ null; prefix บอกว่าเป็นรูปไหน */
+    const resolveImage = (ref: string, prefix: string): string | null => {
+      const path = normalizeZipPath(ref);
+      const ext = path ? extOf(path) : '';
+      const entry = path ? files.get(path) : undefined;
+      if (!path) {
+        issues.push(err(`${prefix}path รูปไม่ถูกต้อง "${ref}" (ห้ามมี .. หรือขึ้นต้นด้วย /)`));
+      } else if (!IMAGE_MIME[ext]) {
+        issues.push(err(`${prefix}ไม่รองรับไฟล์รูปชนิดนี้ "${ref}" (รองรับ png, jpg, jpeg, gif, webp)`));
+      } else if (!entry) {
+        issues.push(
+          err(
+            fromZip
+              ? `${prefix}ไม่พบรูป "${ref}" ใน zip`
+              : `${prefix}ไม่พบรูป "${ref}" (นำเข้าไฟล์ .json เดี่ยวจะไม่มีรูป ให้ใช้ .zip)`,
+          ),
+        );
+      } else if (entry.size > MAX_IMAGE_BYTES || !entry.data) {
+        issues.push(err(`${prefix}รูป "${ref}" ใหญ่เกิน 5MB`));
+      } else {
+        // อัปโหลดครั้งเดียวต่อ path แม้หลายข้อ/หลายตัวเลือกใช้ร่วมกัน
+        const existing = images.get(path);
+        if (!existing) {
+          images.set(path, {
+            path,
+            fileName: basename(path),
+            mimeType: IMAGE_MIME[ext],
+            data: entry.data,
+            usedBy: [displayNo],
+          });
+        } else if (!existing.usedBy.includes(displayNo)) {
+          existing.usedBy.push(displayNo);
+        }
+        return path;
+      }
+      return null;
     };
 
     if (!isRecord(q)) {
@@ -413,43 +477,23 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
     if (!stem.trim()) issues.push(err('ไม่มีโจทย์ (stem)'));
     base.question = stem;
 
-    // images
+    // images (ทุกรูปตามลำดับ สูงสุด 6)
     const imgs = Array.isArray(q.images) ? q.images : [];
-    if (imgs.length > 0) {
-      if (imgs.length > 1) issues.push(warn(`มีรูป ${imgs.length} รูป ใช้ได้แค่รูปแรก`));
-      const first = imgs[0];
-      const ref = isRecord(first) ? asText(first.file).trim() : '';
-      if (!ref) {
-        issues.push(err('ไม่ได้ระบุไฟล์รูป (images[0].file)'));
-      } else {
-        base.imageRef = ref;
-        const path = normalizeZipPath(ref);
-        const ext = path ? extOf(path) : '';
-        const entry = path ? files.get(path) : undefined;
-        if (!path) {
-          issues.push(err(`path รูปไม่ถูกต้อง "${ref}" (ห้ามมี .. หรือขึ้นต้นด้วย /)`));
-        } else if (!IMAGE_MIME[ext]) {
-          issues.push(err(`ไม่รองรับไฟล์รูปชนิดนี้ "${ref}" (รองรับ png, jpg, jpeg, gif, webp)`));
-        } else if (!entry) {
-          issues.push(err(fromZip ? `ไม่พบรูป "${ref}" ใน zip` : `ไม่พบรูป "${ref}" (นำเข้าไฟล์ .json เดี่ยวจะไม่มีรูป ให้ใช้ .zip)`));
-        } else if (entry.size > MAX_IMAGE_BYTES || !entry.data) {
-          issues.push(err(`รูป "${ref}" ใหญ่เกิน 5MB`));
-        } else {
-          base.imagePath = path;
-          const existing = images.get(path);
-          if (existing) existing.usedBy.push(displayNo);
-          else {
-            images.set(path, {
-              path,
-              fileName: basename(path),
-              mimeType: IMAGE_MIME[ext],
-              data: entry.data,
-              usedBy: [displayNo],
-            });
-          }
-        }
-      }
+    if (imgs.length > MAX_QUESTION_IMAGES) {
+      issues.push(
+        err(`มีรูป ${imgs.length} รูป เกินสูงสุด ${MAX_QUESTION_IMAGES} รูปต่อข้อ (นำเข้าเฉพาะ ${MAX_QUESTION_IMAGES} รูปแรก)`),
+      );
     }
+    imgs.slice(0, MAX_QUESTION_IMAGES).forEach((img, i) => {
+      const ref = imageRefOf(img);
+      if (!ref) {
+        issues.push(err(`ไม่ได้ระบุไฟล์รูป (images[${i}].file)`));
+        return;
+      }
+      base.imageRefs.push(ref);
+      const path = resolveImage(ref, imgs.length > 1 ? `รูปที่ ${i + 1}: ` : '');
+      if (path) base.imagePaths.push(path);
+    });
 
     // choices / answer
     if (base.type === 'multiple_choice' && rawType === 'mcq') {
@@ -458,14 +502,30 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
         issues.push(err(`ต้องมีตัวเลือก 2–6 ตัว (พบ ${rawChoices.length} ตัว)`));
       }
       let labelProblem = false;
-      let choiceImage = false;
       const seenLabels = new Set<string>();
       const labels: string[] = [];
       const texts: string[] = [];
+      const choiceImageRefs: (string | null)[] = [];
+      const choiceImagePaths: (string | null)[] = [];
       rawChoices.forEach((c, i) => {
         const label = isRecord(c) ? asText(c.label).trim().toUpperCase() : '';
         const text = isRecord(c) ? asText(c.text) : '';
-        if (isRecord(c) && c.image !== undefined && c.image !== null && c.image !== '') choiceImage = true;
+        const rawImage = isRecord(c) ? c.image : undefined;
+        let imageRef: string | null = null;
+        let imagePath: string | null = null;
+        // ตัวเลือกเกิน 6 ตัว (error ไปแล้ว) ไม่ถูกนำเข้า → ไม่ต้องตรวจ/อัปรูป
+        if (!isNoImage(rawImage) && i < CHOICE_LABELS.length) {
+          const ref = imageRefOf(rawImage);
+          const prefix = `ตัวเลือก ${label || i + 1}: `;
+          if (!ref) {
+            issues.push(err(`${prefix}ไม่ได้ระบุไฟล์รูป (image ต้องเป็น path หรือ { "file": ... })`));
+          } else {
+            imageRef = ref;
+            imagePath = resolveImage(ref, prefix);
+          }
+        }
+        choiceImageRefs.push(imageRef);
+        choiceImagePaths.push(imagePath);
         if (!CHOICE_LABELS.includes(label)) {
           labelProblem = true;
           issues.push(err(`ตัวเลือกที่ ${i + 1} มี label "${label || '(ว่าง)'}" ไม่ถูกต้อง (ต้องเป็น A–F)`));
@@ -476,9 +536,9 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
         seenLabels.add(label);
         labels.push(label);
         texts.push(text);
-        if (!text.trim()) issues.push(warn(`ตัวเลือก ${label || i + 1} ไม่มีข้อความ`));
+        // ตัวเลือกที่เป็นรูปล้วนไม่ต้องมีข้อความ
+        if (!text.trim() && !imageRef) issues.push(warn(`ตัวเลือก ${label || i + 1} ไม่มีข้อความ`));
       });
-      if (choiceImage) issues.push(warn('ยังไม่รองรับรูปในตัวเลือก รูปในตัวเลือกจะไม่ถูกนำเข้า'));
 
       const correct = asText(q.correct).trim().toUpperCase();
       // correct_multi (array ไม่ว่าง) ใช้แทน correct — ตัดซ้ำ, ตัวเดียว = ข้อปกติ
@@ -522,6 +582,8 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
         id: labelProblem ? String.fromCharCode(97 + i) : label.toLowerCase(),
         text: texts[i],
         isCorrect: correctSet.has(label),
+        imagePath: choiceImagePaths[i],
+        imageRef: choiceImageRefs[i],
       }));
     } else if (base.type === 'short_answer' && rawType === 'numeric') {
       const value = asText(q.correct_value).trim();
@@ -667,19 +729,30 @@ export function buildCreateExamInput(
   if (!resolved.exam || resolved.hasFileError) {
     throw new Error('ไฟล์มีข้อผิดพลาด สร้างชุดข้อสอบไม่ได้');
   }
-  const questions: ExamQuestionInput[] = resolved.questions.map((q) => ({
-    question: q.question,
-    questionImage: (q.imagePath && opts.imageUrls[q.imagePath]) || undefined,
-    type: q.type,
-    choices: q.type === 'short_answer' ? [] : q.choices,
-    correctAnswer: q.type === 'short_answer' ? (q.correctAnswer ?? '') : undefined,
-    explanation: q.explanation ?? undefined,
-    hint: q.hint ?? undefined,
-    orderIndex: q.orderIndex,
-    topicId: q.topicId,
-    chapterId: q.chapterId,
-    chapter: q.chapter,
-  }));
+  const urlOf = (path: string | null) => (path && opts.imageUrls[path]) || null;
+  const questions: ExamQuestionInput[] = resolved.questions.map((q) => {
+    const questionImages = q.imagePaths.map(urlOf).filter((u): u is string => !!u);
+    return {
+      question: q.question,
+      // ส่ง questionImages เสมอ (API ใช้ array เป็นหลัก) questionImage = รูปแรก
+      questionImages,
+      questionImage: questionImages[0],
+      type: q.type,
+      choices:
+        q.type === 'short_answer'
+          ? []
+          : q.choices.map((c) =>
+              toChoiceInput({ id: c.id, text: c.text, isCorrect: c.isCorrect, image: urlOf(c.imagePath) }),
+            ),
+      correctAnswer: q.type === 'short_answer' ? (q.correctAnswer ?? '') : undefined,
+      explanation: q.explanation ?? undefined,
+      hint: q.hint ?? undefined,
+      orderIndex: q.orderIndex,
+      topicId: q.topicId,
+      chapterId: q.chapterId,
+      chapter: q.chapter,
+    };
+  });
 
   return {
     title: resolved.exam.title,

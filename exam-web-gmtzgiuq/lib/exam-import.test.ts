@@ -139,7 +139,7 @@ describe('parseImportFile — fixture zip', () => {
     expect(q1.type).toBe('multiple_choice');
     expect(q1.choices.map((c) => c.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
     expect(q1.choices.filter((c) => c.isCorrect).map((c) => c.id)).toEqual(['d']);
-    expect(q1.imagePath).toBe('images/q02-venn.png');
+    expect(q1.imagePaths).toEqual(['images/q02-venn.png']);
     expect(q1.hint).toContain('\n');
     expect(q1.status).toBe('ok');
   });
@@ -148,7 +148,7 @@ describe('parseImportFile — fixture zip', () => {
     const q3 = resolved.questions[2];
     expect(messages(q3, 'note')).toEqual(['ยังไม่มีเฉลยทางการยืนยัน (180 ตามรูป, ฉบับก่อนหน้าตอบ 120)']);
     expect(q3.status).toBe('ok');
-    expect(q3.imagePath).toBe('images/q10-rugby-sections.png');
+    expect(q3.imagePaths).toEqual(['images/q10-rugby-sections.png']);
   });
 
   it('ข้อ 5 เป็นอัตนัย correctAnswer "90"', () => {
@@ -291,8 +291,8 @@ describe('parseImportFile — รูปแบบไฟล์', () => {
     (qs[2].images as Json[])[0].file = 'images\\q10-rugby-sections.png';
     const r = resolve(parseImportFile('set.zip', sampleZip(json, 'my-set/')));
     expect(r.hasFileError).toBe(false);
-    expect(r.questions[0].imagePath).toBe('images/q02-venn.png');
-    expect(r.questions[2].imagePath).toBe('images/q10-rugby-sections.png');
+    expect(r.questions[0].imagePaths).toEqual(['images/q02-venn.png']);
+    expect(r.questions[2].imagePaths).toEqual(['images/q10-rugby-sections.png']);
     expect(r.images).toHaveLength(2);
   });
 
@@ -319,7 +319,7 @@ describe('parseImportFile — รูปแบบไฟล์', () => {
     const q3 = r.questions[2];
     expect(q3.status).toBe('error');
     expect(messages(q3, 'error')[0]).toContain('ไม่พบรูป "images/q10-rugby-sections.png"');
-    expect(q3.imagePath).toBeNull();
+    expect(q3.imagePaths).toEqual([]);
     expect(r.errorQuestionCount).toBe(1);
     const input = buildCreateExamInput(r, { category: 'a', subjectId: null, imageUrls: {} });
     expect(input.questions[2].questionImage).toBeUndefined();
@@ -352,9 +352,11 @@ describe('parseImportFile — รูปแบบไฟล์', () => {
     expect(messages(r.questions[0], 'error')[0]).toContain('path รูปไม่ถูกต้อง');
     expect(messages(r.questions[1], 'error')[0]).toContain('path รูปไม่ถูกต้อง');
     expect(messages(r.questions[2], 'error')[0]).toContain('ไม่รองรับไฟล์รูปชนิดนี้');
-    expect(messages(r.questions[3], 'error')[0]).toContain('ใหญ่เกิน 5MB');
-    expect(messages(r.questions[3], 'warning').join()).toContain('ใช้ได้แค่รูปแรก');
-    expect(r.images).toHaveLength(0);
+    expect(messages(r.questions[3], 'error')[0]).toContain('รูปที่ 1: รูป "images/big.png" ใหญ่เกิน 5MB');
+    // หลายรูปใช้ได้แล้ว (task 07): ไม่มี warning "ใช้ได้แค่รูปแรก" รูปที่ 2 ที่ถูกต้องยังใช้ได้
+    expect(messages(r.questions[3]).join()).not.toContain('ใช้ได้แค่รูปแรก');
+    expect(r.questions[3].imagePaths).toEqual(['images/q02-venn.png']);
+    expect(r.images.map((i) => i.path)).toEqual(['images/q02-venn.png']);
   });
 
   it('normalizeZipPath', () => {
@@ -374,7 +376,7 @@ describe('parseImportFile — รูปแบบไฟล์', () => {
     const json = clone(sample) as Json;
     (((json.questions as Json[])[0].images as Json[])[0]).file = 'images/././q02-venn.png';
     const r = resolve(parseImportFile('x.zip', sampleZip(json)));
-    expect(r.questions[0].imagePath).toBe('images/q02-venn.png');
+    expect(r.questions[0].imagePaths).toEqual(['images/q02-venn.png']);
     expect(r.questions[0].status).toBe('ok');
   });
 });
@@ -492,14 +494,12 @@ describe('parseImportFile — error / warning รายข้อ', () => {
     expect(errs).toContain('ไม่มีโจทย์');
   });
 
-  it('รูปในตัวเลือก / ไม่มีคำอธิบายเฉลย → เตือน', () => {
+  it('ไม่มีคำอธิบายเฉลย → เตือน', () => {
     const json = clone(sample) as Json;
     const q = (json.questions as Json[])[1];
-    (q.choices as Json[])[0].image = 'images/c.png';
     q.explanation = '';
     const r = resolve(parseImportFile('x.zip', sampleZip(json)));
     const w = messages(r.questions[1], 'warning').join();
-    expect(w).toContain('รูปในตัวเลือก');
     expect(w).toContain('ไม่มีคำอธิบายเฉลย');
     expect(r.questions[1].status).toBe('warning');
   });
@@ -610,5 +610,202 @@ describe('รอบ 2 — แตกเฉพาะไฟล์ที่ใช้
     expect(choices.map((c) => c.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
     expect(choices.map((c) => c.text)).toEqual(['A', 'B', 'C', 'D', 'E', 'F'].map((l) => `ตัวเลือก ${l}`));
     expect(choices.filter((c) => c.isCorrect).map((c) => c.id)).toEqual(['b']);
+  });
+});
+
+describe('รูปหลายรูปต่อข้อ + รูปในตัวเลือก (task 07 AC6)', () => {
+  function multiImageJson(): Json {
+    return {
+      exam: { title: 'มิติสัมพันธ์', category: 'TGAT', duration_minutes: 30 },
+      questions: [
+        {
+          no: 1,
+          type: 'mcq',
+          stem: 'วงจรและกราฟในรูป ข้อใดถูก',
+          images: [{ file: 'images/q1-circuit.png', alt: 'วงจร' }, { file: 'images/q1-graph.png' }],
+          choices: [
+            { label: 'A', text: '', image: 'images/q1-a.png' },
+            { label: 'B', text: '', image: { file: 'images/q1-b.png', alt: 'รูป B' } },
+            { label: 'C', text: 'ข้อความกับรูป', image: './images/q1-graph.png' },
+            { label: 'D', text: 'ข้อความอย่างเดียว' },
+          ],
+          correct: 'B',
+          explanation: 'เฉลย',
+        },
+        {
+          no: 2,
+          type: 'mcq',
+          stem: 'ใช้รูปซ้ำกับข้อ 1',
+          images: [{ file: 'images/q1-circuit.png' }],
+          choices: [
+            { label: 'A', text: 'หนึ่ง', image: 'images/q1-a.png' },
+            { label: 'B', text: 'สอง' },
+          ],
+          correct: 'A',
+          explanation: 'เฉลย',
+        },
+      ],
+    };
+  }
+  const allImages: Record<string, Uint8Array> = {
+    'images/q1-circuit.png': PNG,
+    'images/q1-graph.png': PNG,
+    'images/q1-a.png': PNG,
+    'images/q1-b.png': PNG,
+  };
+  const without = (path: string) =>
+    Object.fromEntries(Object.entries(allImages).filter(([p]) => p !== path));
+  const zipWith = (json: Json, files: Record<string, Uint8Array> = allImages) =>
+    parseImportFile('x.zip', zipOf({ 'exam.json': JSON.stringify(json), ...files }));
+  const urlsFor = (r: ResolvedImport) =>
+    Object.fromEntries(r.images.map((i) => [i.path, `http://api/uploads/${i.fileName}`]));
+
+  it('images 2 รูป + รูปตัวเลือก (string และ {file}) → ได้ครบ ไม่มี warning เดิม', () => {
+    const r = resolve(zipWith(multiImageJson()), null);
+    const q1 = r.questions[0];
+    expect(q1.imagePaths).toEqual(['images/q1-circuit.png', 'images/q1-graph.png']);
+    expect(q1.imageRefs).toEqual(['images/q1-circuit.png', 'images/q1-graph.png']);
+    expect(q1.choices.map((c) => c.imagePath)).toEqual([
+      'images/q1-a.png',
+      'images/q1-b.png',
+      'images/q1-graph.png',
+      null,
+    ]);
+    const all = messages(q1).join('|');
+    expect(all).not.toContain('ใช้ได้แค่รูปแรก');
+    expect(all).not.toContain('ยังไม่รองรับรูปในตัวเลือก');
+    // ตัวเลือกรูปล้วนไม่ต้องเตือนว่าไม่มีข้อความ
+    expect(all).not.toContain('ไม่มีข้อความ');
+    expect(messages(q1, 'error')).toEqual([]);
+  });
+
+  it('อัปรูปซ้ำครั้งเดียวต่อ path (ใช้ทั้งโจทย์/ตัวเลือก/หลายข้อ) usedBy ไม่ซ้ำ', () => {
+    const r = resolve(zipWith(multiImageJson()), null);
+    expect(r.images.map((i) => [i.path, i.usedBy])).toEqual([
+      ['images/q1-circuit.png', [1, 2]],
+      ['images/q1-graph.png', [1]],
+      ['images/q1-a.png', [1, 2]],
+      ['images/q1-b.png', [1]],
+    ]);
+  });
+
+  it('แตกเฉพาะรูปที่อ้างถึง รวมรูปตัวเลือก', () => {
+    mockedUnzip.mockClear();
+    zipWith(multiImageJson(), { ...allImages, 'images/unused.png': PNG });
+    const extracted = mockedUnzip.mock.results.flatMap((res) => Object.keys(res.value as Unzipped));
+    expect(extracted.sort()).toEqual([
+      'exam.json',
+      'images/q1-a.png',
+      'images/q1-b.png',
+      'images/q1-circuit.png',
+      'images/q1-graph.png',
+    ]);
+  });
+
+  it('buildCreateExamInput: questionImages ตามลำดับ, questionImage = รูปแรก, choices[].image เป็น URL', () => {
+    const r = resolve(zipWith(multiImageJson()), null);
+    const input = buildCreateExamInput(r, { category: 'tgat', subjectId: null, imageUrls: urlsFor(r) });
+    const [q1, q2] = input.questions;
+    expect(q1.questionImages).toEqual(['http://api/uploads/q1-circuit.png', 'http://api/uploads/q1-graph.png']);
+    expect(q1.questionImage).toBe('http://api/uploads/q1-circuit.png');
+    expect(q1.choices).toEqual([
+      { id: 'a', text: '', isCorrect: false, image: 'http://api/uploads/q1-a.png' },
+      { id: 'b', text: '', isCorrect: true, image: 'http://api/uploads/q1-b.png' },
+      { id: 'c', text: 'ข้อความกับรูป', isCorrect: false, image: 'http://api/uploads/q1-graph.png' },
+      { id: 'd', text: 'ข้อความอย่างเดียว', isCorrect: false },
+    ]);
+    expect(q2.questionImages).toEqual(['http://api/uploads/q1-circuit.png']);
+    expect(q2.choices?.[0].image).toBe('http://api/uploads/q1-a.png');
+  });
+
+  it('ข้อไม่มีรูป → ส่ง questionImages: [] ไม่มี questionImage', () => {
+    const json = multiImageJson();
+    delete (json.questions as Json[])[1].images;
+    const r = resolve(zipWith(json), null);
+    const input = buildCreateExamInput(r, { category: 'tgat', subjectId: null, imageUrls: urlsFor(r) });
+    expect(input.questions[1].questionImages).toEqual([]);
+    expect(input.questions[1].questionImage).toBeUndefined();
+  });
+
+  it('รูปตัวเลือกหายจาก zip → error ระบุตัวเลือก และไม่ส่ง image ของตัวนั้น', () => {
+    const r = resolve(zipWith(multiImageJson(), without('images/q1-b.png')), null);
+    const q1 = r.questions[0];
+    expect(q1.status).toBe('error');
+    expect(messages(q1, 'error')).toEqual(['ตัวเลือก B: ไม่พบรูป "images/q1-b.png" ใน zip']);
+    expect(q1.choices[1].imagePath).toBeNull();
+    expect(q1.choices[1].imageRef).toBe('images/q1-b.png');
+    const input = buildCreateExamInput(r, { category: 'tgat', subjectId: null, imageUrls: urlsFor(r) });
+    expect(input.questions[0].choices?.[1]).toEqual({ id: 'b', text: '', isCorrect: true });
+  });
+
+  it('รูปตัวเลือก path ผิด / ชนิดไม่รองรับ / ใหญ่เกิน / ระบุไม่ได้ → error ตามตัวเลือก', () => {
+    const json = multiImageJson();
+    const choices = (json.questions as Json[])[0].choices as Json[];
+    choices[0].image = '../x.png';
+    choices[1].image = 'images/b.bmp';
+    choices[2].image = { file: 'images/big.png' };
+    choices[3].image = 42;
+    const r = resolve(
+      zipWith(json, { ...allImages, 'images/b.bmp': PNG, 'images/big.png': new Uint8Array(5 * 1024 * 1024 + 1) }),
+      null,
+    );
+    const errs = messages(r.questions[0], 'error');
+    expect(errs[0]).toContain('ตัวเลือก A: path รูปไม่ถูกต้อง');
+    expect(errs[1]).toContain('ตัวเลือก B: ไม่รองรับไฟล์รูปชนิดนี้');
+    expect(errs[2]).toContain('ตัวเลือก C: รูป "images/big.png" ใหญ่เกิน 5MB');
+    expect(errs[3]).toContain('ตัวเลือก D: ไม่ได้ระบุไฟล์รูป');
+  });
+
+  it('image ว่าง / null ถือว่าไม่มีรูป', () => {
+    const json = multiImageJson();
+    const choices = (json.questions as Json[])[0].choices as Json[];
+    choices[0].image = '';
+    choices[0].text = 'ก';
+    choices[1].image = null;
+    choices[1].text = 'ข';
+    const r = resolve(zipWith(json), null);
+    expect(r.questions[0].choices.slice(0, 2).map((c) => [c.imageRef, c.imagePath])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
+    expect(messages(r.questions[0], 'error')).toEqual([]);
+  });
+
+  it('ตัวเลือกไม่มีทั้งข้อความและรูป → ยังเตือนเหมือนเดิม', () => {
+    const json = multiImageJson();
+    delete ((json.questions as Json[])[0].choices as Json[])[0].image;
+    const r = resolve(zipWith(json), null);
+    expect(messages(r.questions[0], 'warning').join()).toContain('ตัวเลือก A ไม่มีข้อความ');
+  });
+
+  it('รูปโจทย์เกิน 6 รูป → error และใช้แค่ 6 รูปแรก', () => {
+    const json = multiImageJson();
+    (json.questions as Json[])[0].images = Array.from({ length: 7 }, (_, i) => ({ file: `images/p${i}.png` }));
+    const files: Record<string, Uint8Array> = { ...allImages };
+    for (let i = 0; i < 7; i++) files[`images/p${i}.png`] = PNG;
+    const r = resolve(zipWith(json, files), null);
+    const q1 = r.questions[0];
+    expect(messages(q1, 'error').join()).toContain('มีรูป 7 รูป เกินสูงสุด 6 รูปต่อข้อ');
+    expect(q1.imagePaths).toEqual([0, 1, 2, 3, 4, 5].map((i) => `images/p${i}.png`));
+    expect(r.images.some((i) => i.path === 'images/p6.png')).toBe(false);
+  });
+
+  it('รูปโจทย์รูปที่ 2 หาย → error ระบุรูปที่ 2 รูปแรกยังใช้ได้', () => {
+    const json = multiImageJson();
+    ((json.questions as Json[])[0].choices as Json[])[2].image = null;
+    const r = resolve(zipWith(json, without('images/q1-graph.png')), null);
+    const q1 = r.questions[0];
+    expect(messages(q1, 'error')).toEqual(['รูปที่ 2: ไม่พบรูป "images/q1-graph.png" ใน zip']);
+    expect(q1.imagePaths).toEqual(['images/q1-circuit.png']);
+  });
+
+  it('.json เดี่ยว + รูปตัวเลือก → error ให้ใช้ .zip', () => {
+    const json = multiImageJson();
+    delete (json.questions as Json[])[0].images;
+    const r = resolve(parseImportFile('exam.json', jsonBytes(json)), null);
+    expect(messages(r.questions[0], 'error')[0]).toBe(
+      'ตัวเลือก A: ไม่พบรูป "images/q1-a.png" (นำเข้าไฟล์ .json เดี่ยวจะไม่มีรูป ให้ใช้ .zip)',
+    );
+    expect(r.images).toHaveLength(0);
   });
 });

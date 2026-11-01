@@ -18,8 +18,11 @@ export type QuestionStatus = 'draft' | 'published';
 
 export interface QuestionChoice {
   id: string;
+  /** ว่างได้ถ้ามีรูป */
   text: string;
   isCorrect: boolean;
+  /** รูปของตัวเลือก (API ไม่ส่ง key นี้ถ้าไม่มีรูป) */
+  image?: string | null;
 }
 
 export interface QuestionAuthor {
@@ -31,7 +34,10 @@ export interface QuestionAuthor {
 export interface Question {
   id: string;
   question: string;
-  questionImage?: string;
+  /** รูปแรก (ค่าเดิม) — แสดงผลให้ใช้ getQuestionImages() จาก lib/question-images */
+  questionImage?: string | null;
+  /** รูปทั้งหมดตามลำดับ (ข้อเก่า = null) */
+  questionImages?: string[] | null;
   choices: QuestionChoice[];
   explanation?: string;
   hint?: string;

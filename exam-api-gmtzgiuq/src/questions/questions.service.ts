@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import {
   Question,
   QuestionCategory,
@@ -16,6 +16,12 @@ import {
 } from './dto/question.dto';
 import { User } from '../users/user.entity';
 import { UploadService } from '../upload/upload.service';
+import {
+  collectQuestionImageUrls,
+  deleteUnusedImages,
+  normalizeChoices,
+  resolveQuestionImages,
+} from './question-images';
 
 @Injectable()
 export class QuestionsService {
@@ -31,6 +37,8 @@ export class QuestionsService {
   ): Promise<Question> {
     const question = this.questionsRepository.create({
       ...createQuestionInput,
+      ...resolveQuestionImages(createQuestionInput),
+      choices: normalizeChoices(createQuestionInput.choices),
       author,
       authorId: author.id,
     });
@@ -62,7 +70,9 @@ export class QuestionsService {
     }
 
     if (difficulty) {
-      queryBuilder.andWhere('question.difficulty = :difficulty', { difficulty });
+      queryBuilder.andWhere('question.difficulty = :difficulty', {
+        difficulty,
+      });
     }
 
     if (search) {
@@ -120,30 +130,57 @@ export class QuestionsService {
     updateQuestionInput: UpdateQuestionInput,
   ): Promise<Question> {
     const question = await this.findOne(id);
+    const oldImageUrls = collectQuestionImageUrls(question);
 
-    // Delete old image if it's being replaced
-    if (
-      updateQuestionInput.questionImage &&
-      question.questionImage &&
-      updateQuestionInput.questionImage !== question.questionImage
-    ) {
-      this.uploadService.deleteByUrl(question.questionImage);
+    const { questionImage, questionImages, choices, ...fields } =
+      updateQuestionInput;
+    Object.assign(question, fields);
+
+    // Images change only when sent: questionImages (array) wins, otherwise a
+    // legacy questionImage replaces the whole list with [questionImage]
+    if (Array.isArray(questionImages) || questionImage !== undefined) {
+      Object.assign(
+        question,
+        resolveQuestionImages({ questionImage, questionImages }),
+      );
+    }
+    if (choices !== undefined) {
+      question.choices = normalizeChoices(choices);
     }
 
-    Object.assign(question, updateQuestionInput);
-    return this.questionsRepository.save(question);
+    const siblingUrls = await this.siblingImageUrls(question);
+    const saved = await this.questionsRepository.save(question);
+
+    // Saved: drop image files neither this question nor its siblings use
+    deleteUnusedImages(this.uploadService, oldImageUrls, [
+      ...collectQuestionImageUrls(saved),
+      ...siblingUrls,
+    ]);
+    return saved;
   }
 
   async remove(id: string): Promise<boolean> {
     const question = await this.findOne(id);
-
-    // Delete associated image file
-    if (question.questionImage) {
-      this.uploadService.deleteByUrl(question.questionImage);
-    }
+    const imageUrls = collectQuestionImageUrls(question);
+    const siblingUrls = await this.siblingImageUrls(question);
 
     await this.questionsRepository.remove(question);
+
+    // Removed: delete its image files unless another question of the same
+    // exam still uses them
+    deleteUnusedImages(this.uploadService, imageUrls, siblingUrls);
     return true;
+  }
+
+  /** Image URLs used by the other questions of the same exam. */
+  private async siblingImageUrls(question: Question): Promise<string[]> {
+    if (!question.examId) return [];
+    const siblings = await this.questionsRepository.find({
+      select: ['id', 'questionImage', 'questionImages', 'choices'],
+      where: { examId: question.examId, id: Not(question.id) },
+      loadEagerRelations: false,
+    });
+    return siblings.flatMap((q) => collectQuestionImageUrls(q));
   }
 
   async findByTopic(topicId: string): Promise<Question[]> {
