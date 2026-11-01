@@ -41,7 +41,7 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    const { password, emailVerificationToken, emailVerificationExpires, resetPasswordToken, resetPasswordExpires, ...safeUser } = user;
-    return safeUser;
+    // User.toJSON strips password/tokens/expires/providerId from the response
+    return user;
   }
 }

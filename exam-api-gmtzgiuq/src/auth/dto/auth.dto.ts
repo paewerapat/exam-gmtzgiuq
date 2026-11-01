@@ -1,5 +1,5 @@
 import { InputType, Field, ObjectType } from '@nestjs/graphql';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 import { User } from '../../users/user.entity';
 
 @InputType()
@@ -46,9 +46,32 @@ export class AuthPayload {
 export class ResetPasswordInput {
   @Field()
   @IsString()
+  @IsNotEmpty()
   token: string;
 
   @Field()
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
+}
+
+// REST bodies (POST /auth/...) — validated by the global ValidationPipe
+export class VerifyEmailDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
+
+export class RequestPasswordResetDto {
+  @IsEmail()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
   @IsString()
   @MinLength(6)
   newPassword: string;

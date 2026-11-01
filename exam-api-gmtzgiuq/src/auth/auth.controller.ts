@@ -6,8 +6,14 @@ import {
   Request,
   Get,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { RegisterInput, AuthPayload } from './dto/auth.dto';
+import { AuthService, PASSWORD_RESET_REQUESTED_MESSAGE } from './auth.service';
+import {
+  RegisterInput,
+  AuthPayload,
+  VerifyEmailDto,
+  RequestPasswordResetDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
 import { LocalAuthGuard } from '../common/guards/local-auth.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { User } from '../users/user.entity';
@@ -28,24 +34,25 @@ export class AuthController {
   }
 
   @Post('verify-email')
-  async verifyEmail(@Body('token') token: string): Promise<User> {
-    return this.authService.verifyEmail(token);
+  async verifyEmail(@Body() dto: VerifyEmailDto): Promise<{ message: string }> {
+    await this.authService.verifyEmail(dto.token);
+    return { message: 'Email verified' };
   }
 
   @Post('request-password-reset')
   async requestPasswordReset(
-    @Body('email') email: string,
+    @Body() dto: RequestPasswordResetDto,
   ): Promise<{ message: string }> {
-    const token = await this.authService.requestPasswordReset(email);
-    return { message: 'If email exists, reset link will be sent' };
+    await this.authService.requestPasswordReset(dto.email);
+    return { message: PASSWORD_RESET_REQUESTED_MESSAGE };
   }
 
   @Post('reset-password')
   async resetPassword(
-    @Body('token') token: string,
-    @Body('newPassword') newPassword: string,
-  ): Promise<User> {
-    return this.authService.resetPassword(token, newPassword);
+    @Body() dto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { message: 'Password has been reset' };
   }
 
   @UseGuards(JwtAuthGuard)

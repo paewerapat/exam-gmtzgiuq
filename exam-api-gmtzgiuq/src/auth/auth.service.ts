@@ -6,12 +6,18 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
-import { UsersService } from '../users/users.service';
+import { UsersService, assertNonEmptyString } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/user.entity';
 import { RegisterInput, AuthPayload } from './dto/auth.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import * as crypto from 'crypto';
+
+// Same answer whether or not the email exists — never return the token (SEC-3)
+export const PASSWORD_RESET_REQUESTED_MESSAGE =
+  'If email exists, reset link will be sent';
+
+const GOOGLE_LOGIN_FAILED_MESSAGE = 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้';
 
 @Injectable()
 export class AuthService {
@@ -29,6 +35,11 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string): Promise<User | null> {
+    // A JSON body can carry a number/object here; treat it as bad credentials
+    // (401) instead of letting bcrypt throw a 500
+    if (typeof password !== 'string' || password === '') {
+      return null;
+    }
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       return null;
@@ -53,7 +64,11 @@ export class AuthService {
   }
 
   async login(user: User): Promise<AuthPayload> {
-    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
     return {
       accessToken: this.jwtService.sign(payload),
       user,
@@ -87,7 +102,11 @@ export class AuthService {
         console.error('Failed to send verification email:', err);
       });
 
-    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
     return {
       accessToken: this.jwtService.sign(payload),
       user,
@@ -99,10 +118,11 @@ export class AuthService {
   }
 
   async requestPasswordReset(email: string): Promise<string> {
+    assertNonEmptyString(email, 'กรุณาระบุอีเมล');
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       // For security, don't reveal if email exists
-      return 'If email exists, reset link will be sent';
+      return PASSWORD_RESET_REQUESTED_MESSAGE;
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -115,7 +135,7 @@ export class AuthService {
         console.error('Failed to send password reset email:', err);
       });
 
-    return resetToken;
+    return PASSWORD_RESET_REQUESTED_MESSAGE;
   }
 
   async resetPassword(token: string, newPassword: string): Promise<User> {
@@ -134,8 +154,15 @@ export class AuthService {
       });
 
       const payload = ticket.getPayload();
-      if (!payload || !payload.email) {
-        throw new UnauthorizedException('Invalid Google token');
+      if (!payload || !payload.email || !payload.sub) {
+        throw new UnauthorizedException(GOOGLE_LOGIN_FAILED_MESSAGE);
+      }
+
+      // Only trust the email when Google has verified ownership of it
+      if (payload.email_verified !== true) {
+        throw new UnauthorizedException(
+          'อีเมล Google นี้ยังไม่ได้รับการยืนยัน กรุณายืนยันอีเมลกับ Google ก่อน',
+        );
       }
 
       const user = await this.usersService.findOrCreateGoogleUser({
@@ -146,18 +173,25 @@ export class AuthService {
         avatar: payload.picture,
       });
 
-      const jwtPayload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
+      const jwtPayload: JwtPayload = {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+      };
       return {
         accessToken: this.jwtService.sign(jwtPayload),
         user,
       };
     } catch (error) {
-      // Re-throw ConflictException to preserve the Thai error message
-      if (error instanceof ConflictException) {
+      // Re-throw our own exceptions to preserve the Thai error message
+      if (
+        error instanceof ConflictException ||
+        error instanceof UnauthorizedException
+      ) {
         throw error;
       }
       console.error('Google login error:', error);
-      throw new UnauthorizedException('ไม่สามารถเข้าสู่ระบบด้วย Google ได้');
+      throw new UnauthorizedException(GOOGLE_LOGIN_FAILED_MESSAGE);
     }
   }
 }

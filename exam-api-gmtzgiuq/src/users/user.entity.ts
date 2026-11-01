@@ -23,6 +23,19 @@ registerEnumType(UserRole, {
   name: 'UserRole',
 });
 
+// Columns that must never leave the API in a REST/JSON response (SEC-2).
+export const USER_PRIVATE_FIELDS = [
+  'password',
+  'emailVerificationToken',
+  'emailVerificationExpires',
+  'resetPasswordToken',
+  'resetPasswordExpires',
+  'providerId',
+] as const;
+
+export type UserPrivateField = (typeof USER_PRIVATE_FIELDS)[number];
+export type PublicUser = Omit<User, UserPrivateField | 'toJSON'>;
+
 @ObjectType()
 @Entity('users')
 export class User {
@@ -56,19 +69,19 @@ export class User {
 
   @HideField()
   @Column({ type: 'varchar', length: 255, nullable: true })
-  emailVerificationToken?: string;
+  emailVerificationToken?: string | null;
 
   @HideField()
   @Column({ type: 'timestamp', nullable: true })
-  emailVerificationExpires?: Date;
+  emailVerificationExpires?: Date | null;
 
   @HideField()
   @Column({ type: 'varchar', length: 255, nullable: true })
-  resetPasswordToken?: string;
+  resetPasswordToken?: string | null;
 
   @HideField()
   @Column({ type: 'timestamp', nullable: true })
-  resetPasswordExpires?: Date;
+  resetPasswordExpires?: Date | null;
 
   @Field()
   @Column({ default: 'local' })
@@ -93,4 +106,16 @@ export class User {
   @Field()
   @UpdateDateColumn()
   updatedAt: Date;
+
+  // JSON.stringify (Express res.json) calls this for every User instance,
+  // including nested ones such as exam.author or attempt.user, so secrets are
+  // stripped from all REST responses. The entity itself keeps the values
+  // (validatePassword reads user.password) and GraphQL resolves fields
+  // directly, where @HideField already hides them.
+  toJSON(): PublicUser {
+    const privateFields: readonly string[] = USER_PRIVATE_FIELDS;
+    return Object.fromEntries(
+      Object.entries(this).filter(([key]) => !privateFields.includes(key)),
+    ) as PublicUser;
+  }
 }

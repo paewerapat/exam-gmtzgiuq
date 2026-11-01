@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,6 +8,19 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './user.entity';
 import * as bcrypt from 'bcrypt';
+
+// TypeORM drops `undefined` from a where clause, so
+// findOne({ where: { x: undefined } }) runs without a WHERE and returns the
+// first user. Any lookup by a value that comes from a request must reject
+// anything that is not a non-empty string before it reaches the repository.
+export function assertNonEmptyString(
+  value: unknown,
+  message: string,
+): asserts value is string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new BadRequestException(message);
+  }
+}
 
 @Injectable()
 export class UsersService {
@@ -40,10 +54,12 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
+    assertNonEmptyString(email, 'กรุณาระบุอีเมล');
     return this.usersRepository.findOne({ where: { email } });
   }
 
   async findById(id: string): Promise<User | null> {
+    assertNonEmptyString(id, 'Invalid user id');
     return this.usersRepository.findOne({ where: { id } });
   }
 
@@ -51,6 +67,8 @@ export class UsersService {
     provider: string,
     providerId: string,
   ): Promise<User | null> {
+    assertNonEmptyString(provider, 'Invalid provider');
+    assertNonEmptyString(providerId, 'Invalid provider id');
     return this.usersRepository.findOne({ where: { provider, providerId } });
   }
 
@@ -135,6 +153,7 @@ export class UsersService {
   }
 
   async verifyEmail(token: string): Promise<User> {
+    assertNonEmptyString(token, 'Invalid verification token');
     const user = await this.usersRepository.findOne({
       where: { emailVerificationToken: token },
     });
@@ -147,9 +166,11 @@ export class UsersService {
       throw new ConflictException('Verification token has expired');
     }
 
+    // null (not undefined) so save() really clears the columns and the token
+    // cannot be reused
     user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
 
     return this.usersRepository.save(user);
   }
@@ -165,6 +186,8 @@ export class UsersService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<User> {
+    assertNonEmptyString(token, 'Invalid reset token');
+    assertNonEmptyString(newPassword, 'กรุณาระบุรหัสผ่านใหม่');
     const user = await this.usersRepository.findOne({
       where: { resetPasswordToken: token },
     });
@@ -178,14 +201,15 @@ export class UsersService {
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
 
     return this.usersRepository.save(user);
   }
 
   async validatePassword(user: User, password: string): Promise<boolean> {
-    if (!user.password) return false;
+    // bcrypt.compare throws (→ 500) when either side is not a string
+    if (!user.password || typeof password !== 'string') return false;
     return bcrypt.compare(password, user.password);
   }
 

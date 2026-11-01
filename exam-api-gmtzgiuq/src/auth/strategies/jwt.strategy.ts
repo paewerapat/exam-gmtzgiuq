@@ -25,7 +25,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<User> {
-    const user = await this.usersService.findById(payload.sub);
+    // A token without a usable `sub` (e.g. signed with a leaked secret) must
+    // not reach findById, which would otherwise match the first user
+    const sub: unknown = payload?.sub;
+    if (typeof sub !== 'string' || sub.trim() === '') {
+      throw new UnauthorizedException();
+    }
+    const user = await this.usersService.findById(sub);
     if (!user) {
       throw new UnauthorizedException();
     }
