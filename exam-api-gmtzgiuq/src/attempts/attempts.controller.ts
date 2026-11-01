@@ -132,11 +132,14 @@ export class AttemptsController {
     );
   }
 
-  // User - Get single attempt detail
+  // User - Get single attempt detail (owner only, otherwise 404)
   @Get('my/:id')
   @UseGuards(JwtAuthGuard)
-  async findMyAttempt(@Param('id') id: string) {
-    return this.attemptsService.findOne(id);
+  async findMyAttempt(
+    @Param('id') id: string,
+    @Request() req: { user: { id: string } },
+  ) {
+    return this.attemptsService.findOneForUser(id, req.user.id);
   }
 
   // Admin - Get all attempts

@@ -18,6 +18,8 @@ import { CurriculumModule } from './curriculum/curriculum.module';
 import { CategoriesModule } from './categories/categories.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { setUploadSecurityHeaders } from './upload/upload-headers';
+import type { Response } from 'express';
 
 @Module({
   imports: [
@@ -65,6 +67,11 @@ import { FeedbackModule } from './feedback/feedback.module';
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
+      serveStaticOptions: {
+        // main.ts also sets these for all of /uploads; repeated here so the
+        // files stay protected even if that middleware order changes.
+        setHeaders: (res: Response) => setUploadSecurityHeaders(res),
+      },
     }),
 
     // Feature Modules

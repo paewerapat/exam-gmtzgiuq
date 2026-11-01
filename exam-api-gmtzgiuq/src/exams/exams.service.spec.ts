@@ -9,6 +9,18 @@ import { CreateExamQuestionInput, UpdateExamInput } from './dto/exam.dto';
 
 const LOCAL = 'http://localhost:3001/uploads';
 
+// Upload filenames in the format POST /upload generates
+// (<timestamp>-<16 hex>.<ext>); UploadService.extractFilename ignores others.
+const IMG = {
+  a: '1700000000001-000000000000000a.png',
+  b: '1700000000002-000000000000000b.png',
+  c: '1700000000003-000000000000000c.png',
+  new: '1700000000004-0000000000000004.png',
+  shared: '1700000000005-0000000000000005.png',
+  x: '1700000000006-0000000000000006.png',
+  y: '1700000000007-0000000000000007.png',
+};
+
 function makeExam(images: (string | null)[]): Exam {
   return {
     id: 'exam-1',
@@ -98,10 +110,14 @@ describe('ExamsService', () => {
 
   describe('update — question images (BUG-2)', () => {
     it('AC1 keeps files that the new questions still use', async () => {
-      givenExam([`${LOCAL}/a.png`, `${LOCAL}/b.png`, null]);
+      givenExam([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`, null]);
 
       await service.update('exam-1', {
-        questions: questionsWith([`${LOCAL}/a.png`, `${LOCAL}/b.png`, null]),
+        questions: questionsWith([
+          `${LOCAL}/${IMG.a}`,
+          `${LOCAL}/${IMG.b}`,
+          null,
+        ]),
       } as UpdateExamInput);
 
       expect(manager.delete).toHaveBeenCalledWith(Question, {
@@ -112,57 +128,61 @@ describe('ExamsService', () => {
     });
 
     it('AC2 deletes only the image replaced with a new one', async () => {
-      givenExam([`${LOCAL}/a.png`, `${LOCAL}/b.png`]);
+      givenExam([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]);
 
       await service.update('exam-1', {
-        questions: questionsWith([`${LOCAL}/a.png`, `${LOCAL}/new.png`]),
+        questions: questionsWith([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.new}`]),
       } as UpdateExamInput);
 
-      expect(deletedUrls()).toEqual([`${LOCAL}/b.png`]);
+      expect(deletedUrls()).toEqual([`${LOCAL}/${IMG.b}`]);
     });
 
     it('AC2 deletes the image removed from a question', async () => {
-      givenExam([`${LOCAL}/a.png`, `${LOCAL}/b.png`]);
+      givenExam([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]);
 
       await service.update('exam-1', {
-        questions: questionsWith([null, `${LOCAL}/b.png`]),
+        questions: questionsWith([null, `${LOCAL}/${IMG.b}`]),
       } as UpdateExamInput);
 
-      expect(deletedUrls()).toEqual([`${LOCAL}/a.png`]);
+      expect(deletedUrls()).toEqual([`${LOCAL}/${IMG.a}`]);
     });
 
     it('AC2 deletes the image of a deleted question only', async () => {
-      givenExam([`${LOCAL}/a.png`, `${LOCAL}/b.png`, `${LOCAL}/c.png`]);
+      givenExam([
+        `${LOCAL}/${IMG.a}`,
+        `${LOCAL}/${IMG.b}`,
+        `${LOCAL}/${IMG.c}`,
+      ]);
 
       await service.update('exam-1', {
-        questions: questionsWith([`${LOCAL}/a.png`, `${LOCAL}/c.png`]),
+        questions: questionsWith([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.c}`]),
       } as UpdateExamInput);
 
-      expect(deletedUrls()).toEqual([`${LOCAL}/b.png`]);
+      expect(deletedUrls()).toEqual([`${LOCAL}/${IMG.b}`]);
     });
 
     it('AC3 keeps a shared image when only one question drops it', async () => {
-      givenExam([`${LOCAL}/shared.png`, `${LOCAL}/shared.png`]);
+      givenExam([`${LOCAL}/${IMG.shared}`, `${LOCAL}/${IMG.shared}`]);
 
       await service.update('exam-1', {
-        questions: questionsWith([`${LOCAL}/shared.png`, null]),
+        questions: questionsWith([`${LOCAL}/${IMG.shared}`, null]),
       } as UpdateExamInput);
 
       expect(deleteByUrl).not.toHaveBeenCalled();
     });
 
     it('AC3 deletes a shared image once when no question uses it anymore', async () => {
-      givenExam([`${LOCAL}/shared.png`, `${LOCAL}/shared.png`]);
+      givenExam([`${LOCAL}/${IMG.shared}`, `${LOCAL}/${IMG.shared}`]);
 
       await service.update('exam-1', {
         questions: questionsWith([null, null]),
       } as UpdateExamInput);
 
-      expect(deletedUrls()).toEqual([`${LOCAL}/shared.png`]);
+      expect(deletedUrls()).toEqual([`${LOCAL}/${IMG.shared}`]);
     });
 
     it('AC4 deletes nothing when the transaction fails', async () => {
-      givenExam([`${LOCAL}/a.png`, `${LOCAL}/b.png`]);
+      givenExam([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]);
       manager.save.mockRejectedValueOnce(new Error('Data too long for hint'));
 
       await expect(
@@ -175,7 +195,7 @@ describe('ExamsService', () => {
     });
 
     it('AC4 deletes files only after the transaction has committed', async () => {
-      givenExam([`${LOCAL}/a.png`]);
+      givenExam([`${LOCAL}/${IMG.a}`]);
       let committed = false;
       manager.update.mockImplementation(() => {
         committed = true;
@@ -195,14 +215,14 @@ describe('ExamsService', () => {
 
     it('AC5 treats the same file on a different host as the same image', async () => {
       givenExam([
-        'http://localhost:3001/uploads/x.png',
-        'http://localhost:3001/uploads/y.png',
+        `http://localhost:3001/uploads/${IMG.x}`,
+        `http://localhost:3001/uploads/${IMG.y}`,
       ]);
 
       await service.update('exam-1', {
         questions: questionsWith([
-          'https://api.example/uploads/x.png',
-          '/uploads/y.png',
+          `https://api.example/uploads/${IMG.x}`,
+          `/uploads/${IMG.y}`,
         ]),
       } as UpdateExamInput);
 
@@ -210,7 +230,7 @@ describe('ExamsService', () => {
     });
 
     it('AC6 does not delete images when questions are not sent', async () => {
-      givenExam([`${LOCAL}/a.png`, `${LOCAL}/b.png`]);
+      givenExam([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]);
 
       await service.update('exam-1', {
         status: QuestionStatus.PUBLISHED,
@@ -226,7 +246,7 @@ describe('ExamsService', () => {
     });
 
     it('does not fail the request when deleting a file throws', async () => {
-      givenExam([`${LOCAL}/a.png`, `${LOCAL}/b.png`]);
+      givenExam([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]);
       const consoleError = jest
         .spyOn(console, 'error')
         .mockImplementation(() => undefined);
@@ -240,7 +260,7 @@ describe('ExamsService', () => {
         } as UpdateExamInput),
       ).resolves.toBeDefined();
 
-      expect(deletedUrls()).toEqual([`${LOCAL}/a.png`, `${LOCAL}/b.png`]);
+      expect(deletedUrls()).toEqual([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]);
       consoleError.mockRestore();
     });
   });

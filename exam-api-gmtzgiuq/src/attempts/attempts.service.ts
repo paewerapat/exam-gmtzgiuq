@@ -213,6 +213,26 @@ export class AttemptsService {
     return attempt;
   }
 
+  /**
+   * Single attempt for its owner. Another user's attempt is reported as not
+   * found (404) so attempt ids cannot be probed. Admins use findOne via
+   * /attempts/admin/:id.
+   */
+  async findOneForUser(id: string, userId: string): Promise<ExamAttempt> {
+    if (!userId) throw new NotFoundException('Attempt not found');
+
+    const attempt = await this.attemptsRepository.findOne({
+      where: { id, userId },
+      relations: ['user', 'exam'],
+    });
+
+    if (!attempt) {
+      throw new NotFoundException('Attempt not found');
+    }
+
+    return attempt;
+  }
+
   async findAll(
     page: number = 1,
     limit: number = 10,

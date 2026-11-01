@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { uploadSecurityHeaders } from './upload/upload-headers';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -8,6 +9,10 @@ async function bootstrap() {
   });
   app.use(require('express').json({ limit: '10mb' }));
   app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
+
+  // nosniff + CSP sandbox on everything under /uploads (this static handler
+  // and ServeStaticModule) — registered first so it runs before both.
+  app.use('/uploads', uploadSecurityHeaders);
 
   // Serve uploaded images statically at /uploads/*
   app.use('/uploads', require('express').static(require('path').join(process.cwd(), 'uploads')));
