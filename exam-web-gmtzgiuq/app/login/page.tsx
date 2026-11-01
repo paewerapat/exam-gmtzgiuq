@@ -7,11 +7,13 @@ import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, Lock, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { getSafeRedirect } from '@/lib/safe-redirect';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/';
+  // SEC-13: รับเฉพาะ path ภายใน กัน open redirect / javascript: XSS
+  const redirectTo = getSafeRedirect(searchParams.get('redirect'));
   const { user, loading: authLoading, login, loginWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
