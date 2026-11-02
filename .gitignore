@@ -2,3 +2,5 @@
 node_modules
 .env
 docs/dev-loop/
+.env.*
+!.env.example
