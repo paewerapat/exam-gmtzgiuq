@@ -97,16 +97,75 @@ export function collectQuestionImageUrls(
 }
 
 /**
- * Delete the image files in `oldUrls` that no URL in `inUseUrls` refers to.
- * Compares by upload filename (not full URL) so the same file served from a
- * different host still counts as in use, and deletes each file once.
- * Never throws: a failed delete is only logged.
+ * Anything that runs raw SQL with `?` placeholders: DataSource,
+ * EntityManager or Repository.
  */
-export function deleteUnusedImages(
+export interface RawQueryRunner {
+  query(sql: string, parameters?: unknown[]): Promise<unknown>;
+}
+
+/**
+ * Counts the places that still refer to an upload (one LIKE pattern bound 8
+ * times): every question/exam image (question images, choice images, banner,
+ * passage images), blog featured image and content, and user avatars.
+ * JSON columns are compared as text. `!` is the LIKE escape character.
+ */
+export const UPLOAD_REFERENCE_SQL = `SELECT
+  EXISTS(SELECT 1 FROM questions WHERE questionImage LIKE ? ESCAPE '!'
+    OR CAST(questionImages AS CHAR) LIKE ? ESCAPE '!'
+    OR CAST(choices AS CHAR) LIKE ? ESCAPE '!')
+  + EXISTS(SELECT 1 FROM exams WHERE bannerImage LIKE ? ESCAPE '!'
+    OR CAST(passages AS CHAR) LIKE ? ESCAPE '!')
+  + EXISTS(SELECT 1 FROM blogs WHERE featuredImage LIKE ? ESCAPE '!'
+    OR content LIKE ? ESCAPE '!')
+  + EXISTS(SELECT 1 FROM users WHERE avatar LIKE ? ESCAPE '!') AS refs`;
+
+const UPLOAD_REFERENCE_PARAM_COUNT = 8;
+
+/** Escape LIKE wildcards (`%`, `_`) and the escape character `!`. */
+export function escapeLike(value: string): string {
+  return value.replace(/[!%_]/g, '!$&');
+}
+
+/**
+ * True if any row in the database still refers to the upload `filename`.
+ * Throws when the query fails or returns something unexpected, so callers
+ * can keep the file (fail-safe).
+ */
+export async function isUploadReferenced(
+  db: RawQueryRunner,
+  filename: string,
+): Promise<boolean> {
+  const pattern = `%${escapeLike(filename)}%`;
+  const rows = await db.query(
+    UPLOAD_REFERENCE_SQL,
+    Array<string>(UPLOAD_REFERENCE_PARAM_COUNT).fill(pattern),
+  );
+  const row: unknown = Array.isArray(rows) ? rows[0] : undefined;
+  if (!row || typeof row !== 'object' || !('refs' in row)) {
+    throw new Error('Unexpected result from the upload reference query');
+  }
+  const refs = (row as { refs: unknown }).refs;
+  // Only an explicit zero means "unused"; any other value counts as used
+  return !(refs === 0 || refs === '0' || refs === BigInt(0));
+}
+
+/**
+ * Delete the image files in `oldUrls` that are no longer used anywhere.
+ * - Skips files that a URL in `inUseUrls` refers to (compared by upload
+ *   filename, so the same file on a different host still counts as in use).
+ * - Then asks the database whether any question, exam, blog or user still
+ *   refers to the file (another exam may use the same URL); only files with
+ *   no reference are deleted. A failed check keeps the file.
+ * Call after the change has been committed. Deletes each file once and never
+ * throws: failures are only logged.
+ */
+export async function deleteUnusedImages(
   uploadService: UploadService,
+  db: RawQueryRunner,
   oldUrls: string[],
   inUseUrls: string[],
-): void {
+): Promise<void> {
   const inUse = new Set<string>();
   for (const url of inUseUrls) {
     const filename = uploadService.extractFilename(url);
@@ -118,6 +177,17 @@ export function deleteUnusedImages(
     const filename = uploadService.extractFilename(url);
     if (!filename || inUse.has(filename) || handled.has(filename)) continue;
     handled.add(filename);
+
+    try {
+      if (await isUploadReferenced(db, filename)) continue;
+    } catch (err) {
+      console.error(
+        `Kept image ${filename}: could not check whether it is still used`,
+        err,
+      );
+      continue;
+    }
+
     try {
       uploadService.deleteByUrl(url);
     } catch (err) {

@@ -1,6 +1,7 @@
 import { strToU8, unzipSync, zipSync, type Unzipped } from 'fflate';
 import {
   buildCreateExamInput,
+  importImagesToUpload,
   normalizeZipPath,
   parseImportFile,
   resolveImport,
@@ -115,9 +116,8 @@ describe('parseImportFile — fixture zip', () => {
       categoryText: 'A-LEVEL MATH',
       durationMinutes: 90,
     });
-    // passage_groups ระดับไฟล์ → เตือน
-    expect(parsed.fileIssues.map((i) => i.level)).toEqual(['warning']);
-    expect(parsed.fileIssues[0].message).toContain('บทอ่านร่วม');
+    // task 08: passage_groups นำเข้าได้แล้ว ไม่มีคำเตือนระดับไฟล์ "ยังไม่รองรับ"
+    expect(parsed.fileIssues).toEqual([]);
   });
 
   it('ได้ 7 ข้อเรียงตาม no และทุกข้อไม่มี error', () => {
@@ -157,9 +157,14 @@ describe('parseImportFile — fixture zip', () => {
     expect(q5.correctAnswer).toBe('90');
   });
 
-  it('ข้อ 6 เตือนบทอ่านร่วม', () => {
-    expect(resolved.questions[5].status).toBe('warning');
-    expect(messages(resolved.questions[5], 'warning').join()).toContain('บทอ่านร่วม');
+  it('ข้อ 6 ผูกบทอ่าน reading-1 ไม่มีคำเตือน "ยังไม่รองรับ" (task 08 AC8)', () => {
+    const q6 = resolved.questions[5];
+    expect(q6.passageGroupRef).toBe('reading-1');
+    expect(q6.passageId).toBe('reading-1');
+    expect(messages(q6).join()).not.toContain('ยังไม่รองรับ');
+    expect(messages(q6, 'error')).toEqual([]);
+    // ข้ออื่นไม่มีบทอ่าน
+    expect(resolved.questions.filter((q) => q.passageId).map((q) => q.no)).toEqual([6]);
   });
 
   it('ข้อ 7 correct_multi ["B","C","D"] → b,c,d ถูก ไม่มี warning "ยังไม่รองรับ" (task 06 AC6)', () => {
@@ -171,10 +176,10 @@ describe('parseImportFile — fixture zip', () => {
     expect(messages(q7, 'warning').join()).not.toContain('correct');
   });
 
-  it('รูปที่ต้องอัปมี 2 รูป (รูปของ passage_groups ไม่นับ)', () => {
-    expect(resolved.images.map((i) => [i.path, i.mimeType, i.usedBy])).toEqual([
-      ['images/q02-venn.png', 'image/png', [1]],
-      ['images/q10-rugby-sections.png', 'image/png', [3]],
+  it('รูปที่ต้องอัปมี 2 รูป (รูปบทอ่านซ้ำกับรูปข้อ 1 อัปครั้งเดียว)', () => {
+    expect(resolved.images.map((i) => [i.path, i.mimeType, i.usedBy, i.usedByPassages])).toEqual([
+      ['images/q02-venn.png', 'image/png', [1], ['reading-1']],
+      ['images/q10-rugby-sections.png', 'image/png', [3], []],
     ]);
   });
 
@@ -332,7 +337,13 @@ describe('parseImportFile — รูปแบบไฟล์', () => {
     expect(r.images).toHaveLength(0);
     expect(r.questions[0].status).toBe('error');
     expect(messages(r.questions[0], 'error')[0]).toContain('ไม่พบรูป');
-    expect(r.errorQuestionCount).toBe(2);
+    // ข้อ 6: บทอ่าน reading-1 มีแต่รูป (หาย) → บทอ่านใช้ไม่ได้ ข้อที่ผูกถูกแจ้ง error (ไม่บล็อกทั้งไฟล์)
+    expect(r.passages[0].usable).toBe(false);
+    expect(messages(r.questions[5], 'error')[0]).toContain('บทอ่าน "reading-1" มีข้อผิดพลาด');
+    expect(r.errorQuestionCount).toBe(3);
+    const input = buildCreateExamInput(r, { category: 'a', subjectId: null, imageUrls: {} });
+    expect(input.passages).toEqual([]);
+    expect(input.questions[5].passageId).toBeNull();
   });
 
   it('path มี .. / ขึ้นต้นด้วย / / นามสกุลไม่รองรับ / ใหญ่เกิน 5MB → error รายข้อ', () => {
@@ -510,7 +521,7 @@ describe('parseImportFile — error / warning รายข้อ', () => {
     (json.exam as Json).status = 'published';
     const r = resolve(parseImportFile('x.zip', sampleZip(json)));
     expect(r.exam?.durationMinutes).toBeNull();
-    expect(r.fileIssues.map((i) => i.level)).toEqual(['warning', 'note', 'warning']);
+    expect(r.fileIssues.map((i) => i.level)).toEqual(['warning', 'note']);
     const input = buildCreateExamInput(r, { category: 'a', subjectId: null, imageUrls: {} });
     expect(input.status).toBe('draft');
     expect(input.durationMinutes).toBeNull();
@@ -540,6 +551,7 @@ describe('รอบ 2 — แตกเฉพาะไฟล์ที่ใช้
   it('ไม่มีรูปที่อ้างถึงใน zip → แตกรอบเดียว (เฉพาะ exam.json)', () => {
     const json = clone(sample) as Json;
     for (const q of json.questions as Json[]) q.images = [];
+    for (const g of json.passage_groups as Json[]) g.images = [];
     parseImportFile('x.zip', zipOf({ 'exam.json': JSON.stringify(json), 'images/q02-venn.png': PNG }));
     expect(mockedUnzip).toHaveBeenCalledTimes(1);
   });
@@ -807,5 +819,232 @@ describe('รูปหลายรูปต่อข้อ + รูปในต�
       'ตัวเลือก A: ไม่พบรูป "images/q1-a.png" (นำเข้าไฟล์ .json เดี่ยวจะไม่มีรูป ให้ใช้ .zip)',
     );
     expect(r.images).toHaveLength(0);
+  });
+});
+
+describe('passage_groups — บทอ่านร่วม (task 08)', () => {
+  function withGroups(groups: unknown, mutate?: (qs: Json[]) => void): Json {
+    const json = clone(sample) as Json;
+    json.passage_groups = groups;
+    if (mutate) mutate(json.questions as Json[]);
+    return json;
+  }
+  const byNo = (r: ResolvedImport, no: number) => r.questions.find((q) => q.no === no)!;
+
+  it('AC8: fixture zip → บทอ่าน reading-1 1 ชุดผูกข้อ 6 และส่งไปกับ payload', () => {
+    const r = resolve(parseImportFile('exam.zip', sampleZip()));
+    expect(r.hasFileError).toBe(false);
+    expect(r.passages).toHaveLength(1);
+    const p = r.passages[0];
+    expect([p.id, p.title, p.body, p.imagePaths, p.usedBy, p.usable, p.exampleOnly]).toEqual([
+      'reading-1',
+      'บทอ่านที่ 1 (ตัวอย่าง)',
+      null,
+      ['images/q02-venn.png'],
+      [6],
+      true,
+      true,
+    ]);
+    expect(messages(p, 'warning').join()).toContain('เป็นข้อตัวอย่าง');
+    expect(messages(p, 'error')).toEqual([]);
+
+    const input = buildCreateExamInput(r, {
+      category: 'a',
+      subjectId: null,
+      imageUrls: { 'images/q02-venn.png': 'http://api/uploads/venn.png' },
+    });
+    expect(input.passages).toEqual([
+      { id: 'reading-1', title: 'บทอ่านที่ 1 (ตัวอย่าง)', body: null, images: ['http://api/uploads/venn.png'] },
+    ]);
+    expect(input.questions.map((q) => q.passageId)).toEqual([null, null, null, null, null, 'reading-1', null]);
+  });
+
+  it('อ้าง passage_group ที่ไม่มี → error ที่ข้อ และข้อนั้นไม่มีบทอ่าน', () => {
+    const json = withGroups(sample.passage_groups, (qs) => {
+      qs[5].passage_group = 'reading-9';
+    });
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    const q6 = byNo(r, 6);
+    expect(q6.passageId).toBeNull();
+    expect(q6.status).toBe('error');
+    expect(messages(q6, 'error')[0]).toContain('อ้างบทอ่าน "reading-9"');
+    // reading-1 ยังมี applies_to [6] แต่ passage_group ของข้อเป็นหลัก → ไม่ผูกตาม applies_to
+    expect(r.passages[0].usedBy).toEqual([]);
+    expect(messages(r.passages[0], 'warning').join()).toContain('ไม่มีข้อใดใช้บทอ่านนี้');
+    expect(r.hasFileError).toBe(false);
+  });
+
+  it('ไม่มี passage_group แต่อยู่ใน applies_to → ผูกตาม applies_to (body หลายบรรทัด + ตาราง)', () => {
+    const body = 'ย่อหน้าแรก\n\nย่อหน้าสอง\n| ปี | ค่า |\n|---|---|\n| 2566 | 10 |';
+    const json = withGroups([{ id: 'sit_A', title: 'ใช้สถานการณ์ต่อไปนี้ตอบข้อ 2–4', body, applies_to: [2, 3, '4'] }], (qs) => {
+      for (const q of qs) delete q.passage_group;
+    });
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(r.questions.filter((q) => q.passageId === 'sit_A').map((q) => q.no)).toEqual([2, 3, 4]);
+    expect(r.passages[0].body).toBe(body);
+    expect(r.passages[0].usedBy).toEqual([2, 3, 4]);
+    expect(r.passages[0].status).toBe('ok');
+  });
+
+  it('passage_group ขัดกับ applies_to ของบทอ่านอื่น → เตือนแล้วใช้ passage_group', () => {
+    const json = withGroups(
+      [
+        { id: 'a', body: 'บทอ่าน A', applies_to: [] },
+        { id: 'b', body: 'บทอ่าน B', applies_to: [6, 7] },
+      ],
+      (qs) => {
+        qs[5].passage_group = 'a';
+      },
+    );
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(byNo(r, 6).passageId).toBe('a');
+    expect(messages(byNo(r, 6), 'warning').join()).toContain('passage_group "a" ขัดกับ applies_to ของบทอ่าน "b"');
+    expect(byNo(r, 7).passageId).toBe('b');
+    expect(r.passages.map((p) => p.usedBy)).toEqual([[6], [7]]);
+  });
+
+  it('id ผิด regex / ซ้ำ / ไม่มี → error ที่บทอ่าน ชุดนั้นไม่ถูกนำเข้า (ไม่บล็อกทั้งไฟล์)', () => {
+    const json = withGroups(
+      [
+        { id: 'reading-1', body: 'ชุดแรก', applies_to: [] },
+        { id: 'reading-1', body: 'ซ้ำ', applies_to: [] },
+        { id: 'มี space', body: 'id ไทย', applies_to: [] },
+        { body: 'ไม่มี id' },
+        'ไม่ใช่ object',
+      ],
+    );
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(r.hasFileError).toBe(false);
+    expect(r.passages.map((p) => p.usable)).toEqual([true, false, false, false, false]);
+    expect(messages(r.passages[1], 'error')[0]).toContain('ซ้ำ');
+    expect(messages(r.passages[2], 'error')[0]).toContain('ไม่ถูกต้อง');
+    expect(messages(r.passages[3], 'error')[0]).toContain('ไม่มี id');
+    // ข้อ 6 (passage_group reading-1) ผูกกับชุดแรกที่ใช้ได้
+    expect(byNo(r, 6).passageId).toBe('reading-1');
+    const input = buildCreateExamInput(r, { category: 'a', subjectId: null, imageUrls: {} });
+    expect(input.passages?.map((p) => [p.id, p.body])).toEqual([['reading-1', 'ชุดแรก']]);
+  });
+
+  it('บทอ่านไม่มีทั้ง body และรูป → error, ข้อที่ผูกได้ error "มีข้อผิดพลาด"', () => {
+    const json = withGroups([{ id: 'reading-1', title: 'ว่าง', body: '  ', images: [] }]);
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(r.passages[0].usable).toBe(false);
+    expect(messages(r.passages[0], 'error')[0]).toContain('ไม่มีทั้งเนื้อหา (body) และรูป');
+    expect(byNo(r, 6).passageId).toBeNull();
+    expect(messages(byNo(r, 6), 'error')[0]).toContain('บทอ่าน "reading-1" มีข้อผิดพลาด');
+  });
+
+  it('รูปบทอ่านหายแต่มี body → error รูป บทอ่านยังนำเข้าได้ (ไม่มีรูปนั้น)', () => {
+    const json = withGroups([{ id: 'reading-1', body: 'เนื้อหา', images: [{ file: 'images/none.png' }], applies_to: [6] }]);
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    const p = r.passages[0];
+    expect(messages(p, 'error')[0]).toContain('ไม่พบรูป "images/none.png" ใน zip');
+    expect(p.usable).toBe(true);
+    expect(byNo(r, 6).passageId).toBe('reading-1');
+  });
+
+  it('applies_to อ้างข้อที่ไม่มี / passage_groups ไม่ใช่ array', () => {
+    const r = resolve(
+      parseImportFile('x.zip', sampleZip(withGroups([{ id: 'reading-1', body: 'x', applies_to: [6, 99] }]))),
+    );
+    expect(messages(r.passages[0], 'warning').join()).toContain('applies_to อ้างข้อ 99 ที่ไม่มีในไฟล์');
+
+    const bad = resolve(parseImportFile('x.zip', sampleZip(withGroups({ id: 'x' }))));
+    expect(bad.hasFileError).toBe(true);
+    expect(bad.fileIssues.map((i) => i.message)).toContain('passage_groups ต้องเป็น array');
+  });
+
+  it('ไม่มี passage_groups → passages ว่าง ข้อที่มี passage_group ได้ error อ้าง id ที่ไม่มี', () => {
+    const json = clone(sample) as Json;
+    delete json.passage_groups;
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(r.passages).toEqual([]);
+    expect(messages(byNo(r, 6), 'error')[0]).toContain('ที่ไม่มีใน passage_groups');
+  });
+});
+
+describe('passage_groups — รอบ 2 (applies_to กับบทอ่านที่ใช้ไม่ได้ / รูปที่อัป / applies_to ไม่ตรง passage_group)', () => {
+  function withGroups(groups: unknown, mutate?: (qs: Json[]) => void): Json {
+    const json = clone(sample) as Json;
+    json.passage_groups = groups;
+    if (mutate) mutate(json.questions as Json[]);
+    return json;
+  }
+  const byNo = (r: ResolvedImport, no: number) => r.questions.find((q) => q.no === no)!;
+  const noGroups = (qs: Json[]) => qs.forEach((q) => delete q.passage_group);
+
+  it('ผูกผ่าน applies_to อย่างเดียวกับบทอ่านที่ใช้ไม่ได้ → error ที่ข้อ (id ผิด / ไม่มีเนื้อหาและรูป / id ซ้ำ)', () => {
+    const json = withGroups(
+      [
+        { id: 'ok', body: 'ใช้ได้', applies_to: [1] },
+        { id: 'bad id', body: 'id ผิด', applies_to: [2] },
+        { id: 'empty', body: '', applies_to: [3] },
+        { id: 'ok', body: 'ซ้ำ', applies_to: [4] },
+      ],
+      noGroups,
+    );
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(byNo(r, 1).passageId).toBe('ok');
+    for (const [no, id] of [[2, 'bad id'], [3, 'empty'], [4, 'ok']] as const) {
+      expect(byNo(r, no).passageId).toBeNull();
+      expect(messages(byNo(r, no), 'error').join()).toContain(`บทอ่าน "${id}" (applies_to) มีข้อผิดพลาด`);
+    }
+  });
+
+  it('applies_to ชี้บทอ่านที่ใช้ไม่ได้ แต่มีบทอ่านที่ใช้ได้ชี้ข้อเดียวกัน → ผูกกับชุดที่ใช้ได้ ไม่ error', () => {
+    const json = withGroups(
+      [
+        { id: 'empty', body: '', applies_to: [5] },
+        { id: 'ok', body: 'ใช้ได้', applies_to: [5] },
+      ],
+      noGroups,
+    );
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(byNo(r, 5).passageId).toBe('ok');
+    expect(messages(byNo(r, 5), 'error')).toEqual([]);
+  });
+
+  it('รูปของบทอ่านที่ใช้ไม่ได้ไม่อยู่ในรายการอัป (importImagesToUpload) รูปที่ข้อ/บทอ่านที่ใช้ได้อ้างยังอัป', () => {
+    const json = withGroups(
+      [
+        { id: 'bad id', body: 'x', images: [{ file: 'images/only-bad.png' }], applies_to: [] },
+        { id: 'good', body: 'y', images: [{ file: 'images/good.png' }], applies_to: [6] },
+      ],
+      noGroups,
+    );
+    const zip = zipOf({
+      'exam.json': JSON.stringify(json),
+      'images/q02-venn.png': PNG,
+      'images/q10-rugby-sections.png': PNG,
+      'images/only-bad.png': PNG,
+      'images/good.png': PNG,
+    });
+    const r = resolve(parseImportFile('x.zip', zip));
+    expect(r.images.map((i) => i.path)).toContain('images/only-bad.png');
+    expect(importImagesToUpload(r).map((i) => i.path).sort()).toEqual([
+      'images/good.png',
+      'images/q02-venn.png',
+      'images/q10-rugby-sections.png',
+    ]);
+  });
+
+  it('passage_group X แต่ข้อไม่อยู่ใน applies_to ของ X → เตือนไม่ตรงกัน (ยังผูกตาม passage_group)', () => {
+    const json = withGroups([{ id: 'reading-1', body: 'x', applies_to: [5] }], (qs) => {
+      qs[4].passage_group = 'reading-1';
+      qs[5].passage_group = 'reading-1';
+    });
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(byNo(r, 6).passageId).toBe('reading-1');
+    expect(messages(byNo(r, 6), 'warning').join()).toContain('ไม่อยู่ใน applies_to');
+    expect(messages(byNo(r, 5), 'warning').join()).not.toContain('ไม่ตรงกัน');
+  });
+
+  it('applies_to มีข้อที่ไม่ได้ระบุ passage_group ขณะที่ข้ออื่นระบุ → เตือนไม่ตรงกัน (ผูกตาม applies_to)', () => {
+    const json = withGroups([{ id: 'reading-1', body: 'x', applies_to: [6, 7] }]);
+    const r = resolve(parseImportFile('x.zip', sampleZip(json)));
+    expect(byNo(r, 7).passageId).toBe('reading-1');
+    expect(messages(byNo(r, 7), 'warning').join()).toContain('ไม่ได้ระบุ passage_group');
+    // ข้อ 6 ระบุตรงกันทั้งสองแหล่ง → ไม่เตือน
+    expect(messages(byNo(r, 6), 'warning').join()).not.toContain('ไม่ตรงกัน');
   });
 });

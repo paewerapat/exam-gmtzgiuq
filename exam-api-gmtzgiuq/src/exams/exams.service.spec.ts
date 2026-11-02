@@ -11,6 +11,8 @@ import {
   UpdateExamInput,
 } from './dto/exam.dto';
 import { User } from '../users/user.entity';
+import { BadRequestException } from '@nestjs/common';
+import { UPLOAD_REFERENCE_SQL } from '../questions/question-images';
 
 const LOCAL = 'http://localhost:3001/uploads';
 
@@ -65,8 +67,11 @@ describe('ExamsService', () => {
     update: jest.Mock;
   };
   let deleteByUrl: jest.SpyInstance;
+  // Upload reference query (deleteUnusedImages); default: no other usage
+  let query: jest.Mock;
 
   beforeEach(async () => {
+    query = jest.fn().mockResolvedValue([{ refs: 0 }]);
     manager = {
       create: jest.fn((_entity: unknown, data: unknown) => data),
       save: jest.fn((data: unknown) => Promise.resolve(data)),
@@ -95,6 +100,7 @@ describe('ExamsService', () => {
             transaction: jest.fn((cb: (m: EntityManager) => Promise<unknown>) =>
               cb(manager as unknown as EntityManager),
             ),
+            query,
           },
         },
         { provide: UploadService, useValue: uploadService },
@@ -514,6 +520,451 @@ describe('ExamsService', () => {
 
         await expect(service.remove('exam-1')).rejects.toThrow('FK');
         expect(deleteByUrl).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('shared passages (task 08)', () => {
+    const url = (name: keyof typeof IMG) => `${LOCAL}/${IMG[name]}`;
+    const author = { id: 'admin-1' } as User;
+
+    function givenExamWith(
+      passages: unknown,
+      questions: Partial<Question>[] = [],
+    ) {
+      examsRepo.findOne.mockResolvedValue({
+        ...makeExam([]),
+        questionCount: questions.length,
+        passages,
+        questions: questions.map(
+          (q, i) =>
+            ({ id: `q${i}`, question: `ข้อ ${i + 1}`, ...q }) as Question,
+        ),
+      } as Exam);
+    }
+
+    function createdExam(): Partial<Exam> {
+      const calls = manager.create.mock.calls as unknown[][];
+      return calls.find((args) => args[0] === Exam)![1] as Partial<Exam>;
+    }
+
+    function savedQuestions(): Question[] {
+      const calls = manager.save.mock.calls as unknown[][];
+      return calls.find((args) => Array.isArray(args[0]))![0] as Question[];
+    }
+
+    function examUpdate(): Partial<Exam> {
+      return (manager.update.mock.calls[0] as unknown[])[2] as Partial<Exam>;
+    }
+
+    const reading = {
+      id: 'reading-1',
+      title: 'บทอ่านที่ 1',
+      body: 'ย่อหน้าแรก\n\nย่อหน้าที่สอง\n\n| a | b |\n|---|---|\n| 1 | 2 |',
+    };
+
+    describe('AC1 create/update store passages + passageId', () => {
+      it('create stores normalized passages and each question passageId', async () => {
+        examsRepo.findOne.mockResolvedValue(makeExam([]));
+
+        await service.create(
+          {
+            title: 'TGAT1',
+            category: 'english',
+            passages: [
+              reading,
+              { id: 'p-2', title: '', body: null, images: [url('a')] },
+            ],
+            questions: [
+              { question: 'ข้อ 1' },
+              { question: 'ข้อ 2', passageId: 'reading-1' },
+              { question: 'ข้อ 3', passageId: 'p-2' },
+              { question: 'ข้อ 4', passageId: null },
+            ],
+          } as CreateExamInput,
+          author,
+        );
+
+        expect(createdExam().passages).toEqual([
+          { ...reading, images: [] },
+          { id: 'p-2', title: null, body: null, images: [url('a')] },
+        ]);
+        expect(savedQuestions().map((q) => q.passageId)).toEqual([
+          null,
+          'reading-1',
+          'p-2',
+          null,
+        ]);
+      });
+
+      it('create without passages stores []', async () => {
+        examsRepo.findOne.mockResolvedValue(makeExam([]));
+
+        await service.create(
+          {
+            title: 'ชุดเก่า',
+            category: 'physics',
+            questions: [{ question: 'ข้อ 1' }],
+          } as CreateExamInput,
+          author,
+        );
+
+        expect(createdExam().passages).toEqual([]);
+        expect(savedQuestions()[0].passageId).toBeNull();
+      });
+
+      it.each([
+        [
+          'a passageId that is not in passages',
+          {
+            passages: [reading],
+            questions: [
+              { question: 'ข้อ 1' },
+              { question: 'ข้อ 2', passageId: 'reading-2' },
+            ],
+          },
+          'ข้อ 2: ไม่พบบทอ่าน "reading-2"',
+        ],
+        [
+          'a passageId when no passages are sent',
+          { questions: [{ question: 'ข้อ 1', passageId: 'reading-1' }] },
+          'ข้อ 1: ไม่พบบทอ่าน "reading-1"',
+        ],
+        [
+          'two passages with the same id',
+          {
+            passages: [reading, { ...reading, title: 'ซ้ำ' }],
+            questions: [{ question: 'ข้อ 1' }],
+          },
+          'บทอ่านที่ 2: id "reading-1" ซ้ำ',
+        ],
+        [
+          'a passage without body or images',
+          {
+            passages: [
+              { id: 'empty', title: 'ว่าง', body: '  \n', images: [] },
+            ],
+            questions: [{ question: 'ข้อ 1' }],
+          },
+          'บทอ่านที่ 1: ต้องมีเนื้อหาหรือรูป',
+        ],
+      ])(
+        'create rejects %s with 400 and saves nothing',
+        async (_l, body, msg) => {
+          const error = await service
+            .create(
+              { title: 'ชุด', category: 'english', ...body } as CreateExamInput,
+              author,
+            )
+            .catch((err: unknown) => err);
+
+          expect(error).toBeInstanceOf(BadRequestException);
+          expect((error as BadRequestException).message).toContain(msg);
+          expect(manager.save).not.toHaveBeenCalled();
+        },
+      );
+
+      it('update with questions + passages replaces both', async () => {
+        givenExamWith(
+          [{ id: 'old', title: null, body: 'เดิม', images: [] }],
+          [{ passageId: 'old' }],
+        );
+
+        await service.update('exam-1', {
+          passages: [reading],
+          questions: [
+            { question: 'ข้อ 1', passageId: 'reading-1' },
+            { question: 'ข้อ 2' },
+          ],
+        } as UpdateExamInput);
+
+        expect(examUpdate().passages).toEqual([{ ...reading, images: [] }]);
+        expect(savedQuestions().map((q) => q.passageId)).toEqual([
+          'reading-1',
+          null,
+        ]);
+      });
+
+      it('update with questions but without passages sets passages to []', async () => {
+        givenExamWith([reading], [{ passageId: 'reading-1' }]);
+
+        await service.update('exam-1', {
+          questions: [{ question: 'ข้อ 1' }],
+        } as UpdateExamInput);
+
+        expect(examUpdate().passages).toEqual([]);
+      });
+
+      it('update with questions referring to an old passage not resent → 400', async () => {
+        givenExamWith([reading], [{ passageId: 'reading-1' }]);
+
+        await expect(
+          service.update('exam-1', {
+            questions: [{ question: 'ข้อ 1', passageId: 'reading-1' }],
+          } as UpdateExamInput),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(manager.update).not.toHaveBeenCalled();
+      });
+
+      it('update without questions and passages keeps passages untouched', async () => {
+        givenExamWith([reading], [{ passageId: 'reading-1' }]);
+
+        await service.update('exam-1', {
+          status: QuestionStatus.PUBLISHED,
+        } as UpdateExamInput);
+
+        expect(examUpdate()).not.toHaveProperty('passages');
+        expect(manager.delete).not.toHaveBeenCalled();
+      });
+
+      it('update with passages only checks the existing questions', async () => {
+        givenExamWith([reading], [{ passageId: 'reading-1' }, {}]);
+
+        await expect(
+          service.update('exam-1', {
+            passages: [{ id: 'other', body: 'อื่น' }],
+          } as UpdateExamInput),
+        ).rejects.toThrow('ข้อ 1: ไม่พบบทอ่าน "reading-1"');
+
+        await service.update('exam-1', {
+          passages: [{ ...reading, title: 'แก้ชื่อ' }],
+        } as UpdateExamInput);
+        expect(examUpdate().passages).toEqual([
+          { ...reading, title: 'แก้ชื่อ', images: [] },
+        ]);
+        expect(manager.delete).not.toHaveBeenCalled();
+      });
+
+      it('findOne returns passages as an array (null → [])', async () => {
+        givenExamWith(null, [{ passageId: null }]);
+        await expect(service.findOne('exam-1')).resolves.toMatchObject({
+          passages: [],
+        });
+
+        givenExamWith([{ id: 'p', body: 'x' }, { title: 'no id' }, 'junk']);
+        const exam = await service.findOne('exam-1');
+        expect(exam.passages).toEqual([
+          { id: 'p', title: null, body: 'x', images: [] },
+        ]);
+        // passages is select: false, so it is loaded explicitly
+        expect(examsRepo.findOne.mock.calls).toContainEqual([
+          expect.objectContaining({
+            select: { id: true, passages: true },
+            where: { id: 'exam-1' },
+          }),
+        ]);
+      });
+
+      it('findPublishedOne returns passages as well', async () => {
+        givenExamWith([reading]);
+        const exam = await service.findPublishedOne('exam-1');
+        expect(exam.passages).toEqual([{ ...reading, images: [] }]);
+      });
+    });
+
+    describe('AC1 passage image files', () => {
+      it('deletes a passage image removed from the passages after saving', async () => {
+        givenExamWith(
+          [{ ...reading, images: [url('a'), url('b')] }],
+          [{ passageId: 'reading-1' }],
+        );
+        let committed = false;
+        manager.update.mockImplementation(() => {
+          committed = true;
+          return Promise.resolve({ affected: 1 });
+        });
+        deleteByUrl.mockImplementation(() => {
+          expect(committed).toBe(true);
+          return true;
+        });
+
+        await service.update('exam-1', {
+          passages: [{ ...reading, images: [url('b')] }],
+          questions: [{ question: 'ข้อ 1', passageId: 'reading-1' }],
+        } as UpdateExamInput);
+
+        expect(deletedUrls()).toEqual([url('a')]);
+      });
+
+      it('keeps a passage image still used by another passage or a question', async () => {
+        givenExamWith(
+          [
+            { id: 'p1', body: 'x', images: [url('a'), url('b')] },
+            { id: 'p2', body: 'y', images: [url('c')] },
+          ],
+          [{ passageId: 'p1' }, { passageId: 'p2' }],
+        );
+
+        await service.update('exam-1', {
+          passages: [{ id: 'p2', body: 'y', images: [url('c'), url('a')] }],
+          questions: [
+            { question: 'ข้อ 1', questionImages: [url('b')] },
+            { question: 'ข้อ 2', passageId: 'p2' },
+          ],
+        } as UpdateExamInput);
+
+        expect(deleteByUrl).not.toHaveBeenCalled();
+      });
+
+      it('passages only: keeps images the unchanged questions use', async () => {
+        givenExamWith(
+          [{ ...reading, images: [url('a'), url('b')] }],
+          [{ passageId: 'reading-1', questionImage: url('a') }],
+        );
+
+        await service.update('exam-1', {
+          passages: [{ ...reading, images: [] }],
+        } as UpdateExamInput);
+
+        expect(deletedUrls()).toEqual([url('b')]);
+      });
+
+      it('questions sent without passages deletes the old passage images', async () => {
+        givenExamWith(
+          [{ ...reading, images: [url('a')] }],
+          [{ passageId: 'reading-1' }],
+        );
+
+        await service.update('exam-1', {
+          questions: [{ question: 'ข้อ 1' }],
+        } as UpdateExamInput);
+
+        expect(deletedUrls()).toEqual([url('a')]);
+      });
+
+      it('deletes nothing when the transaction fails', async () => {
+        givenExamWith([{ ...reading, images: [url('a')] }]);
+        manager.update.mockRejectedValueOnce(new Error('DB down'));
+
+        await expect(
+          service.update('exam-1', { passages: [] } as UpdateExamInput),
+        ).rejects.toThrow('DB down');
+        expect(deleteByUrl).not.toHaveBeenCalled();
+      });
+
+      it('remove deletes the passage images too', async () => {
+        givenExamWith(
+          [{ ...reading, images: [url('a'), url('shared')] }],
+          [{ questionImage: url('shared'), passageId: 'reading-1' }],
+        );
+
+        await service.remove('exam-1');
+
+        expect(deletedUrls().sort()).toEqual([url('a'), url('shared')].sort());
+      });
+    });
+
+    describe('AC1b files used by another exam / blog are kept', () => {
+      // The reference query reports these files as still used elsewhere
+      function usedElsewhere(...names: (keyof typeof IMG)[]) {
+        query.mockImplementation((_sql: string, params: string[]) =>
+          Promise.resolve([
+            { refs: names.some((n) => params[0].includes(IMG[n])) ? 1 : 0 },
+          ]),
+        );
+      }
+
+      it('update keeps a question image another exam still uses', async () => {
+        givenExam([url('a'), url('b')]);
+        usedElsewhere('a');
+
+        await service.update('exam-1', {
+          questions: questionsWith([null, null]),
+        } as UpdateExamInput);
+
+        expect(deletedUrls()).toEqual([url('b')]);
+      });
+
+      it('update keeps a passage image used by a passage/banner/blog elsewhere', async () => {
+        givenExamWith([{ ...reading, images: [url('a'), url('b'), url('c')] }]);
+        usedElsewhere('a', 'c');
+
+        await service.update('exam-1', { passages: [] } as UpdateExamInput);
+
+        expect(deletedUrls()).toEqual([url('b')]);
+      });
+
+      it('remove keeps files other exams, banners or blogs still use', async () => {
+        givenExamWith(
+          [{ ...reading, images: [url('x')] }],
+          [
+            { questionImage: url('a'), choices: [] },
+            {
+              choices: [
+                { id: 'a', text: '', isCorrect: true, image: url('y') },
+              ],
+            },
+          ],
+        );
+        usedElsewhere('x', 'y');
+
+        await service.remove('exam-1');
+
+        expect(deletedUrls()).toEqual([url('a')]);
+      });
+
+      it('checks each file with the bound, escaped filename pattern', async () => {
+        givenExam([url('a'), url('a')]);
+
+        await service.update('exam-1', {
+          questions: questionsWith([null]),
+        } as UpdateExamInput);
+
+        expect(query).toHaveBeenCalledTimes(1);
+        const [sql, params] = query.mock.calls[0] as [string, string[]];
+        expect(sql).toBe(UPLOAD_REFERENCE_SQL);
+        expect(params).toHaveLength(8);
+        expect(new Set(params)).toEqual(new Set([`%${IMG.a}%`]));
+      });
+
+      it('does not query for files the exam itself still uses', async () => {
+        givenExam([url('a')]);
+
+        await service.update('exam-1', {
+          questions: questionsWith([url('a')]),
+        } as UpdateExamInput);
+
+        expect(query).not.toHaveBeenCalled();
+      });
+
+      it('update deletes nothing when the reference query fails', async () => {
+        givenExamWith(
+          [{ ...reading, images: [url('a')] }],
+          [{ questionImage: url('b'), passageId: 'reading-1' }],
+        );
+        query.mockRejectedValue(new Error('ER_BAD_FIELD_ERROR'));
+        const consoleError = jest
+          .spyOn(console, 'error')
+          .mockImplementation(() => undefined);
+
+        await expect(
+          service.update('exam-1', {
+            questions: [{ question: 'ข้อ 1' }],
+          } as UpdateExamInput),
+        ).resolves.toBeDefined();
+
+        expect(query).toHaveBeenCalledTimes(2);
+        expect(deleteByUrl).not.toHaveBeenCalled();
+        consoleError.mockRestore();
+      });
+
+      it('remove deletes nothing when the reference query fails or returns nothing', async () => {
+        givenExamWith(
+          [{ ...reading, images: [url('a')] }],
+          [{ questionImage: url('b') }],
+        );
+        query
+          .mockRejectedValueOnce(new Error('connection lost'))
+          .mockResolvedValueOnce([]);
+        const consoleError = jest
+          .spyOn(console, 'error')
+          .mockImplementation(() => undefined);
+
+        await expect(service.remove('exam-1')).resolves.toBe(true);
+
+        expect(query).toHaveBeenCalledTimes(2);
+        expect(deleteByUrl).not.toHaveBeenCalled();
+        consoleError.mockRestore();
       });
     });
   });

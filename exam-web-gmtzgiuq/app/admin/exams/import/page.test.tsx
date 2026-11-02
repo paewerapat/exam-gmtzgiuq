@@ -85,6 +85,12 @@ describe('ImportExamPage', () => {
     expect(screen.getByText('2 รูป')).toBeInTheDocument();
     expect(screen.getByText('หมายเหตุ: ยังไม่มีเฉลยทางการยืนยัน (180 ตามรูป, ฉบับก่อนหน้าตอบ 120)')).toBeInTheDocument();
     expect((screen.getByLabelText(/หมวดหมู่/) as HTMLSelectElement).value).toBe('a-level-math');
+    // task 08: preview บทอ่านร่วม + ข้อที่ใช้ ไม่มีคำเตือน "ยังไม่รองรับ"
+    expect(screen.getByRole('heading', { name: /บทอ่านร่วม \(1 ชุด\)/ })).toBeInTheDocument();
+    expect(screen.getByText('ใช้กับข้อ 6 · รูป 1/1')).toBeInTheDocument();
+    expect(screen.getByText(/เป็นข้อตัวอย่าง/)).toBeInTheDocument();
+    expect(screen.getByText('บทอ่าน: reading-1')).toBeInTheDocument();
+    expect(screen.queryByText(/ยังไม่รองรับ/)).not.toBeInTheDocument();
 
     const button = await screen.findByRole('button', { name: 'สร้างแบบร่าง' });
     await waitFor(() => expect(button).toBeEnabled());
@@ -103,6 +109,17 @@ describe('ImportExamPage', () => {
     expect(input.questions).toHaveLength(7);
     expect(input.questions[0].questionImage).toBe('http://api/uploads/1-q02-venn.png');
     expect(input.questions[2].questionImage).toBe('http://api/uploads/2-q10-rugby-sections.png');
+    // รูปบทอ่านซ้ำกับรูปข้อ 1 → อัปครั้งเดียว ใช้ URL เดียวกัน
+    expect(input.passages).toEqual([
+      {
+        id: 'reading-1',
+        title: 'บทอ่านที่ 1 (ตัวอย่าง)',
+        body: null,
+        images: ['http://api/uploads/1-q02-venn.png'],
+      },
+    ]);
+    expect(input.questions[5].passageId).toBe('reading-1');
+    expect(input.questions[0].passageId).toBeNull();
 
     expect(screen.getByRole('link', { name: /เปิดแบบร่าง/ })).toHaveAttribute('href', '/admin/exams/exam-1/edit');
     expect(toast.success).toHaveBeenCalledWith('สร้างแบบร่างแล้ว');
@@ -166,11 +183,11 @@ describe('ImportExamPage', () => {
     asAdmin();
     render(<ImportExamPage />);
     await waitFor(() => expect(getCategories).toHaveBeenCalled());
-    // .json เดี่ยว: ข้อ 1 และ 3 มีรูป → error รูปหาย
+    // .json เดี่ยว: ข้อ 1 และ 3 มีรูป → error รูปหาย, ข้อ 6 ผูกบทอ่านที่มีแต่รูป (หาย) → error บทอ่านใช้ไม่ได้
     fireEvent.change(screen.getByTestId('import-file-input'), {
       target: { files: [new File([JSON.stringify(sample)], 'exam.json', { type: 'application/json' })] },
     });
-    expect(await screen.findByRole('button', { name: 'สร้างแบบร่าง (มีปัญหา 2 ข้อ)' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'สร้างแบบร่าง (มีปัญหา 3 ข้อ)' })).toBeInTheDocument();
   });
 });
 

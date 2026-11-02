@@ -40,6 +40,20 @@ import {
   toChoiceInput,
 } from '@/lib/question-images';
 import { formatChoiceLetters, getCorrectChoiceIds, nextChoiceId } from '@/lib/exam-utils';
+import Swal from 'sweetalert2';
+import PassagesEditor, { PassageSelect } from '@/components/admin/PassagesEditor';
+import {
+  createEmptyPassage,
+  MAX_PASSAGE_IMAGES,
+  passageFormFromApi,
+  passageHasContent,
+  passageImageHolders,
+  passageLabel,
+  questionNumbersUsingPassage,
+  toPassageInput,
+  validatePassageForms,
+  type PassageForm,
+} from '@/lib/exam-passages';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -58,7 +72,14 @@ interface QuestionForm {
   chapter: string;
   explanation: string;
   hint: string;
+  /** id บทอ่านร่วม ('' = ไม่ใช้บทอ่าน) */
+  passageId: string;
   expanded: boolean;
+}
+
+/** รูปทั้งหมดที่ฟอร์มอ้าง (ข้อ + บทอ่าน) สำหรับตัดสินว่ารูปที่อัปรอบนี้ถูกเอาออกแล้วหรือยัง */
+function formImageHolders(questions: QuestionForm[], passages: PassageForm[]) {
+  return [...questions, ...passageImageHolders(passages)];
 }
 
 function generateTempId() {
@@ -87,6 +108,7 @@ function createEmptyQuestion(): QuestionForm {
     chapter: '',
     explanation: '',
     hint: '',
+    passageId: '',
     expanded: true,
   };
 }
@@ -110,6 +132,13 @@ export default function EditExamPage({ params }: PageProps) {
   useEffect(() => {
     questionsRef.current = questions;
   }, [questions]);
+
+  // บทอ่านร่วม (ค่าล่าสุดใน ref เหมือน questions)
+  const [passages, setPassages] = useState<PassageForm[]>([]);
+  const passagesRef = useRef(passages);
+  useEffect(() => {
+    passagesRef.current = passages;
+  }, [passages]);
 
   // Categories
   const [categories, setCategories] = useState<Category[]>([]);
@@ -145,6 +174,11 @@ export default function EditExamPage({ params }: PageProps) {
         setCategory(exam.category);
         setStatus(exam.status as QuestionStatus);
 
+        const loadedPassages = (exam.passages ?? []).map(passageFormFromApi);
+        const passageIds = new Set(loadedPassages.map((p) => p.id));
+        passagesRef.current = loadedPassages;
+        setPassages(loadedPassages);
+
         const loaded = exam.questions.map((q): QuestionForm => ({
           tempId: q.id || generateTempId(),
           type: (q.type === 'short_answer' ? 'short_answer' : 'multiple_choice') as 'multiple_choice' | 'short_answer',
@@ -158,6 +192,8 @@ export default function EditExamPage({ params }: PageProps) {
           chapter: q.chapter || '',
           explanation: q.explanation || '',
           hint: q.hint || '',
+          // อ้างบทอ่านที่ไม่มีใน exam.passages (ไม่ควรเกิด) → ไม่ใช้บทอ่าน
+          passageId: q.passageId && passageIds.has(q.passageId) ? q.passageId : '',
           expanded: false,
         }));
         questionsRef.current = loaded;
@@ -259,7 +295,82 @@ export default function EditExamPage({ params }: PageProps) {
     if (next === prev) return;
     questionsRef.current = next;
     setQuestions(next);
-    discardUploads(imagesToDiscard(prev, next, uploadedRef.current));
+    // เทียบรวมรูปบทอ่านด้วย: รูปที่ยังใช้ในบทอ่านไม่ถูกลบแม้เอาออกจากข้อ
+    const ps = passagesRef.current;
+    discardUploads(
+      imagesToDiscard(formImageHolders(prev, ps), formImageHolders(next, ps), uploadedRef.current),
+    );
+  };
+
+  // ── บทอ่านร่วม ──
+  const commitPassages = (update: (prev: PassageForm[]) => PassageForm[]) => {
+    const prev = passagesRef.current;
+    const next = update(prev);
+    if (next === prev) return;
+    passagesRef.current = next;
+    setPassages(next);
+    const qs = questionsRef.current;
+    discardUploads(
+      imagesToDiscard(formImageHolders(qs, prev), formImageHolders(qs, next), uploadedRef.current),
+    );
+  };
+
+  const addPassage = () => {
+    commitPassages((prev) => [...prev, createEmptyPassage(prev.map((p) => p.id))]);
+  };
+
+  const updatePassageField = (id: string, field: 'title' | 'body', value: string) => {
+    commitPassages((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+  };
+
+  const updatePassageImages = (id: string, update: (prev: string[]) => string[]) => {
+    commitPassages((prev) => prev.map((p) => (p.id === id ? { ...p, images: update(p.images) } : p)));
+  };
+
+  // อัปโหลดเสร็จทีหลังได้: บทอ่านถูกลบ/รูปครบแล้ว → ลบไฟล์ที่เพิ่งอัป
+  const addPassageImage = (id: string, url: string) => {
+    const target = passagesRef.current.find((p) => p.id === id);
+    if (!target) {
+      discardUploads([url]);
+      return;
+    }
+    if (target.images.includes(url)) return;
+    if (target.images.length >= MAX_PASSAGE_IMAGES) {
+      toast.error(`บทอ่านนี้มีรูปครบ ${MAX_PASSAGE_IMAGES} รูปแล้ว รูปที่อัปล่าสุดไม่ได้ถูกเพิ่ม`);
+      discardUploads([url]);
+      return;
+    }
+    commitPassages((prev) => prev.map((p) => (p.id === id ? { ...p, images: [...p.images, url] } : p)));
+  };
+
+  // ลบบทอ่าน: ข้อที่อ้างอยู่กลายเป็น "ไม่ใช้บทอ่าน" แล้วแจ้งว่าข้อไหนบ้าง
+  // (รูปบทอ่านที่บันทึกแล้ว API ลบให้หลังกดบันทึก ถ้ากดยกเลิกบทอ่านเดิมยังอยู่ครบ)
+  const removePassage = async (id: string) => {
+    const index = passagesRef.current.findIndex((p) => p.id === id);
+    if (index < 0) return;
+    const label = passageLabel(passagesRef.current[index], index);
+    if (passageHasContent(passagesRef.current[index])) {
+      const confirm = await Swal.fire({
+        title: 'ลบบทอ่านนี้?',
+        text: `"${label}" จะถูกลบ ข้อที่ใช้บทอ่านนี้จะเปลี่ยนเป็นไม่ใช้บทอ่าน`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ลบบทอ่าน',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true,
+      });
+      if (!confirm.isConfirmed) return;
+    }
+    const usedBy = questionNumbersUsingPassage(questionsRef.current, id);
+    if (usedBy.length > 0) {
+      commitQuestions((prev) => prev.map((q) => (q.passageId === id ? { ...q, passageId: '' } : q)));
+    }
+    commitPassages((prev) => prev.filter((p) => p.id !== id));
+    if (usedBy.length > 0) {
+      toast.info(`ลบ "${label}" แล้ว ข้อ ${usedBy.join(', ')} เปลี่ยนเป็นไม่ใช้บทอ่าน`);
+    }
   };
 
   const updateQuestionImages = (tempId: string, update: (prev: string[]) => string[]) => {
@@ -365,10 +476,15 @@ export default function EditExamPage({ params }: PageProps) {
       }
     }
 
+    const passageError = validatePassageForms(passages);
+    if (passageError) { toast.error(passageError); return; }
+    const passageIds = new Set(passages.map((p) => p.id));
+
     setSaving(true);
     // URL ที่อัปรอบนี้และอยู่ใน payload: ห้ามลบระหว่างรอบันทึกและหลังบันทึก (บันทึกล้มค่อยใส่คืน)
     let heldUploads: string[] = [];
     try {
+      const examPassages = passages.map(toPassageInput);
       const examQuestions: ExamQuestionInput[] = questions.map((q, index) => ({
         question: q.question,
         // ส่ง questionImages ทุกครั้ง ([] = ไม่มีรูป) ไม่งั้น API ถือว่าเป็นข้อแบบรูปเดียวและลบรูปที่เหลือ
@@ -383,9 +499,13 @@ export default function EditExamPage({ params }: PageProps) {
         explanation: q.explanation || undefined,
         hint: q.hint || undefined,
         orderIndex: index,
+        // ส่งทุกครั้ง (null = ไม่ใช้บทอ่าน)
+        passageId: passageIds.has(q.passageId) ? q.passageId : null,
       }));
 
-      heldUploads = holdUploads(collectFormImageUrls(examQuestions));
+      heldUploads = holdUploads(
+        collectFormImageUrls([...examQuestions, ...passageImageHolders(passages)]),
+      );
 
       await updateExam(examId, {
         title,
@@ -393,6 +513,8 @@ export default function EditExamPage({ params }: PageProps) {
         category,
         status,
         questions: examQuestions,
+        // ส่งทุกครั้งพร้อม questions: API แทนที่บทอ่านทั้งชุด ([] = ไม่มีบทอ่าน)
+        passages: examPassages,
         subjectId: examSubjectId || null,
         bannerImage: bannerImage || null,
         durationMinutes: durationMinutes ? Number(durationMinutes) : null,
@@ -539,6 +661,19 @@ export default function EditExamPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* Shared passages */}
+          <PassagesEditor
+            passages={passages}
+            questions={questions}
+            onAdd={addPassage}
+            onRemove={removePassage}
+            onFieldChange={updatePassageField}
+            onImagesChange={updatePassageImages}
+            onImageAdd={addPassageImage}
+            onUploaded={recordUpload}
+            disabled={saving}
+          />
+
           {/* Questions */}
           <div className="space-y-4 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -561,6 +696,16 @@ export default function EditExamPage({ params }: PageProps) {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {(() => {
+                        const pIndex = passages.findIndex((p) => p.id === q.passageId);
+                        if (pIndex < 0) return null;
+                        return (
+                          <span className="hidden sm:inline-flex items-center gap-1 max-w-[10rem] px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 text-xs font-medium flex-shrink-0">
+                            <BookOpen className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{passageLabel(passages[pIndex], pIndex)}</span>
+                          </span>
+                        );
+                      })()}
                       {q.chapter && (
                         <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-medium flex-shrink-0">
                           {q.chapter}
@@ -608,6 +753,15 @@ export default function EditExamPage({ params }: PageProps) {
                           )}
                         </div>
                       )}
+
+                      {/* Shared passage */}
+                      <PassageSelect
+                        id={`passage-select-${q.tempId}`}
+                        value={q.passageId}
+                        passages={passages}
+                        onChange={(val) => updateQuestion(q.tempId, 'passageId', val)}
+                        disabled={saving}
+                      />
 
                       {/* Question type toggle */}
                       <div className="flex items-center gap-2">

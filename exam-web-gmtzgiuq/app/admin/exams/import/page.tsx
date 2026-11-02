@@ -33,11 +33,13 @@ import {
   parseImportFile,
   resolveImport,
   buildCreateExamInput,
+  importImagesToUpload,
   MAX_IMPORT_FILE_BYTES,
   type ParsedImport,
   type ImportImage,
   type ImportIssue,
   type ImportQuestionStatus,
+  type ParsedImportPassage,
   type ResolvedImportQuestion,
 } from '@/lib/exam-import';
 
@@ -256,9 +258,11 @@ export default function ImportExamPage() {
     const uploaded: UploadResult[] = [];
     try {
       const imageUrls: Record<string, string> = {};
-      const total = resolved.images.length;
+      // อัปเฉพาะรูปที่ข้อ/บทอ่านที่นำเข้าได้ใช้ (รูปของบทอ่านที่ใช้ไม่ได้ไม่อัป)
+      const toUpload = importImagesToUpload(resolved);
+      const total = toUpload.length;
       setProgress({ phase: 'upload', done: 0, total });
-      for (const img of resolved.images) {
+      for (const img of toUpload) {
         const file = new File([new Uint8Array(img.data)], img.fileName, { type: img.mimeType });
         let res: UploadResult;
         try {
@@ -506,7 +510,7 @@ export default function ImportExamPage() {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                       <ImageIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                      <span>{resolved.images.length} รูป</span>
+                      <span>{importImagesToUpload(resolved).length} รูป</span>
                     </div>
                   </div>
 
@@ -561,6 +565,10 @@ export default function ImportExamPage() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {resolved.passages.length > 0 && (
+                <PassageList key={fileName ?? ''} passages={resolved.passages} imageMap={imageMap} />
               )}
 
               {resolved.questions.length > 0 && (
@@ -641,6 +649,105 @@ export default function ImportExamPage() {
   );
 }
 
+/** รายการบทอ่านร่วม (passage_groups) + ข้อที่ใช้ + ปัญหา กดเพื่อดูเนื้อหาและรูป */
+function PassageList({
+  passages,
+  imageMap,
+}: {
+  passages: ParsedImportPassage[];
+  imageMap: Map<string, ImportImage>;
+}) {
+  const [open, setOpen] = useState<Set<number>>(() => new Set());
+  const toggle = (i: number) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+
+  return (
+    <section
+      aria-labelledby="import-passages-heading"
+      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-6 overflow-hidden"
+    >
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <h2 id="import-passages-heading" className="flex items-center gap-1.5 text-base font-semibold text-gray-900 dark:text-gray-100">
+          <BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+          บทอ่านร่วม ({passages.length} ชุด)
+        </h2>
+        <span className="text-xs text-gray-500 dark:text-gray-400">กดที่บทอ่านเพื่อดูเนื้อหา</span>
+      </div>
+      <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+        {passages.map((p, i) => {
+          const isOpen = open.has(i);
+          const images = p.imagePaths
+            .map((path) => imageMap.get(path))
+            .filter((img): img is ImportImage => !!img);
+          return (
+            <li key={`${i}-${p.id}`} className="px-6 py-3">
+              <button
+                type="button"
+                onClick={() => toggle(i)}
+                aria-expanded={isOpen}
+                className="w-full flex flex-col sm:flex-row sm:items-center gap-2 text-left"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                    {p.title ? <LatexText text={p.title} /> : `บทอ่านที่ ${i + 1}`}
+                    <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400 break-all">
+                      id: {p.id || '(ไม่มี)'}
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                    {p.usedBy.length > 0 ? `ใช้กับข้อ ${p.usedBy.join(', ')}` : 'ยังไม่มีข้อที่ใช้'}
+                    {p.imageRefs.length > 0 && ` · รูป ${p.imagePaths.length}/${p.imageRefs.length}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {!p.usable && (
+                    <span className="text-xs font-medium text-red-700 dark:text-red-300">ไม่ถูกนำเข้า</span>
+                  )}
+                  <StatusBadge status={p.status} />
+                  {isOpen ? (
+                    <ChevronUp className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                  )}
+                </div>
+              </button>
+              {p.issues.length > 0 && (
+                <div className="mt-2">
+                  <IssueList issues={p.issues} />
+                </div>
+              )}
+              {isOpen && (
+                <div className="mt-3 space-y-3 text-sm text-gray-800 dark:text-gray-200">
+                  {p.body ? (
+                    <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                      <LatexRenderer content={p.body} className="break-words leading-relaxed" />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">(ไม่มีเนื้อหา มีแต่รูป)</p>
+                  )}
+                  {images.map((img, j) => (
+                    <div key={`${j}-${img.path}`}>
+                      {images.length > 1 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">รูปที่ {j + 1}</p>
+                      )}
+                      <ImagePreview image={img} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function QuestionRow({
   q,
   isOpen,
@@ -675,6 +782,12 @@ function QuestionRow({
             <LatexRenderer content={q.question} className="line-clamp-2 break-words" />
           ) : (
             <span className="text-gray-400 dark:text-gray-500">(ไม่มีโจทย์)</span>
+          )}
+          {q.passageId && (
+            <span className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
+              <BookOpen className="w-3 h-3 flex-shrink-0" />
+              <span className="break-all">บทอ่าน: {q.passageId}</span>
+            </span>
           )}
         </td>
         <td className="px-4 py-3">

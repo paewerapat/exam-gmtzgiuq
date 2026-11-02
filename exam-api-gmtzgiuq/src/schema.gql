@@ -96,6 +96,7 @@ type Exam {
   description: String
   durationMinutes: Int
   id: ID!
+  passages: [ExamPassage!]
   questionCount: Int!
   questions: [Question!]!
   status: QuestionStatus!
@@ -128,6 +129,13 @@ type ExamAttempt {
 type ExamCategoryCount {
   category: String!
   count: Int!
+}
+
+type ExamPassage {
+  body: String
+  id: String!
+  images: [String!]!
+  title: String
 }
 
 type Mutation {
@@ -190,6 +198,7 @@ type Question {
   hint: String
   id: ID!
   orderIndex: Int
+  passageId: String
   question: String!
   questionImage: String
   questionImages: [String!]

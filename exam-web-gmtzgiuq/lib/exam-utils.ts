@@ -1,6 +1,7 @@
 // Exam Utility Functions
 import type { Question } from '@/lib/api/questions';
 import type { ExamSession, ExamResult } from '@/types/exam';
+import { packQuestionPassages, unpackQuestionPassages } from '@/lib/exam-passages';
 
 /**
  * Shuffle array using Fisher-Yates algorithm
@@ -396,10 +397,63 @@ export function saveExamSession(session: ExamSession, questions: Question[]): vo
 
   try {
     localStorage.setItem(EXAM_STORAGE_KEYS.SESSION, JSON.stringify(session));
-    localStorage.setItem(EXAM_STORAGE_KEYS.QUESTIONS, JSON.stringify(questions));
+    // บทอ่านร่วมเก็บครั้งเดียวต่อกลุ่ม (ไม่คัดลอกซ้ำทุกข้อ)
+    localStorage.setItem(EXAM_STORAGE_KEYS.QUESTIONS, JSON.stringify(packQuestionPassages(questions)));
   } catch (error) {
     console.error('Failed to save exam session:', error);
   }
+}
+
+/** key ของโหมดข้อสอบจริง (แยกจาก practice): `real_exam_session_<examId>` */
+export const REAL_EXAM_SESSION_KEY = 'real_exam_session';
+
+/**
+ * เก็บ session โหมดข้อสอบจริง — เก็บไม่สำเร็จ (เช่น QuotaExceededError) ไม่ throw ให้หน้าทำข้อสอบยังเปิด/ทำต่อได้
+ * คืน true ถ้าเก็บสำเร็จ
+ */
+export function saveRealExamSession(examId: string, session: ExamSession, questions: Question[]): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    localStorage.setItem(
+      `${REAL_EXAM_SESSION_KEY}_${examId}`,
+      JSON.stringify({ session, questions: packQuestionPassages(questions ?? []) }),
+    );
+    return true;
+  } catch (error) {
+    console.error('Failed to save real exam session:', error);
+    return false;
+  }
+}
+
+export function loadRealExamSession(examId: string): { session: ExamSession | null; questions: Question[] } {
+  if (typeof window === 'undefined') return { session: null, questions: [] };
+  try {
+    const raw = localStorage.getItem(`${REAL_EXAM_SESSION_KEY}_${examId}`);
+    if (!raw) return { session: null, questions: [] };
+    const parsed = JSON.parse(raw) as { session?: ExamSession | null; questions?: Question[] };
+    return {
+      session: parsed?.session ?? null,
+      questions: Array.isArray(parsed?.questions) ? unpackQuestionPassages(parsed.questions) : [],
+    };
+  } catch {
+    return { session: null, questions: [] };
+  }
+}
+
+/**
+ * เลือก session ที่จะใช้ส่งข้อสอบ: ตัวแรกตามลำดับที่ให้มาที่มี session และ examId ตรง
+ * (key ทั่วไปของ practice ไม่ผูก examId — กันส่ง session ของข้อสอบอื่นเมื่อ storage เต็ม/ค้าง)
+ */
+export function pickSessionForExam(
+  examId: string,
+  candidates: { session: ExamSession | null | undefined; questions: Question[] | null | undefined }[],
+): { session: ExamSession; questions: Question[] } | null {
+  for (const c of candidates) {
+    if (c.session && c.session.id && c.session.examId === examId) {
+      return { session: c.session, questions: c.questions ?? [] };
+    }
+  }
+  return null;
 }
 
 /**
@@ -423,7 +477,7 @@ export function loadExamSession(includeCompleted = false): {
     }
 
     const session = JSON.parse(sessionStr) as ExamSession;
-    const questions = JSON.parse(questionsStr) as Question[];
+    const questions = unpackQuestionPassages(JSON.parse(questionsStr) as Question[]);
 
     // If not including completed, only return in-progress sessions
     if (!includeCompleted && session.status !== 'in_progress') {

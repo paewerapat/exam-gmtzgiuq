@@ -1,7 +1,10 @@
 import {
   collectQuestionImageUrls,
+  escapeLike,
+  isUploadReferenced,
   normalizeChoices,
   resolveQuestionImages,
+  UPLOAD_REFERENCE_SQL,
 } from './question-images';
 
 describe('question-images helpers', () => {
@@ -94,6 +97,60 @@ describe('question-images helpers', () => {
         }),
       ).toEqual([]);
       expect(collectQuestionImageUrls(null)).toEqual([]);
+    });
+  });
+
+  describe('upload reference check (task 08)', () => {
+    const file = '1700000000001-000000000000000a.png';
+
+    it('escapes LIKE wildcards and the escape character', () => {
+      expect(escapeLike('a%b_c!d')).toBe('a!%b!_c!!d');
+      expect(escapeLike(file)).toBe(file);
+    });
+
+    it('covers every column that can hold an upload URL', () => {
+      for (const part of [
+        'FROM questions',
+        'questionImage LIKE',
+        'CAST(questionImages AS CHAR)',
+        'CAST(choices AS CHAR)',
+        'FROM exams',
+        'bannerImage LIKE',
+        'CAST(passages AS CHAR)',
+        'FROM blogs',
+        'featuredImage LIKE',
+        'content LIKE',
+        'FROM users',
+        'avatar LIKE',
+      ]) {
+        expect(UPLOAD_REFERENCE_SQL).toContain(part);
+      }
+      // values are bound, never concatenated
+      expect(UPLOAD_REFERENCE_SQL).not.toContain(file);
+      expect(UPLOAD_REFERENCE_SQL.match(/\?/g)).toHaveLength(8);
+    });
+
+    it('binds the escaped pattern and reads the count', async () => {
+      const db = { query: jest.fn().mockResolvedValue([{ refs: '0' }]) };
+      await expect(isUploadReferenced(db, '1-a_b.png')).resolves.toBe(false);
+      expect(db.query).toHaveBeenCalledWith(
+        UPLOAD_REFERENCE_SQL,
+        Array(8).fill('%1-a!_b.png%'),
+      );
+
+      db.query.mockResolvedValue([{ refs: 2 }]);
+      await expect(isUploadReferenced(db, file)).resolves.toBe(true);
+      db.query.mockResolvedValue([{ refs: null }]);
+      await expect(isUploadReferenced(db, file)).resolves.toBe(true);
+    });
+
+    it('throws on a failed or unexpected result so callers keep the file', async () => {
+      const db = { query: jest.fn().mockRejectedValue(new Error('down')) };
+      await expect(isUploadReferenced(db, file)).rejects.toThrow('down');
+      db.query.mockResolvedValue([]);
+      await expect(isUploadReferenced(db, file)).rejects.toThrow();
+      db.query.mockResolvedValue({});
+      await expect(isUploadReferenced(db, file)).rejects.toThrow();
     });
   });
 });

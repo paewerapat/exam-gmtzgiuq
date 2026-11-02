@@ -25,6 +25,16 @@ export interface QuestionChoice {
   image?: string | null;
 }
 
+/** บทอ่านร่วม (บทอ่าน/บทสนทนา/ตาราง) ที่หลายข้อในข้อสอบเดียวกันใช้ร่วมกัน — เก็บเป็น JSON ใน exam.passages */
+export interface ExamPassage {
+  /** id ที่ client สร้าง ตรง regex ^[A-Za-z0-9_-]{1,64}$ ไม่ซ้ำในข้อสอบ */
+  id: string;
+  title: string | null;
+  /** LaTeX + ตาราง Markdown แบบเดียวกับโจทย์ (แสดงผ่าน LatexRenderer) */
+  body: string | null;
+  images: string[];
+}
+
 export interface QuestionAuthor {
   id: string;
   firstName: string;
@@ -45,6 +55,13 @@ export interface Question {
   chapterId?: string;
   topicId?: string;
   correctAnswer?: string;
+  /** id ของบทอ่านใน exam.passages (null = ไม่ใช้บทอ่าน) */
+  passageId?: string | null;
+  /**
+   * บทอ่านที่ resolve แล้ว — API ส่งมากับ endpoint รายการคำถาม (topic/subject/list)
+   * ส่วน getPublicExam เติมให้จาก exam.passages แสดงผลให้ใช้ getQuestionPassage() จาก lib/exam-passages
+   */
+  passage?: ExamPassage | null;
   category: QuestionCategory;
   difficulty: QuestionDifficulty;
   type: QuestionType;

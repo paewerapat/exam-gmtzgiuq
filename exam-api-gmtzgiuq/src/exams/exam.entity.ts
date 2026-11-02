@@ -11,7 +11,12 @@ import {
 
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import { User } from '../users/user.entity';
-import { Question, QuestionCategory, QuestionStatus } from '../questions/question.entity';
+import {
+  Question,
+  QuestionCategory,
+  QuestionStatus,
+} from '../questions/question.entity';
+import { ExamPassage } from './exam-passage';
 
 @ObjectType()
 @Entity('exams')
@@ -67,6 +72,14 @@ export class Exam {
   @Field(() => String, { nullable: true })
   @Column({ type: 'varchar', length: 500, nullable: true })
   bannerImage: string | null;
+
+  // Shared reading passages; questions refer to them by passageId.
+  // select: false keeps this (possibly large) JSON out of exam lists and the
+  // exam eager-loaded by attempts; findOne/findPublishedOne load it explicitly.
+  // Old rows have null (read as []).
+  @Field(() => [ExamPassage], { nullable: true })
+  @Column({ type: 'json', nullable: true, select: false })
+  passages?: ExamPassage[] | null;
 
   @Field()
   @CreateDateColumn()

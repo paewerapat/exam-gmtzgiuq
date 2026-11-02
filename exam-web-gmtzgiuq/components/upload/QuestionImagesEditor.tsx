@@ -22,6 +22,8 @@ interface QuestionImagesEditorProps {
   onUploaded?: (url: string) => void;
   /** ปิดการเพิ่ม/ลบ/เลื่อน (ระหว่างบันทึก) */
   disabled?: boolean;
+  /** หน่วยในข้อความเตือน "ใส่รูปได้ไม่เกิน 6 รูปต่อ<ข้อ>" (บทอ่านใช้ "บทอ่าน") */
+  perLabel?: string;
 }
 
 /** รายการรูปของโจทย์: เพิ่ม (สูงสุด 6) / ลบ / เลื่อนขึ้นลง */
@@ -31,6 +33,7 @@ export default function QuestionImagesEditor({
   onAdd,
   onUploaded,
   disabled = false,
+  perLabel = 'ข้อ',
 }: QuestionImagesEditorProps) {
   const [urlInput, setUrlInput] = useState('');
   const isFull = images.length >= MAX_QUESTION_IMAGES;
@@ -40,7 +43,7 @@ export default function QuestionImagesEditor({
     const url = raw.trim();
     if (!url) return false;
     if (images.length >= MAX_QUESTION_IMAGES) {
-      toast.error(`ใส่รูปได้ไม่เกิน ${MAX_QUESTION_IMAGES} รูปต่อข้อ`);
+      toast.error(`ใส่รูปได้ไม่เกิน ${MAX_QUESTION_IMAGES} รูปต่อ${perLabel}`);
       return false;
     }
     if (url.length > MAX_URL_LENGTH) {

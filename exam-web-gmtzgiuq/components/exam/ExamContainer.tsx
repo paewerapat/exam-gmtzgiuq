@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import Swal from 'sweetalert2';
 import {
   Lightbulb,
@@ -26,7 +26,9 @@ import { fetchClockOffset } from '@/lib/api/serverTime';
 import ExamHeader from './ExamHeader';
 import ChoiceButton from './ChoiceButton';
 import QuestionImages from './QuestionImages';
+import PassagePanel, { createPassageMemory } from './PassagePanel';
 import { getQuestionImages } from '@/lib/question-images';
+import { getQuestionPassage } from '@/lib/exam-passages';
 import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
 
@@ -59,6 +61,25 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
 
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [groupAnswered, setGroupAnswered] = useState(false);
+  // ตำแหน่ง scroll / สถานะพับของบทอ่านแต่ละชุด (ต้องอยู่ก่อน early return — BUG-11)
+  const [passageMemory] = useState(createPassageMemory);
+  // บทอ่านร่วมของข้อนี้ (null = layout เดิมทุกอย่าง) — คำนวณก่อน early return เพราะ effect ด้านล่างใช้
+  const passage = getQuestionPassage(currentQuestion);
+  const hasPassage = passage !== null;
+  // layout บทอ่าน (lg) สูง = จอ − ระยะจากบนสุดของหน้าถึงกล่องนี้ (Navbar ของ root layout อยู่ด้านบน)
+  // วัดจริงแทนการเดาความสูง header แล้วทั้งสองคอลัมน์เลื่อนในตัวเอง หน้าไม่ต้องเลื่อน
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [rootTop, setRootTop] = useState(0);
+  useLayoutEffect(() => {
+    if (!hasPassage) return;
+    const measure = () => {
+      const el = rootRef.current;
+      if (el) setRootTop(Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY)));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [hasPassage]);
 
   const { session, currentTimer, answerChecked, isCorrect, isPaused } = state;
   const { showHint: isHintVisible } = state;
@@ -105,6 +126,24 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
       await onComplete();
     }
   };
+
+  // ปุ่มตรวจคำตอบ (practice)
+  const checkButton = (
+    <button
+      type="button"
+      onClick={checkAnswer}
+      disabled={!hasAnswered || answerChecked}
+      className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-sm transition-all border-2 ${
+        answerChecked
+          ? 'bg-green-500 border-green-500 text-white opacity-50 cursor-not-allowed'
+          : hasAnswered
+          ? 'bg-green-500 border-green-500 text-white hover:bg-green-600 hover:border-green-600'
+          : 'bg-white dark:bg-gray-800 border-green-500 text-green-600 dark:text-green-400 cursor-not-allowed'
+      }`}
+    >
+      ตรวจคำตอบ
+    </button>
+  );
 
   const handleNext = () => {
     if (isLastQuestion) {
@@ -174,7 +213,14 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
   }, [session, onComplete, clockOffset, isPaused]);
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-900 flex flex-col">
+    <div
+      ref={rootRef}
+      style={passage ? ({ '--exam-top': `${rootTop}px` } as CSSProperties) : undefined}
+      className={`min-h-screen bg-[#F5F6FA] dark:bg-gray-900 flex flex-col${
+        // มีบทอ่าน (lg): สูงพอดีจอ ไม่เลื่อนทั้งหน้า — บทอ่านกับฝั่งโจทย์เลื่อนในคอลัมน์ของตัวเอง
+        passage ? ' lg:h-[calc(100dvh-var(--exam-top,0px))] lg:min-h-0 lg:overflow-hidden' : ''
+      }`}
+    >
       {/* Sticky top header */}
       <ExamHeader
         timer={remainingSeconds ?? currentTimer}
@@ -188,14 +234,35 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
       />
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-auto pb-20">
-        <div className="max-w-5xl mx-auto px-4 py-6">
+      {/* มีบทอ่าน (lg): กล่องนี้กินที่เหลือระหว่าง header กับแถบล่าง (pb = ความสูงแถบล่าง + ช่องว่าง) */}
+      <div className={passage ? 'flex-1 pb-20 lg:min-h-0 lg:pb-[4.5rem]' : 'flex-1 overflow-auto pb-20'}>
+        <div
+          className={
+            passage
+              ? 'max-w-7xl w-full mx-auto px-4 pt-6 pb-6 lg:pb-0 lg:h-full lg:grid lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-6'
+              : 'max-w-5xl mx-auto px-4 py-6'
+          }
+        >
+          {/* บทอ่าน: ซ้าย (lg) / เหนือโจทย์ (จอแคบ) — key ตาม id ให้ข้อในกลุ่มเดียวกันใช้กล่องเดิม ไม่ remount */}
+          {passage && (
+            <PassagePanel
+              key={passage.id}
+              passage={passage}
+              memory={passageMemory}
+              mode={mode}
+              className="mb-4 lg:mb-0 min-w-0 lg:h-full"
+            />
+          )}
 
           {/* Main card */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div
+            className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden${
+              passage ? ' min-w-0 lg:h-full lg:flex lg:flex-col' : ''
+            }`}
+          >
 
             {/* Card top: question number badge (left) + action icons (right) */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4">
+            <div className={`flex items-center justify-between px-6 pt-5 pb-4${passage ? ' flex-shrink-0' : ''}`}>
               <div className="w-10 h-10 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">
                 {currentIndex + 1}
               </div>
@@ -234,7 +301,17 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
             </div>
 
             {/* Two-column layout */}
-            <div className="flex flex-col lg:flex-row lg:divide-x divide-gray-100 min-h-[320px]">
+            {/* มีบทอ่าน: ฝั่งขวาแคบลง → โจทย์กับตัวเลือกเรียงลงมา และ (lg) เลื่อนในตัวเองถ้ายาว
+                ให้หัวการ์ดกับปุ่มก่อนหน้า/ถัดไปอยู่ในจอเสมอ — key ตามข้อ ให้เปลี่ยนข้อแล้วกลับไปบนสุด */}
+            <div
+              key={passage ? currentQuestionId : undefined}
+              data-testid={passage ? 'question-scroll' : undefined}
+              className={
+                passage
+                  ? 'relative flex flex-col min-h-[320px] lg:min-h-0 lg:flex-1 lg:overflow-y-auto'
+                  : 'flex flex-col lg:flex-row lg:divide-x divide-gray-100 min-h-[320px]'
+              }
+            >
 
               {/* ── LEFT: question text + hint + result ── */}
               <div className="flex-1 px-6 pb-6">
@@ -314,7 +391,13 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
               </div>
 
               {/* ── RIGHT: choices / short-answer input + check button ── */}
-              <div className="flex-1 px-6 pb-6 lg:pt-0 pt-4 border-t lg:border-t-0 border-gray-100 dark:border-gray-800">
+              <div
+                className={
+                  passage
+                    ? 'flex-1 px-6 pb-6 pt-4 border-t border-gray-100 dark:border-gray-800'
+                    : 'flex-1 px-6 pb-6 lg:pt-0 pt-4 border-t lg:border-t-0 border-gray-100 dark:border-gray-800'
+                }
+              >
                 {isShortAnswer ? (
                   /* Short-answer text input */
                   <div className="mb-5">
@@ -395,28 +478,17 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   </div>
                 )}
 
-                {/* ตรวจคำตอบ button — practice mode only */}
-                {mode === 'practice' && (
-                  <button
-                    type="button"
-                    onClick={checkAnswer}
-                    disabled={!hasAnswered || answerChecked}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-sm transition-all border-2 ${
-                      answerChecked
-                        ? 'bg-green-500 border-green-500 text-white opacity-50 cursor-not-allowed'
-                        : hasAnswered
-                        ? 'bg-green-500 border-green-500 text-white hover:bg-green-600 hover:border-green-600'
-                        : 'bg-white dark:bg-gray-800 border-green-500 text-green-600 dark:text-green-400 cursor-not-allowed'
-                    }`}
-                  >
-                    ตรวจคำตอบ
-                  </button>
-                )}
+                {/* ตรวจคำตอบ button — practice mode only (มีบทอ่าน: ย้ายไปแถวปุ่มก่อนหน้า/ถัดไป ให้อยู่ในจอเสมอ) */}
+                {mode === 'practice' && !passage && checkButton}
               </div>
             </div>
 
             {/* Bottom prev / next */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-800">
+            <div
+              className={`flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-800${
+                passage ? ' flex-shrink-0' : ''
+              }`}
+            >
               <button
                 type="button"
                 onClick={prevQuestion}
@@ -430,6 +502,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                 <ChevronLeft className="w-4 h-4" />
                 ข้อก่อนหน้า
               </button>
+              {mode === 'practice' && passage && checkButton}
               <button
                 type="button"
                 onClick={handleNext}

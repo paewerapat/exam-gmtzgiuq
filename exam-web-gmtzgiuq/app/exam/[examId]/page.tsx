@@ -20,6 +20,10 @@ import {
   clearExamSession,
   generateSessionId,
   calculateExamResult,
+  REAL_EXAM_SESSION_KEY,
+  pickSessionForExam,
+  saveRealExamSession,
+  loadRealExamSession,
 } from '@/lib/exam-utils';
 import { getPublicExam } from '@/lib/api/exams';
 import {
@@ -41,8 +45,12 @@ interface PageProps {
 }
 
 function saveBackendAttemptId(examId: string, attemptId: string) {
-  if (typeof window !== 'undefined') {
+  if (typeof window === 'undefined') return;
+  try {
     localStorage.setItem(`${BACKEND_ATTEMPT_KEY}_${examId}`, attemptId);
+  } catch (error) {
+    // storage เต็มจากข้อมูลอื่น → ไม่จำ attempt id ในเครื่อง แต่หน้ายังทำข้อสอบต่อได้
+    console.error('Failed to save attempt id:', error);
   }
 }
 function loadBackendAttemptId(examId: string): string | null {
@@ -61,27 +69,7 @@ function isLoggedIn(): boolean {
   return typeof window !== 'undefined' && !!localStorage.getItem('token');
 }
 
-// localStorage key for real exam sessions (separate from practice)
-const REAL_EXAM_SESSION_KEY = 'real_exam_session';
-
-function saveRealExamSession(examId: string, session: ExamSession, questions: any[]) {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(
-      `${REAL_EXAM_SESSION_KEY}_${examId}`,
-      JSON.stringify({ session, questions }),
-    );
-  }
-}
-function loadRealExamSession(examId: string): { session: ExamSession | null; questions: any[] } {
-  if (typeof window === 'undefined') return { session: null, questions: [] };
-  try {
-    const raw = localStorage.getItem(`${REAL_EXAM_SESSION_KEY}_${examId}`);
-    if (!raw) return { session: null, questions: [] };
-    return JSON.parse(raw);
-  } catch {
-    return { session: null, questions: [] };
-  }
-}
+// real_exam_session_<examId>: เก็บ/อ่านผ่าน lib/exam-utils (บทอ่านเก็บครั้งเดียวต่อกลุ่ม, เก็บไม่สำเร็จไม่ throw)
 function clearRealExamSession(examId: string) {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(`${REAL_EXAM_SESSION_KEY}_${examId}`);
@@ -477,15 +465,15 @@ function RealExamPageContent({ examId }: { examId: string }) {
   const handleComplete = async () => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
-    // Try real-exam session first; fall back to generic session saved by ExamContainer
-    let { session: savedSession, questions: savedQuestions } = loadRealExamSession(examId);
-    if (!savedSession) {
-      const fallback = loadExamSession(true);
-      savedSession = fallback.session;
-      savedQuestions = fallback.questions ?? [];
-    }
-
-    if (!savedSession) return;
+    // ลำดับ: state ในหน่วยความจำ (ใหม่สุดเสมอ — storage อาจค้างค่าเก่าถ้าเก็บล้มกลางทาง)
+    // → real-exam storage → key ทั่วไปที่ ExamContainer เก็บ; ทุกแหล่งต้องเป็นข้อสอบนี้ (examId ตรง) ไม่งั้นข้าม
+    const picked = pickSessionForExam(examId, [
+      { session: state.session, questions: state.questions },
+      loadRealExamSession(examId),
+      loadExamSession(true),
+    ]);
+    if (!picked) return;
+    const { session: savedSession, questions: savedQuestions } = picked;
 
     const examResult = calculateExamResult(savedSession, savedQuestions);
     trackEvent('timer_end', {

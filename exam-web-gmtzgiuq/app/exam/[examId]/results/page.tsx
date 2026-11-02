@@ -7,25 +7,17 @@ import { ArrowLeft, RefreshCw, BarChart2, Loader2, BookOpen } from 'lucide-react
 import FadeIn from '@/components/animations/FadeIn';
 import { ResultsSummary, QuestionReview } from '@/components/exam';
 import type { Question } from '@/lib/api/questions';
-import { calculateExamResult, getAnswerStatus } from '@/lib/exam-utils';
+import {
+  calculateExamResult,
+  getAnswerStatus,
+  loadRealExamSession,
+  REAL_EXAM_SESSION_KEY,
+} from '@/lib/exam-utils';
 import type { ExamSession, ExamResult } from '@/types/exam';
 import LatexText from '@/components/latex/LatexText';
 
 interface PageProps {
   params: Promise<{ examId: string }>;
-}
-
-const REAL_EXAM_SESSION_KEY = 'real_exam_session';
-
-function loadRealExamSession(examId: string): { session: ExamSession | null; questions: Question[] } {
-  if (typeof window === 'undefined') return { session: null, questions: [] };
-  try {
-    const raw = localStorage.getItem(`${REAL_EXAM_SESSION_KEY}_${examId}`);
-    if (!raw) return { session: null, questions: [] };
-    return JSON.parse(raw);
-  } catch {
-    return { session: null, questions: [] };
-  }
 }
 
 function clearRealExamSession(examId: string) {

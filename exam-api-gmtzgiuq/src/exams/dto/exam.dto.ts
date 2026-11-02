@@ -1,3 +1,4 @@
+import { applyDecorators } from '@nestjs/common';
 import { InputType, Field, ObjectType, Int } from '@nestjs/graphql';
 import {
   IsString,
@@ -8,6 +9,9 @@ import {
   IsNumber,
   ValidateNested,
   ValidateIf,
+  ArrayMaxSize,
+  Matches,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
@@ -18,9 +22,63 @@ import {
 } from '../../questions/question.entity';
 import { Exam } from '../exam.entity';
 import {
+  IsImageUrlList,
   IsOptionalImageUrl,
   IsQuestionImageUrls,
 } from '../../questions/dto/image-url.validators';
+import {
+  MAX_PASSAGE_BODY_LENGTH,
+  MAX_PASSAGE_TITLE_LENGTH,
+  MAX_PASSAGES_PER_EXAM,
+  PASSAGE_ID_PATTERN,
+} from '../exam-passage';
+
+const PASSAGE_ID_MESSAGE =
+  'id บทอ่านต้องเป็นตัวอักษรอังกฤษ ตัวเลข - หรือ _ ยาว 1–64 ตัวอักษร';
+
+// Shared reading passage (task 08). Unique ids, "body or images" and the
+// questions' passageId references are checked in the service
+// (preparePassages) because they span several fields.
+@InputType()
+export class ExamPassageInput {
+  @Field()
+  @IsString({ message: PASSAGE_ID_MESSAGE })
+  @Matches(PASSAGE_ID_PATTERN, { message: PASSAGE_ID_MESSAGE })
+  id: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'ชื่อบทอ่านต้องเป็นข้อความ' })
+  @MaxLength(MAX_PASSAGE_TITLE_LENGTH, {
+    message: `ชื่อบทอ่านยาวได้ไม่เกิน ${MAX_PASSAGE_TITLE_LENGTH} ตัวอักษร`,
+  })
+  title?: string | null;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'เนื้อหาบทอ่านต้องเป็นข้อความ' })
+  @MaxLength(MAX_PASSAGE_BODY_LENGTH, {
+    message: 'เนื้อหาบทอ่านยาวได้ไม่เกิน 100,000 ตัวอักษร',
+  })
+  body?: string | null;
+
+  @Field(() => [String], { nullable: true })
+  @IsImageUrlList('รูปบทอ่าน', 'บทอ่าน')
+  images?: string[] | null;
+}
+
+/** `passages` field of POST and PUT. */
+function IsPassageList() {
+  return applyDecorators(
+    IsOptional(),
+    IsArray({ message: 'บทอ่านร่วมต้องเป็นรายการ' }),
+    ArrayMaxSize(MAX_PASSAGES_PER_EXAM, {
+      message: `ใส่บทอ่านร่วมได้ไม่เกิน ${MAX_PASSAGES_PER_EXAM} ชุดต่อข้อสอบ`,
+    }),
+    ValidateNested({ each: true }),
+    Type(() => ExamPassageInput),
+  );
+}
 
 // Choice input for exam questions
 @InputType()
@@ -111,6 +169,13 @@ export class CreateExamQuestionInput {
   @IsString()
   @IsOptional()
   chapter?: string;
+
+  // id of a passage in the same request's passages (null = no passage)
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: PASSAGE_ID_MESSAGE })
+  @Matches(PASSAGE_ID_PATTERN, { message: PASSAGE_ID_MESSAGE })
+  passageId?: string | null;
 }
 
 // Create exam input
@@ -148,6 +213,10 @@ export class CreateExamInput {
   @IsNumber()
   @IsOptional()
   durationMinutes?: number | null;
+
+  @Field(() => [ExamPassageInput], { nullable: true })
+  @IsPassageList()
+  passages?: ExamPassageInput[];
 
   @Field(() => [CreateExamQuestionInput])
   @IsArray()
@@ -193,6 +262,12 @@ export class UpdateExamInput {
   @IsNumber()
   @IsOptional()
   durationMinutes?: number | null;
+
+  // Sent = replaces every passage. Not sent while questions are sent = []
+  // (questions are recreated, so their passageId must refer to this request)
+  @Field(() => [ExamPassageInput], { nullable: true })
+  @IsPassageList()
+  passages?: ExamPassageInput[];
 
   @Field(() => [CreateExamQuestionInput], { nullable: true })
   @IsArray()

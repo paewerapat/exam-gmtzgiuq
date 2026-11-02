@@ -24,6 +24,11 @@ import {
   normalizeChoices,
   resolveQuestionImages,
 } from '../questions/question-images';
+import {
+  collectPassageImageUrls,
+  normalizeStoredPassages,
+  preparePassages,
+} from './exam-passage';
 
 @Injectable()
 export class ExamsService {
@@ -37,6 +42,8 @@ export class ExamsService {
   ) {}
 
   async create(input: CreateExamInput, author: User): Promise<Exam> {
+    const passages = preparePassages(input.passages, input.questions);
+
     const savedExamId = await this.dataSource.transaction(async (manager) => {
       const exam = manager.create(Exam, {
         title: input.title,
@@ -47,6 +54,7 @@ export class ExamsService {
         subjectId: input.subjectId ?? null,
         bannerImage: input.bannerImage ?? null,
         durationMinutes: input.durationMinutes ?? null,
+        passages,
         author,
         authorId: author.id,
       });
@@ -71,6 +79,7 @@ export class ExamsService {
           topicId: q.topicId || undefined,
           chapterId: q.chapterId || undefined,
           chapter: q.chapter || undefined,
+          passageId: q.passageId || null,
         }),
       );
       await manager.save(questions);
@@ -149,7 +158,7 @@ export class ExamsService {
       throw new NotFoundException('Exam not found');
     }
 
-    return exam;
+    return this.withPassages(exam);
   }
 
   async findPublishedOne(id: string): Promise<Exam> {
@@ -163,17 +172,44 @@ export class ExamsService {
       throw new NotFoundException('Exam not found');
     }
 
+    return this.withPassages(exam);
+  }
+
+  /**
+   * Load `passages` (a select: false column) for a single exam and expose it
+   * as an array (null/malformed → []).
+   */
+  private async withPassages(exam: Exam): Promise<Exam> {
+    const row = await this.examsRepository.findOne({
+      select: { id: true, passages: true },
+      where: { id: exam.id },
+      loadEagerRelations: false,
+    });
+    exam.passages = normalizeStoredPassages(row?.passages);
     return exam;
   }
 
   async update(id: string, input: UpdateExamInput): Promise<Exam> {
     const exam = await this.findOne(id);
+    const currentQuestionUrls = exam.questions.flatMap((q) =>
+      collectQuestionImageUrls(q),
+    );
 
-    // Remember every image the current questions use (question images and
-    // choice images); files are only removed after commit
-    const oldImageUrls = input.questions
-      ? exam.questions.flatMap((q) => collectQuestionImageUrls(q))
-      : [];
+    // Passages are replaced when sent, and also (with []) when questions are
+    // sent without them: recreated questions may only refer to this request.
+    // Sending passages alone checks the existing questions' passageId.
+    const replacePassages =
+      Boolean(input.questions) || Array.isArray(input.passages);
+    const passages = replacePassages
+      ? preparePassages(input.passages, input.questions ?? exam.questions)
+      : null;
+
+    // Remember every image that is being replaced (question images, choice
+    // images, passage images); files are only removed after commit
+    const oldImageUrls = [
+      ...(input.questions ? currentQuestionUrls : []),
+      ...(passages ? collectPassageImageUrls(exam.passages) : []),
+    ];
 
     await this.dataSource.transaction(async (manager) => {
       // Update exam fields
@@ -212,6 +248,7 @@ export class ExamsService {
             topicId: q.topicId || undefined,
             chapterId: q.chapterId || undefined,
             chapter: q.chapter || undefined,
+            passageId: q.passageId || null,
           }),
         );
         await manager.save(questions);
@@ -229,20 +266,26 @@ export class ExamsService {
         questionCount: exam.questionCount,
         bannerImage: exam.bannerImage,
         durationMinutes: exam.durationMinutes,
+        ...(passages ? { passages } : {}),
       });
     });
 
-    // Transaction committed: drop only the image files no longer referenced
-    if (input.questions) {
-      deleteUnusedImages(
+    // Transaction committed: drop only the image files that neither this
+    // exam nor anything else in the database still refers to
+    if (oldImageUrls.length > 0) {
+      const newQuestionUrls = input.questions
+        ? input.questions.flatMap((q) =>
+            collectQuestionImageUrls({
+              ...resolveQuestionImages(q),
+              choices: q.choices,
+            }),
+          )
+        : currentQuestionUrls;
+      await deleteUnusedImages(
         this.uploadService,
+        this.dataSource,
         oldImageUrls,
-        input.questions.flatMap((q) =>
-          collectQuestionImageUrls({
-            ...resolveQuestionImages(q),
-            choices: q.choices,
-          }),
-        ),
+        [...newQuestionUrls, ...collectPassageImageUrls(passages)],
       );
     }
 
@@ -251,14 +294,21 @@ export class ExamsService {
 
   async remove(id: string): Promise<boolean> {
     const exam = await this.findOne(id);
-    const imageUrls = exam.questions.flatMap((q) =>
-      collectQuestionImageUrls(q),
-    );
+    const imageUrls = [
+      ...exam.questions.flatMap((q) => collectQuestionImageUrls(q)),
+      ...collectPassageImageUrls(exam.passages),
+    ];
 
     await this.examsRepository.remove(exam);
 
-    // Exam deleted: remove every image its questions referred to
-    deleteUnusedImages(this.uploadService, imageUrls, []);
+    // Exam deleted: remove the images its questions and passages referred to
+    // unless another exam, question, blog or user still uses them
+    await deleteUnusedImages(
+      this.uploadService,
+      this.dataSource,
+      imageUrls,
+      [],
+    );
     return true;
   }
 

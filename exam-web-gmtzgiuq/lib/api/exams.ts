@@ -1,5 +1,6 @@
 // Exam API Service
 import type {
+  ExamPassage,
   Question,
   QuestionChoice,
   QuestionDifficulty,
@@ -7,6 +8,9 @@ import type {
   QuestionStatus,
   QuestionAuthor,
 } from './questions';
+import { withResolvedPassages } from '@/lib/exam-passages';
+
+export type { ExamPassage } from './questions';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -18,6 +22,8 @@ export interface Exam {
   status: QuestionStatus;
   questionCount: number;
   questions: Question[];
+  /** บทอ่านร่วม (API แปลง null → []) */
+  passages?: ExamPassage[];
   author: QuestionAuthor;
   subjectId?: string | null;
   bannerImage?: string | null;
@@ -57,6 +63,16 @@ export interface ExamQuestionInput {
   topicId?: string | null;
   chapterId?: string | null;
   chapter?: string | null;
+  /** id ของบทอ่านใน passages ของ payload เดียวกัน (null = ไม่ใช้บทอ่าน) */
+  passageId?: string | null;
+}
+
+/** บทอ่านใน payload สร้าง/แก้ข้อสอบ */
+export interface ExamPassageInput {
+  id: string;
+  title?: string | null;
+  body?: string | null;
+  images?: string[];
 }
 
 export interface CreateExamInput {
@@ -65,6 +81,8 @@ export interface CreateExamInput {
   category: string;
   status?: QuestionStatus;
   questions: ExamQuestionInput[];
+  /** บทอ่านร่วมทั้งหมด (ฟอร์มแอดมินส่งทุกครั้ง) */
+  passages?: ExamPassageInput[];
   subjectId?: string | null;
   bannerImage?: string | null;
   durationMinutes?: number | null;
@@ -76,6 +94,8 @@ export interface UpdateExamInput {
   category?: string;
   status?: QuestionStatus;
   questions?: ExamQuestionInput[];
+  /** ส่งพร้อม questions เสมอ — API แทนที่บทอ่านทั้งหมด (ส่ง questions โดยไม่ส่ง passages = ล้างเป็น []) */
+  passages?: ExamPassageInput[];
   subjectId?: string | null;
   bannerImage?: string | null;
   durationMinutes?: number | null;
@@ -139,7 +159,9 @@ export async function getPublicExam(id: string, signal?: AbortSignal): Promise<E
     throw new Error('Exam not found');
   }
 
-  return response.json();
+  // เติม question.passage จาก exam.passages ให้หน้าทำข้อสอบ/ผลลัพธ์ใช้ได้โดยไม่ต้องถือ exam ไว้
+  // (questions ถูกเก็บลง localStorage ไปพร้อมบทอ่าน หน้าผลลัพธ์จึงแสดงได้)
+  return withResolvedPassages(await response.json());
 }
 
 // Admin - Get all exams

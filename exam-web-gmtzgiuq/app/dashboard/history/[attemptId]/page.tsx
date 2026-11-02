@@ -24,6 +24,8 @@ import { getQuestionImages } from '@/lib/question-images';
 import LatexText from '@/components/latex/LatexText';
 import QuestionImages from '@/components/exam/QuestionImages';
 import ChoiceContent from '@/components/exam/ChoiceContent';
+import { PassageDisclosure } from '@/components/exam/PassagePanel';
+import { getQuestionPassage } from '@/lib/exam-passages';
 import type { Question } from '@/lib/api/questions';
 
 interface PageProps {
@@ -207,7 +209,8 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                 const hasExplanation = !!item.question.explanation;
                 const questionImages = getQuestionImages(item.question);
                 const hasChoiceImages = item.question.choices.some((c) => !!c.image);
-                const canExpand = hasExplanation || questionImages.length > 0 || hasChoiceImages;
+                const passage = getQuestionPassage(item.question, exam);
+                const canExpand = hasExplanation || questionImages.length > 0 || hasChoiceImages || !!passage;
 
                 const statusIcon =
                   item.status === 'correct' ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto" /> :
@@ -272,6 +275,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                           {/* ตารางกว้างกว่าจอมือถือ (เลื่อนข้าง) → จำกัดเนื้อหาแถวขยายให้พอดีจอ:
                               100vw − padding หน้า (2×1rem) − คอลัมน์ข้อที่ (3.5rem) − padding ช่อง (2×1rem) */}
                           <div className="max-w-[calc(100vw-7.5rem)] md:max-w-md lg:max-w-none">
+                          {passage && <PassageDisclosure key={passage.id} passage={passage} className="mb-3" />}
                           <QuestionImages
                             images={questionImages}
                             className="mb-3"

@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
 import { User } from '../users/user.entity';
+import type { ExamPassage } from '../exams/exam-passage';
 
 export enum QuestionCategory {
   GENERAL_KNOWLEDGE = 'general_knowledge',
@@ -162,6 +163,15 @@ export class Question {
   @Field(() => Int, { nullable: true })
   @Column({ type: 'int', nullable: true })
   orderIndex: number;
+
+  // id of a passage in exam.passages shared by several questions (null = none)
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  passageId: string | null;
+
+  // Resolved passage, attached by the public question list endpoints only
+  // (not a column)
+  passage?: ExamPassage | null;
 
   @Field()
   @CreateDateColumn()

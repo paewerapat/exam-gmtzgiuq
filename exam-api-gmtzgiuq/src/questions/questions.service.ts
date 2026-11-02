@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import {
   Question,
   QuestionCategory,
@@ -22,12 +22,16 @@ import {
   normalizeChoices,
   resolveQuestionImages,
 } from './question-images';
+import { Exam } from '../exams/exam.entity';
+import { ExamPassage, normalizeStoredPassages } from '../exams/exam-passage';
 
 @Injectable()
 export class QuestionsService {
   constructor(
     @InjectRepository(Question)
     private questionsRepository: Repository<Question>,
+    @InjectRepository(Exam)
+    private examsRepository: Repository<Exam>,
     private uploadService: UploadService,
   ) {}
 
@@ -102,7 +106,7 @@ export class QuestionsService {
     difficulty?: QuestionDifficulty,
     search?: string,
   ): Promise<PaginatedQuestions> {
-    return this.findAll(
+    const result = await this.findAll(
       page,
       limit,
       QuestionStatus.PUBLISHED,
@@ -110,6 +114,8 @@ export class QuestionsService {
       difficulty,
       search,
     );
+    result.items = await this.attachPassages(result.items);
+    return result;
   }
 
   async findOne(id: string): Promise<Question> {
@@ -151,11 +157,14 @@ export class QuestionsService {
     const siblingUrls = await this.siblingImageUrls(question);
     const saved = await this.questionsRepository.save(question);
 
-    // Saved: drop image files neither this question nor its siblings use
-    deleteUnusedImages(this.uploadService, oldImageUrls, [
-      ...collectQuestionImageUrls(saved),
-      ...siblingUrls,
-    ]);
+    // Saved: drop image files that neither this question, its siblings nor
+    // anything else in the database still uses
+    await deleteUnusedImages(
+      this.uploadService,
+      this.questionsRepository,
+      oldImageUrls,
+      [...collectQuestionImageUrls(saved), ...siblingUrls],
+    );
     return saved;
   }
 
@@ -166,9 +175,14 @@ export class QuestionsService {
 
     await this.questionsRepository.remove(question);
 
-    // Removed: delete its image files unless another question of the same
-    // exam still uses them
-    deleteUnusedImages(this.uploadService, imageUrls, siblingUrls);
+    // Removed: delete its image files unless another question (of this or
+    // another exam), an exam, a blog or a user still uses them
+    await deleteUnusedImages(
+      this.uploadService,
+      this.questionsRepository,
+      imageUrls,
+      siblingUrls,
+    );
     return true;
   }
 
@@ -183,8 +197,44 @@ export class QuestionsService {
     return siblings.flatMap((q) => collectQuestionImageUrls(q));
   }
 
+  /**
+   * Set `passage` on each question: the passage of its exam that
+   * `passageId` refers to, or null. Loads the passages of all distinct exams
+   * in one query, and only from published exams (these lists are public).
+   */
+  private async attachPassages(questions: Question[]): Promise<Question[]> {
+    const examIds = [
+      ...new Set(
+        questions.filter((q) => q.passageId && q.examId).map((q) => q.examId),
+      ),
+    ];
+
+    const passagesByExam = new Map<string, Map<string, ExamPassage>>();
+    if (examIds.length > 0) {
+      const exams = await this.examsRepository.find({
+        select: { id: true, passages: true },
+        where: { id: In(examIds), status: QuestionStatus.PUBLISHED },
+        loadEagerRelations: false,
+      });
+      for (const exam of exams) {
+        passagesByExam.set(
+          exam.id,
+          new Map(normalizeStoredPassages(exam.passages).map((p) => [p.id, p])),
+        );
+      }
+    }
+
+    for (const question of questions) {
+      question.passage =
+        (question.passageId &&
+          passagesByExam.get(question.examId)?.get(question.passageId)) ||
+        null;
+    }
+    return questions;
+  }
+
   async findByTopic(topicId: string): Promise<Question[]> {
-    return this.questionsRepository
+    const questions = await this.questionsRepository
       .createQueryBuilder('q')
       .innerJoin('q.exam', 'exam')
       .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
@@ -192,10 +242,11 @@ export class QuestionsService {
       .orderBy('exam.createdAt', 'ASC')
       .addOrderBy('q.orderIndex', 'ASC')
       .getMany();
+    return this.attachPassages(questions);
   }
 
   async findBySubject(subjectId: string): Promise<Question[]> {
-    return this.questionsRepository
+    const questions = await this.questionsRepository
       .createQueryBuilder('q')
       .innerJoin('q.exam', 'exam')
       .innerJoin('topics', 'topic', 'topic.id = q.topicId')
@@ -205,6 +256,7 @@ export class QuestionsService {
       .orderBy('exam.createdAt', 'ASC')
       .addOrderBy('q.orderIndex', 'ASC')
       .getMany();
+    return this.attachPassages(questions);
   }
 
   async getStats(): Promise<QuestionStats> {

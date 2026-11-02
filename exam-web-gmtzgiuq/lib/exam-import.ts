@@ -1,9 +1,16 @@
 // นำเข้าชุดข้อสอบจากไฟล์ .zip (exam.json + images/) หรือ .json เดี่ยว
 // pure module: ไม่แตะ DOM / fetch — หน้า /admin/exams/import เป็นคนอัปรูปและเรียก createExam
 import { strFromU8, unzipSync } from 'fflate';
-import type { CreateExamInput, ExamQuestionInput } from '@/lib/api/exams';
+import type { CreateExamInput, ExamPassageInput, ExamQuestionInput } from '@/lib/api/exams';
 import type { QuestionChoice } from '@/lib/api/questions';
 import { MAX_QUESTION_IMAGES, toChoiceInput } from '@/lib/question-images';
+import {
+  MAX_PASSAGE_BODY,
+  MAX_PASSAGE_IMAGES,
+  MAX_PASSAGE_TITLE,
+  MAX_PASSAGES,
+  PASSAGE_ID_PATTERN,
+} from '@/lib/exam-passages';
 import type { Category } from '@/lib/api/categories';
 import type { Subject } from '@/lib/api/curriculum';
 
@@ -39,6 +46,8 @@ export interface ImportImage {
   data: Uint8Array;
   /** เลขข้อที่ใช้รูปนี้ (รูปโจทย์หรือรูปตัวเลือก ไม่ซ้ำ) */
   usedBy: number[];
+  /** id บทอ่าน (passage_groups) ที่ใช้รูปนี้ */
+  usedByPassages: string[];
 }
 
 /** ตัวเลือกที่นำเข้า: รูปเก็บเป็น path ใน zip (แปลงเป็น URL ตอนสร้างข้อสอบ) */
@@ -68,7 +77,35 @@ export interface ParsedImportQuestion {
   imagePaths: string[];
   /** path รูปโจทย์ตามที่ไฟล์อ้าง (แสดงในตาราง แม้รูปจะใช้ไม่ได้) */
   imageRefs: string[];
+  /** `passage_group` ตามที่ไฟล์ระบุ (null = ไม่ระบุ) */
+  passageGroupRef: string | null;
+  /** id บทอ่านที่ผูกจริง (จาก passage_group หรือ applies_to) null = ไม่ใช้บทอ่าน */
+  passageId: string | null;
   issues: ImportIssue[];
+}
+
+export type ImportQuestionStatus = 'ok' | 'warning' | 'error';
+
+/** บทอ่านร่วมจาก `passage_groups[]` */
+export interface ParsedImportPassage {
+  /** id ตามไฟล์ ('' = ไม่มี) ใช้เป็น id ของบทอ่านในข้อสอบ */
+  id: string;
+  title: string | null;
+  body: string | null;
+  /** path รูปที่ใช้ได้ตามลำดับ (key ของ images) */
+  imagePaths: string[];
+  /** path รูปตามที่ไฟล์อ้าง */
+  imageRefs: string[];
+  /** เลขข้อตาม `applies_to` */
+  appliesTo: number[];
+  /** `_example_only: true` */
+  exampleOnly: boolean;
+  /** เลขข้อที่ผูกกับบทอ่านนี้จริง (passage_group เป็นหลัก ไม่งั้น applies_to) */
+  usedBy: number[];
+  /** ส่งเข้า API ได้ (id ถูก/ไม่ซ้ำ, body ไม่เกิน, มีเนื้อหาหรือรูปที่ใช้ได้) — false = ไม่นำเข้าชุดนี้ */
+  usable: boolean;
+  issues: ImportIssue[];
+  status: ImportQuestionStatus;
 }
 
 export interface ParsedImport {
@@ -81,11 +118,10 @@ export interface ParsedImport {
     durationMinutes: number | null;
   } | null;
   questions: ParsedImportQuestion[];
+  passages: ParsedImportPassage[];
   /** รูปที่ต้องอัป (dedupe ตาม path) */
   images: ImportImage[];
 }
-
-export type ImportQuestionStatus = 'ok' | 'warning' | 'error';
 
 export interface ResolvedImportQuestion extends ParsedImportQuestion {
   topicId: string | null;
@@ -102,6 +138,7 @@ export interface ResolvedImport {
   /** slug หมวดหมู่ที่จับคู่ได้ (null = ต้องให้แอดมินเลือก) */
   matchedCategorySlug: string | null;
   questions: ResolvedImportQuestion[];
+  passages: ParsedImportPassage[];
   images: ImportImage[];
   hasFileError: boolean;
   /** จำนวนข้อที่มี error */
@@ -171,19 +208,26 @@ function imageRefOf(v: unknown): string {
   return '';
 }
 
-/** path รูปที่ข้อสอบอ้างถึง (images[] ทุกรูป + choices[].image ของทุกข้อ) normalize แล้ว */
+/** path รูปที่ข้อสอบอ้างถึง (images[] ทุกรูป + choices[].image ของทุกข้อ + รูปของ passage_groups) normalize แล้ว */
 function referencedImagePaths(json: unknown): string[] {
-  if (!isRecord(json) || !Array.isArray(json.questions)) return [];
+  if (!isRecord(json)) return [];
   const out = new Set<string>();
   const add = (v: unknown) => {
     const path = isNoImage(v) ? null : normalizeZipPath(imageRefOf(v));
     if (path) out.add(path);
   };
-  for (const q of json.questions) {
-    if (!isRecord(q)) continue;
-    if (Array.isArray(q.images)) q.images.slice(0, MAX_QUESTION_IMAGES).forEach(add);
-    if (Array.isArray(q.choices)) {
-      q.choices.slice(0, CHOICE_LABELS.length).forEach((c) => isRecord(c) && add(c.image));
+  if (Array.isArray(json.questions)) {
+    for (const q of json.questions) {
+      if (!isRecord(q)) continue;
+      if (Array.isArray(q.images)) q.images.slice(0, MAX_QUESTION_IMAGES).forEach(add);
+      if (Array.isArray(q.choices)) {
+        q.choices.slice(0, CHOICE_LABELS.length).forEach((c) => isRecord(c) && add(c.image));
+      }
+    }
+  }
+  if (Array.isArray(json.passage_groups)) {
+    for (const g of json.passage_groups.slice(0, MAX_PASSAGES)) {
+      if (isRecord(g) && Array.isArray(g.images)) g.images.slice(0, MAX_PASSAGE_IMAGES).forEach(add);
     }
   }
   return [...out];
@@ -334,14 +378,57 @@ function readSource(fileName: string, bytes: Uint8Array): { source: ImportSource
 export function parseImportFile(fileName: string, bytes: Uint8Array): ParsedImport {
   const read = readSource(fileName, bytes);
   if ('error' in read) {
-    return { fileIssues: [err(read.error)], exam: null, questions: [], images: [] };
+    return { fileIssues: [err(read.error)], exam: null, questions: [], passages: [], images: [] };
   }
   return parseExamJson(read.source.json, read.source.files, read.source.isZip);
 }
 
+type ImageUsage = { questionNo: number } | { passageId: string };
+
+/**
+ * ตัวตรวจรูปหนึ่งรูป (path/ชนิด/มีใน zip/ขนาด) ใช้ร่วมกันทั้งรูปโจทย์ รูปตัวเลือก และรูปบทอ่าน
+ * คืน path ที่ใช้ได้ หรือ null (ใส่ error ลง issues); รูปที่ใช้ได้ถูกจดลง images ครั้งเดียวต่อ path
+ */
+function createImageResolver(files: Map<string, ZipEntry>, fromZip: boolean, images: Map<string, ImportImage>) {
+  return (ref: string, prefix: string, issues: ImportIssue[], usage: ImageUsage): string | null => {
+    const path = normalizeZipPath(ref);
+    const ext = path ? extOf(path) : '';
+    const entry = path ? files.get(path) : undefined;
+    if (!path) {
+      issues.push(err(`${prefix}path รูปไม่ถูกต้อง "${ref}" (ห้ามมี .. หรือขึ้นต้นด้วย /)`));
+    } else if (!IMAGE_MIME[ext]) {
+      issues.push(err(`${prefix}ไม่รองรับไฟล์รูปชนิดนี้ "${ref}" (รองรับ png, jpg, jpeg, gif, webp)`));
+    } else if (!entry) {
+      issues.push(
+        err(
+          fromZip
+            ? `${prefix}ไม่พบรูป "${ref}" ใน zip`
+            : `${prefix}ไม่พบรูป "${ref}" (นำเข้าไฟล์ .json เดี่ยวจะไม่มีรูป ให้ใช้ .zip)`,
+        ),
+      );
+    } else if (entry.size > MAX_IMAGE_BYTES || !entry.data) {
+      issues.push(err(`${prefix}รูป "${ref}" ใหญ่เกิน 5MB`));
+    } else {
+      // อัปโหลดครั้งเดียวต่อ path แม้หลายข้อ/หลายตัวเลือก/บทอ่านใช้ร่วมกัน
+      let image = images.get(path);
+      if (!image) {
+        image = { path, fileName: basename(path), mimeType: IMAGE_MIME[ext], data: entry.data, usedBy: [], usedByPassages: [] };
+        images.set(path, image);
+      }
+      if ('questionNo' in usage) {
+        if (!image.usedBy.includes(usage.questionNo)) image.usedBy.push(usage.questionNo);
+      } else if (!image.usedByPassages.includes(usage.passageId)) {
+        image.usedByPassages.push(usage.passageId);
+      }
+      return path;
+    }
+    return null;
+  };
+}
+
 function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boolean): ParsedImport {
   const fileIssues: ImportIssue[] = [];
-  const empty: ParsedImport = { fileIssues, exam: null, questions: [], images: [] };
+  const empty: ParsedImport = { fileIssues, exam: null, questions: [], passages: [], images: [] };
 
   if (!isRecord(json)) {
     fileIssues.push(err('รูปแบบ exam.json ไม่ถูกต้อง (ต้องเป็น object)'));
@@ -376,10 +463,6 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
     fileIssues.push(note(`สถานะในไฟล์คือ "${status}" แต่ระบบจะสร้างเป็นแบบร่างเสมอ`));
   }
 
-  if (Array.isArray(json.passage_groups) && json.passage_groups.length > 0) {
-    fileIssues.push(warn('ไฟล์มีบทอ่านร่วม (passage_groups) ซึ่งยังไม่รองรับ บทอ่านจะไม่ถูกนำเข้า'));
-  }
-
   const rawQuestions = json.questions;
   if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
     fileIssues.push(err('ไม่พบข้อสอบในไฟล์ (questions ว่าง)'));
@@ -398,6 +481,7 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
 
   const seenNo = new Set<number>();
   const images = new Map<string, ImportImage>();
+  const resolveImageFor = createImageResolver(files, fromZip, images);
 
   const questions = ordered.map(({ q, no }, orderIndex): ParsedImportQuestion => {
     const displayNo = no ?? orderIndex + 1;
@@ -415,46 +499,14 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
       topicName: null,
       imagePaths: [],
       imageRefs: [],
+      passageGroupRef: null,
+      passageId: null,
       issues,
     };
 
-    /** ตรวจรูปหนึ่งรูป (path/ชนิด/มีใน zip/ขนาด) คืน path ที่ใช้ได้ หรือ null; prefix บอกว่าเป็นรูปไหน */
-    const resolveImage = (ref: string, prefix: string): string | null => {
-      const path = normalizeZipPath(ref);
-      const ext = path ? extOf(path) : '';
-      const entry = path ? files.get(path) : undefined;
-      if (!path) {
-        issues.push(err(`${prefix}path รูปไม่ถูกต้อง "${ref}" (ห้ามมี .. หรือขึ้นต้นด้วย /)`));
-      } else if (!IMAGE_MIME[ext]) {
-        issues.push(err(`${prefix}ไม่รองรับไฟล์รูปชนิดนี้ "${ref}" (รองรับ png, jpg, jpeg, gif, webp)`));
-      } else if (!entry) {
-        issues.push(
-          err(
-            fromZip
-              ? `${prefix}ไม่พบรูป "${ref}" ใน zip`
-              : `${prefix}ไม่พบรูป "${ref}" (นำเข้าไฟล์ .json เดี่ยวจะไม่มีรูป ให้ใช้ .zip)`,
-          ),
-        );
-      } else if (entry.size > MAX_IMAGE_BYTES || !entry.data) {
-        issues.push(err(`${prefix}รูป "${ref}" ใหญ่เกิน 5MB`));
-      } else {
-        // อัปโหลดครั้งเดียวต่อ path แม้หลายข้อ/หลายตัวเลือกใช้ร่วมกัน
-        const existing = images.get(path);
-        if (!existing) {
-          images.set(path, {
-            path,
-            fileName: basename(path),
-            mimeType: IMAGE_MIME[ext],
-            data: entry.data,
-            usedBy: [displayNo],
-          });
-        } else if (!existing.usedBy.includes(displayNo)) {
-          existing.usedBy.push(displayNo);
-        }
-        return path;
-      }
-      return null;
-    };
+    /** ตรวจรูปหนึ่งรูปของข้อนี้ คืน path ที่ใช้ได้ หรือ null; prefix บอกว่าเป็นรูปไหน */
+    const resolveImage = (ref: string, prefix: string): string | null =>
+      resolveImageFor(ref, prefix, issues, { questionNo: displayNo });
 
     if (!isRecord(q)) {
       issues.push(err('ข้อมูลข้อนี้ไม่ถูกต้อง (ต้องเป็น object)'));
@@ -607,9 +659,8 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
     // topic (จับคู่ทีหลังใน resolveImport)
     base.topicName = asText(q.topic).trim() || null;
 
-    if (q.passage_group !== undefined && q.passage_group !== null && q.passage_group !== '') {
-      issues.push(warn('ยังไม่รองรับบทอ่านร่วม บทอ่านจะไม่ถูกต่อเข้าโจทย์'));
-    }
+    // บทอ่านร่วม (ผูกจริงหลังอ่าน passage_groups — ดู bindPassages)
+    base.passageGroupRef = asText(q.passage_group).trim() || null;
 
     const reviewNote = asText(q.review_note).trim();
     if (reviewNote) issues.push(note(reviewNote));
@@ -617,12 +668,210 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
     return base;
   });
 
+  // บทอ่านอ่านหลังข้อ (ลำดับรูปที่อัปยังเป็นรูปข้อก่อน) แล้วผูกกับข้อ
+  const passages = parsePassageGroups(json.passage_groups, fileIssues, resolveImageFor);
+  bindPassages(questions, passages);
+
   return {
     fileIssues,
     exam: { title, description, categoryText, durationMinutes },
     questions,
+    passages,
     images: [...images.values()],
   };
+}
+
+// ── passage_groups ────────────────────────────────────────
+
+/** อ่าน `passage_groups[]` (id, title, body, images, applies_to, _example_only) — ยังไม่ผูกกับข้อ */
+function parsePassageGroups(
+  raw: unknown,
+  fileIssues: ImportIssue[],
+  resolveImageFor: ReturnType<typeof createImageResolver>,
+): ParsedImportPassage[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    fileIssues.push(err('passage_groups ต้องเป็น array'));
+    return [];
+  }
+  if (raw.length > MAX_PASSAGES) {
+    fileIssues.push(err(`บทอ่านร่วมมี ${raw.length} ชุด เกินสูงสุด ${MAX_PASSAGES} ชุดต่อข้อสอบ`));
+  }
+
+  const seenIds = new Set<string>();
+  return raw.slice(0, MAX_PASSAGES).map((g, i): ParsedImportPassage => {
+    const issues: ImportIssue[] = [];
+    const passage: ParsedImportPassage = {
+      id: '',
+      title: null,
+      body: null,
+      imagePaths: [],
+      imageRefs: [],
+      appliesTo: [],
+      exampleOnly: false,
+      usedBy: [],
+      usable: false,
+      issues,
+      status: 'ok',
+    };
+    if (!isRecord(g)) {
+      issues.push(err(`บทอ่านลำดับที่ ${i + 1} ไม่ถูกต้อง (ต้องเป็น object) จะไม่ถูกนำเข้า`));
+      passage.status = 'error';
+      return passage;
+    }
+
+    const id = asText(g.id).trim();
+    passage.id = id;
+    let idOk = false;
+    if (!id) {
+      issues.push(err(`บทอ่านลำดับที่ ${i + 1} ไม่มี id จะไม่ถูกนำเข้า`));
+    } else if (!PASSAGE_ID_PATTERN.test(id)) {
+      issues.push(
+        err(`id บทอ่าน "${id}" ไม่ถูกต้อง (ใช้ได้เฉพาะ A–Z a–z 0–9 _ - ยาวไม่เกิน 64 ตัวอักษร) จะไม่ถูกนำเข้า`),
+      );
+    } else if (seenIds.has(id)) {
+      issues.push(err(`id บทอ่าน "${id}" ซ้ำกับบทอ่านอื่น ชุดนี้จะไม่ถูกนำเข้า`));
+    } else {
+      idOk = true;
+    }
+    if (id) seenIds.add(id);
+
+    const title = asText(g.title).trim();
+    if (title.length > MAX_PASSAGE_TITLE) {
+      issues.push(warn(`ชื่อบทอ่านยาวเกิน ${MAX_PASSAGE_TITLE} ตัวอักษร จะถูกตัดให้เหลือ ${MAX_PASSAGE_TITLE} ตัว`));
+    }
+    passage.title = title ? title.slice(0, MAX_PASSAGE_TITLE) : null;
+
+    const body = asText(g.body);
+    const bodyTooLong = body.length > MAX_PASSAGE_BODY;
+    if (bodyTooLong) {
+      issues.push(
+        err(`เนื้อหาบทอ่าน (body) ยาวเกิน ${MAX_PASSAGE_BODY.toLocaleString('en-US')} ตัวอักษร จะไม่ถูกนำเข้า`),
+      );
+    }
+    passage.body = body.trim() ? body : null;
+
+    const imgs = Array.isArray(g.images) ? g.images : [];
+    if (imgs.length > MAX_PASSAGE_IMAGES) {
+      issues.push(err(`บทอ่านมีรูป ${imgs.length} รูป เกินสูงสุด ${MAX_PASSAGE_IMAGES} รูป`));
+    }
+    imgs.slice(0, MAX_PASSAGE_IMAGES).forEach((img, j) => {
+      const ref = imageRefOf(img);
+      if (!ref) {
+        issues.push(err(`ไม่ได้ระบุไฟล์รูปบทอ่าน (images[${j}].file)`));
+        return;
+      }
+      passage.imageRefs.push(ref);
+      const path = resolveImageFor(ref, imgs.length > 1 ? `รูปที่ ${j + 1}: ` : '', issues, {
+        passageId: id || `#${i + 1}`,
+      });
+      if (path) passage.imagePaths.push(path);
+    });
+
+    if (!passage.body && passage.imageRefs.length === 0) {
+      issues.push(err('บทอ่านไม่มีทั้งเนื้อหา (body) และรูป จะไม่ถูกนำเข้า'));
+    } else if (!passage.body && passage.imagePaths.length === 0) {
+      issues.push(err('รูปของบทอ่านใช้ไม่ได้ทั้งหมดและไม่มีเนื้อหา (body) จะไม่ถูกนำเข้า'));
+    }
+    // ใช้ได้ = API รับได้: id ถูกและไม่ซ้ำ, body ไม่เกิน, มีเนื้อหาหรือรูปที่ใช้ได้อย่างน้อยหนึ่งอย่าง
+    passage.usable = idOk && !bodyTooLong && (!!passage.body || passage.imagePaths.length > 0);
+
+    if (Array.isArray(g.applies_to)) {
+      for (const v of g.applies_to) {
+        const no = parseNo(v);
+        if (no === null) issues.push(warn(`applies_to มีค่า "${String(v)}" ที่ไม่ใช่เลขข้อ`));
+        else if (!passage.appliesTo.includes(no)) passage.appliesTo.push(no);
+      }
+    } else if (g.applies_to !== undefined && g.applies_to !== null) {
+      issues.push(warn('applies_to ต้องเป็น array ของเลขข้อ เช่น [28, 29, 30] — ไม่ได้ใช้ค่านี้'));
+    }
+
+    if (g._example_only === true) {
+      passage.exampleOnly = true;
+      issues.push(warn('บทอ่านนี้เป็นข้อตัวอย่าง (_example_only) ไม่ใช่บทอ่านจริง'));
+    }
+
+    return passage;
+  });
+}
+
+/**
+ * ผูกข้อกับบทอ่าน: `passage_group` ของข้อเป็นหลัก ถ้าไม่มีแต่เลขข้ออยู่ใน `applies_to` → ผูกตาม applies_to
+ * สองแหล่งขัดกัน → เตือนแล้วใช้ passage_group; อ้าง id ที่ไม่มี/บทอ่านที่ใช้ไม่ได้ → error ที่ข้อ (ข้อนั้นไม่มีบทอ่าน)
+ * แล้วสรุปที่บทอ่าน: ไม่มีข้อใช้ / applies_to อ้างข้อที่ไม่มี → เตือน (เรียกครั้งเดียว — แก้ issues ในที่)
+ *
+ * บทอ่านที่มี error ไม่บล็อกการสร้าง (แบบเดียวกับข้อที่มี error) — บทอ่านที่ใช้ไม่ได้ไม่ถูกส่ง ข้อที่ผูกไว้ถูกแจ้ง
+ */
+function bindPassages(questions: ParsedImportQuestion[], passages: ParsedImportPassage[]): void {
+  // ตัวแรกของแต่ละ id (รวมชุดที่ใช้ไม่ได้ ไว้แยกข้อความ "ไม่มี" กับ "ใช้ไม่ได้")
+  const byId = new Map<string, ParsedImportPassage>();
+  for (const p of passages) {
+    if (p.id && !byId.has(p.id)) byId.set(p.id, p);
+  }
+  // applies_to → เลขข้อ: แยกบทอ่านที่ใช้ได้ (ผูกได้) กับที่ใช้ไม่ได้ (ข้อที่ผูกผ่าน applies_to อย่างเดียวต้องถูกแจ้ง)
+  const claims = new Map<number, string[]>();
+  const badClaims = new Map<number, string[]>();
+  passages.forEach((p, i) => {
+    const target = p.usable ? claims : badClaims;
+    const label = p.id || `ลำดับที่ ${i + 1}`;
+    for (const no of p.appliesTo) target.set(no, [...(target.get(no) ?? []), label]);
+  });
+  const quote = (ids: string[]) => ids.map((id) => `"${id}"`).join(', ');
+  // ไฟล์ใช้ passage_group ที่ข้ออยู่แล้ว → applies_to ที่ไม่ตรงกับ passage_group ควรเตือน
+  const fileUsesPassageGroup = questions.some((q) => !!q.passageGroupRef);
+
+  for (const q of questions) {
+    const claimed = claims.get(q.no) ?? [];
+    const badClaimed = badClaims.get(q.no) ?? [];
+    const ref = q.passageGroupRef;
+    if (ref) {
+      const target = byId.get(ref);
+      if (!target) {
+        q.issues.push(err(`อ้างบทอ่าน "${ref}" (passage_group) ที่ไม่มีใน passage_groups ข้อนี้จะไม่มีบทอ่าน`));
+        continue;
+      }
+      if (!target.usable) {
+        q.issues.push(err(`บทอ่าน "${ref}" มีข้อผิดพลาดจึงไม่ถูกนำเข้า ข้อนี้จะไม่มีบทอ่าน`));
+        continue;
+      }
+      q.passageId = ref;
+      const others = claimed.filter((id) => id !== ref);
+      if (others.length > 0) {
+        q.issues.push(warn(`passage_group "${ref}" ขัดกับ applies_to ของบทอ่าน ${quote(others)} ใช้ passage_group`));
+      } else if (target.appliesTo.length > 0 && !target.appliesTo.includes(q.no)) {
+        q.issues.push(
+          warn(`passage_group "${ref}" แต่ข้อนี้ไม่อยู่ใน applies_to ของบทอ่าน "${ref}" (applies_to กับ passage_group ไม่ตรงกัน ผูกตาม passage_group)`),
+        );
+      }
+    } else if (claimed.length > 0) {
+      q.passageId = claimed[0];
+      if (claimed.length > 1) {
+        q.issues.push(warn(`ข้อนี้อยู่ใน applies_to ของหลายบทอ่าน (${quote(claimed)}) ใช้ "${claimed[0]}"`));
+      }
+      if (fileUsesPassageGroup) {
+        q.issues.push(
+          warn(`ข้อนี้ไม่ได้ระบุ passage_group แต่อยู่ใน applies_to ของบทอ่าน "${claimed[0]}" (applies_to กับ passage_group ไม่ตรงกัน ผูกตาม applies_to)`),
+        );
+      }
+    } else if (badClaimed.length > 0) {
+      q.issues.push(
+        err(`บทอ่าน ${quote(badClaimed)} (applies_to) มีข้อผิดพลาดจึงไม่ถูกนำเข้า ข้อนี้จะไม่มีบทอ่าน`),
+      );
+    }
+    if (q.passageId) {
+      const p = byId.get(q.passageId)!;
+      if (!p.usedBy.includes(q.no)) p.usedBy.push(q.no);
+    }
+  }
+
+  const questionNos = new Set(questions.map((q) => q.no));
+  for (const p of passages) {
+    const missing = p.appliesTo.filter((no) => !questionNos.has(no));
+    if (missing.length > 0) p.issues.push(warn(`applies_to อ้างข้อ ${missing.join(', ')} ที่ไม่มีในไฟล์`));
+    if (p.usable && p.usedBy.length === 0) p.issues.push(warn('ไม่มีข้อใดใช้บทอ่านนี้'));
+    p.usedBy.sort((a, b) => a - b);
+    p.status = statusOf(p.issues);
+  }
 }
 
 // ── resolve (category / topic) ────────────────────────────
@@ -712,6 +961,7 @@ export function resolveImport(
     exam: parsed.exam,
     matchedCategorySlug: matchCategory(parsed.exam?.categoryText ?? null, ctx.categories),
     questions,
+    passages: parsed.passages,
     images: parsed.images,
     hasFileError: parsed.fileIssues.some((i) => i.level === 'error'),
     errorQuestionCount: questions.filter((q) => q.status === 'error').length,
@@ -720,6 +970,22 @@ export function resolveImport(
 }
 
 // ── build payload ─────────────────────────────────────────
+
+/**
+ * รูปที่ต้องอัปจริง: รูปที่ข้อ (โจทย์/ตัวเลือก) หรือบทอ่านที่นำเข้าได้อ้างถึง
+ * รูปของบทอ่านที่ใช้ไม่ได้ (ไม่ถูกส่ง) ไม่อัป ไม่งั้นไฟล์ค้างบน server
+ */
+export function importImagesToUpload(resolved: Pick<ResolvedImport, 'images' | 'questions' | 'passages'>): ImportImage[] {
+  const needed = new Set<string>();
+  for (const q of resolved.questions) {
+    q.imagePaths.forEach((path) => needed.add(path));
+    q.choices.forEach((c) => c.imagePath && needed.add(c.imagePath));
+  }
+  for (const p of resolved.passages) {
+    if (p.usable) p.imagePaths.forEach((path) => needed.add(path));
+  }
+  return resolved.images.filter((img) => needed.has(img.path));
+}
 
 /** สร้าง payload ของ createExam (สถานะ draft เสมอ) imageUrls: path รูป → url ที่อัปได้ */
 export function buildCreateExamInput(
@@ -751,8 +1017,17 @@ export function buildCreateExamInput(
       topicId: q.topicId,
       chapterId: q.chapterId,
       chapter: q.chapter,
+      passageId: q.passageId,
     };
   });
+
+  // ส่งเฉพาะบทอ่านที่ใช้ได้ (ข้อที่ผูกกับชุดที่ใช้ไม่ได้มี passageId = null อยู่แล้ว)
+  const passages: ExamPassageInput[] = resolved.passages.filter((p) => p.usable).map((p) => ({
+    id: p.id,
+    title: p.title,
+    body: p.body,
+    images: p.imagePaths.map(urlOf).filter((u): u is string => !!u),
+  }));
 
   return {
     title: resolved.exam.title,
@@ -760,6 +1035,7 @@ export function buildCreateExamInput(
     category: opts.category,
     status: 'draft',
     questions,
+    passages,
     subjectId: opts.subjectId || null,
     durationMinutes: resolved.exam.durationMinutes,
   };

@@ -99,3 +99,24 @@ describe('QuestionReview — หลายรูปต่อข้อ + รูป
     expect(imgs[0]).toHaveAttribute('src', '/uploads/old.png');
   });
 });
+
+describe('QuestionReview — บทอ่านร่วม (task 08 AC7)', () => {
+  it('ข้อที่ผูกบทอ่าน: กางข้อแล้วเห็นปุ่มบทอ่าน (พับไว้) กดแล้วเห็นเนื้อหา', async () => {
+    const q: Question = {
+      ...mcq('pq', ['a']),
+      passageId: 'reading-1',
+      passage: { id: 'reading-1', title: 'บทสนทนา', body: 'A: สวัสดี\nB: สวัสดีครับ', images: [] },
+    };
+    await renderOpen(q, 'a');
+    const toggle = screen.getByRole('button', { name: 'บทอ่าน: บทสนทนา' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(/สวัสดีครับ/)).not.toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(screen.getByText(/สวัสดีครับ/)).toBeInTheDocument();
+  });
+
+  it('ข้อไม่มีบทอ่าน → ไม่มีปุ่มบทอ่าน', async () => {
+    await renderOpen(mcq('plain', ['a']), 'a');
+    expect(screen.queryByRole('button', { name: /^บทอ่าน/ })).not.toBeInTheDocument();
+  });
+});

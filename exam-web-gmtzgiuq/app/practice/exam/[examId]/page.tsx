@@ -32,8 +32,12 @@ interface PageProps {
 
 /** Store/load the backend attempt ID alongside the session */
 function saveBackendAttemptId(examId: string, attemptId: string) {
-  if (typeof window !== 'undefined') {
+  if (typeof window === 'undefined') return;
+  try {
     localStorage.setItem(`${BACKEND_ATTEMPT_KEY}_${examId}`, attemptId);
+  } catch (error) {
+    // storage เต็มจากข้อมูลอื่น → ไม่จำ attempt id ในเครื่อง แต่หน้ายังทำข้อสอบต่อได้
+    console.error('Failed to save attempt id:', error);
   }
 }
 function loadBackendAttemptId(examId: string): string | null {

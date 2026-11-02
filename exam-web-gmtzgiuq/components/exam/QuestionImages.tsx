@@ -8,6 +8,8 @@ interface QuestionImagesProps {
   className?: string;
   /** class ของแต่ละรูป (ค่าเริ่มต้น: กว้างเต็มคอลัมน์ ไม่เกินจอ) */
   imageClassName?: string;
+  /** ข้อความ alt (ค่าเริ่มต้น "รูปประกอบโจทย์" หลายรูปต่อท้ายด้วยลำดับ) */
+  altLabel?: string;
 }
 
 function QuestionImage({
@@ -33,6 +35,7 @@ export default function QuestionImages({
   images,
   className = '',
   imageClassName = 'block max-w-full h-auto rounded-xl border border-gray-200 dark:border-gray-700',
+  altLabel = 'รูปประกอบโจทย์',
 }: QuestionImagesProps) {
   if (images.length === 0) return null;
   return (
@@ -41,7 +44,7 @@ export default function QuestionImages({
         <QuestionImage
           key={`${i}-${src}`}
           src={src}
-          alt={images.length > 1 ? `รูปประกอบโจทย์ ${i + 1}` : 'รูปประกอบโจทย์'}
+          alt={images.length > 1 ? `${altLabel} ${i + 1}` : altLabel}
           className={imageClassName}
         />
       ))}

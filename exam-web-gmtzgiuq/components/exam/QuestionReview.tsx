@@ -15,6 +15,8 @@ import LatexRenderer from '@/components/latex/LatexRenderer';
 import { getQuestionImages } from '@/lib/question-images';
 import QuestionImages from './QuestionImages';
 import ChoiceContent from './ChoiceContent';
+import { PassageDisclosure } from './PassagePanel';
+import { getQuestionPassage } from '@/lib/exam-passages';
 
 interface QuestionReviewProps {
   question: Question;
@@ -36,6 +38,7 @@ export default function QuestionReview({
   const isMulti = isMultiAnswer(question);
   const correctChoiceIds = getCorrectChoiceIds(question);
   const selectedChoiceIds = question.type === 'short_answer' ? [] : parseChoiceAnswer(userAnswer);
+  const passage = getQuestionPassage(question);
 
   return (
     <div
@@ -90,6 +93,9 @@ export default function QuestionReview({
       {/* Expanded content */}
       {isExpanded && (
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          {/* บทอ่านร่วม (พับไว้ก่อน — ข้อติดกันในกลุ่มเดียวกันจะเห็นบทอ่านซ้ำ) */}
+          {passage && <PassageDisclosure key={passage.id} passage={passage} className="mb-4" />}
+
           {/* Question */}
           <div className="prose prose-sm max-w-none mb-4">
             <LatexRenderer content={question.question} />

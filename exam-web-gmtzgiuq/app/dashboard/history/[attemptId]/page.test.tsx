@@ -109,3 +109,38 @@ describe('AttemptDetailPage — รูปโจทย์หลายรูป + 
     expect(within(expandedRow).getByText('คำอธิบายข้อ 2')).toBeInTheDocument();
   });
 });
+
+describe('AttemptDetailPage — บทอ่านร่วม (task 08 AC7)', () => {
+  it('API /exams/:id คืน passages + passageId (ไม่มี passage) → View เห็นบทอ่านแบบพับได้', async () => {
+    const withPassage = question({
+      id: 'q1',
+      question: 'ข้อใดถูกตามบทอ่าน',
+      passageId: 'reading-1',
+      choices: [
+        { id: 'a', text: 'หนึ่ง', isCorrect: true },
+        { id: 'b', text: 'สอง', isCorrect: false },
+      ],
+    });
+    const plain = question({ id: 'q2', question: 'ข้อไม่มีบทอ่าน', choices: withPassage.choices });
+    (getMyAttempt as jest.Mock).mockResolvedValue(attempt);
+    (getPublicExam as jest.Mock).mockResolvedValue({
+      id: 'exam-1',
+      title: 'ชุดบทอ่าน',
+      passages: [{ id: 'reading-1', title: 'บทความเรื่องน้ำ', body: 'น้ำเป็นสิ่งจำเป็น', images: [] }],
+      questions: [withPassage, plain],
+    });
+    const user = userEvent.setup();
+    render(<AttemptDetailPage params={Promise.resolve({ attemptId: 'att-1' })} />);
+
+    const row1 = (await screen.findByText('ข้อใดถูกตามบทอ่าน')).closest('tr')!;
+    // ไม่มีคำอธิบาย/รูป แต่มีบทอ่าน → กด View ได้
+    await user.click(within(row1).getByRole('button', { name: 'View' }));
+    const expandedRow = row1.nextElementSibling as HTMLElement;
+    await user.click(within(expandedRow).getByRole('button', { name: 'บทอ่าน: บทความเรื่องน้ำ' }));
+    expect(within(expandedRow).getByText('น้ำเป็นสิ่งจำเป็น')).toBeInTheDocument();
+
+    // ข้อไม่มีบทอ่าน/คำอธิบาย/รูป → ไม่มีปุ่ม View
+    const row2 = screen.getByText('ข้อไม่มีบทอ่าน').closest('tr')!;
+    expect(within(row2).queryByRole('button', { name: 'View' })).not.toBeInTheDocument();
+  });
+});
