@@ -135,6 +135,7 @@ type ExamPassage {
   body: String
   id: String!
   images: [String!]!
+  lineNumbers: Boolean!
   title: String
 }
 

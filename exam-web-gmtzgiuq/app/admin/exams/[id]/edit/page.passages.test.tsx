@@ -42,7 +42,8 @@ const exam = {
   subjectId: null,
   bannerImage: null,
   passages: [
-    { id: 'reading-a', title: 'บทความเรื่องน้ำ', body: LONG_BODY, images: [] },
+    // task 09: reading-a เปิดเลขบรรทัด / reading-b ข้อมูลเก่าไม่มี key lineNumbers
+    { id: 'reading-a', title: 'บทความเรื่องน้ำ', body: LONG_BODY, images: [], lineNumbers: true },
     { id: 'reading-b', title: null, body: null, images: ['http://localhost:3001/uploads/chart.png'] },
   ],
   questions: [
@@ -89,6 +90,9 @@ describe('EditExamPage — บทอ่านร่วม (task 08 AC4)', () => 
       'http://localhost:3001/uploads/chart.png',
     );
     expect(within(formB).getAllByText('ใช้กับข้อ 6, 7').length).toBeGreaterThan(0);
+    // task 09: บทอ่านที่เปิดเลขบรรทัดไว้ → checkbox ติ๊กอยู่ / ข้อมูลเก่า → ไม่ติ๊ก
+    expect(within(formA).getByRole('checkbox', { name: 'แสดงเลขบรรทัด' })).toBeChecked();
+    expect(within(formB).getByRole('checkbox', { name: 'แสดงเลขบรรทัด' })).not.toBeChecked();
 
     // ป้ายบนหัวข้อ (ข้อพับอยู่) บอกบทอ่านที่ใช้
     expect(screen.getAllByText('บทความเรื่องน้ำ').length).toBeGreaterThanOrEqual(3);
@@ -98,8 +102,8 @@ describe('EditExamPage — บทอ่านร่วม (task 08 AC4)', () => 
     await waitFor(() => expect(updateExam).toHaveBeenCalled());
     const input = (updateExam as jest.Mock).mock.calls[0][1];
     expect(input.passages).toEqual([
-      { id: 'reading-a', title: 'บทความเรื่องน้ำ', body: LONG_BODY, images: [] },
-      { id: 'reading-b', title: null, body: null, images: ['http://localhost:3001/uploads/chart.png'] },
+      { id: 'reading-a', title: 'บทความเรื่องน้ำ', body: LONG_BODY, images: [], lineNumbers: true },
+      { id: 'reading-b', title: null, body: null, images: ['http://localhost:3001/uploads/chart.png'], lineNumbers: false },
     ]);
     expect(input.questions.map((q: { passageId: string | null }) => q.passageId)).toEqual([
       null,

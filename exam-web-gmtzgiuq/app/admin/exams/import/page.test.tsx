@@ -116,6 +116,7 @@ describe('ImportExamPage', () => {
         title: 'บทอ่านที่ 1 (ตัวอย่าง)',
         body: null,
         images: ['http://api/uploads/1-q02-venn.png'],
+        lineNumbers: false,
       },
     ]);
     expect(input.questions[5].passageId).toBe('reading-1');

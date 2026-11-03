@@ -73,6 +73,8 @@ export interface ExamPassageInput {
   title?: string | null;
   body?: string | null;
   images?: string[];
+  /** แสดงเลขบรรทัดในบทอ่าน (ฟอร์มแอดมิน/นำเข้าส่งทุกครั้ง) */
+  lineNumbers?: boolean;
 }
 
 export interface CreateExamInput {

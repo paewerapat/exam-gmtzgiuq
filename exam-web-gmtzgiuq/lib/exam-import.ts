@@ -100,6 +100,8 @@ export interface ParsedImportPassage {
   appliesTo: number[];
   /** `_example_only: true` */
   exampleOnly: boolean;
+  /** `line_numbers: true` → แสดงเลขบรรทัด (ไม่มี/null/ค่าไม่ใช่ boolean = false) */
+  lineNumbers: boolean;
   /** เลขข้อที่ผูกกับบทอ่านนี้จริง (passage_group เป็นหลัก ไม่งั้น applies_to) */
   usedBy: number[];
   /** ส่งเข้า API ได้ (id ถูก/ไม่ซ้ำ, body ไม่เกิน, มีเนื้อหาหรือรูปที่ใช้ได้) — false = ไม่นำเข้าชุดนี้ */
@@ -683,7 +685,20 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
 
 // ── passage_groups ────────────────────────────────────────
 
-/** อ่าน `passage_groups[]` (id, title, body, images, applies_to, _example_only) — ยังไม่ผูกกับข้อ */
+const MAX_VALUE_PREVIEW = 40;
+
+/** ค่าจาก JSON สำหรับใส่ในข้อความเตือน: JSON.stringify (object ไม่กลายเป็น [object Object]) ตัดเกิน 40 ตัวด้วย … */
+function describeJsonValue(v: unknown): string {
+  let s: string;
+  try {
+    s = JSON.stringify(v) ?? String(v);
+  } catch {
+    s = String(v);
+  }
+  return s.length > MAX_VALUE_PREVIEW ? `${s.slice(0, MAX_VALUE_PREVIEW)}…` : s;
+}
+
+/** อ่าน `passage_groups[]` (id, title, body, images, applies_to, line_numbers, _example_only) — ยังไม่ผูกกับข้อ */
 function parsePassageGroups(
   raw: unknown,
   fileIssues: ImportIssue[],
@@ -709,6 +724,7 @@ function parsePassageGroups(
       imageRefs: [],
       appliesTo: [],
       exampleOnly: false,
+      lineNumbers: false,
       usedBy: [],
       usable: false,
       issues,
@@ -784,6 +800,14 @@ function parsePassageGroups(
       }
     } else if (g.applies_to !== undefined && g.applies_to !== null) {
       issues.push(warn('applies_to ต้องเป็น array ของเลขข้อ เช่น [28, 29, 30] — ไม่ได้ใช้ค่านี้'));
+    }
+
+    if (typeof g.line_numbers === 'boolean') {
+      passage.lineNumbers = g.line_numbers;
+    } else if (g.line_numbers !== undefined && g.line_numbers !== null) {
+      issues.push(
+        warn(`line_numbers ต้องเป็น true หรือ false (ได้ ${describeJsonValue(g.line_numbers)}) — บทอ่านนี้จะไม่แสดงเลขบรรทัด`),
+      );
     }
 
     if (g._example_only === true) {
@@ -1027,6 +1051,7 @@ export function buildCreateExamInput(
     title: p.title,
     body: p.body,
     images: p.imagePaths.map(urlOf).filter((u): u is string => !!u),
+    lineNumbers: p.lineNumbers,
   }));
 
   return {

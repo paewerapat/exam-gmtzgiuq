@@ -1,5 +1,9 @@
 import {
+  createEmptyPassage,
   createPassageId,
+  passageShowsLineNumbers,
+  splitPassageLines,
+  type PassageLine,
   packQuestionPassages,
   PACKED_PASSAGE_FLAG,
   unpackQuestionPassages,
@@ -74,28 +78,43 @@ describe('ฟอร์มแอดมิน', () => {
   });
 
   it('toPassageInput: title/body ว่าง → null, body เก็บตามที่พิมพ์ (ไม่ตัดบรรทัด)', () => {
-    expect(toPassageInput({ id: 'a', title: '  ', body: '\nบรรทัด 1\n\nบรรทัด 2\n', images: ['', '/u/1.png'] })).toEqual({
+    expect(
+      toPassageInput({ id: 'a', title: '  ', body: '\nบรรทัด 1\n\nบรรทัด 2\n', images: ['', '/u/1.png'], lineNumbers: true }),
+    ).toEqual({
       id: 'a',
       title: null,
       body: '\nบรรทัด 1\n\nบรรทัด 2\n',
       images: ['/u/1.png'],
+      lineNumbers: true,
     });
-    expect(toPassageInput({ id: 'b', title: ' ชื่อ ', body: ' ', images: [] })).toEqual({
+    expect(toPassageInput({ id: 'b', title: ' ชื่อ ', body: ' ', images: [], lineNumbers: false })).toEqual({
       id: 'b',
       title: 'ชื่อ',
       body: null,
       images: [],
+      lineNumbers: false,
     });
   });
 
   it('passageFormFromApi: null → สตริงว่าง', () => {
-    expect(passageFormFromApi(p2)).toEqual({ id: 'p2', title: '', body: '', images: ['/uploads/x.png'] });
+    expect(passageFormFromApi(p2)).toEqual({
+      id: 'p2',
+      title: '',
+      body: '',
+      images: ['/uploads/x.png'],
+      lineNumbers: false,
+    });
+    // เปิดแก้ข้อสอบที่เปิดเลขบรรทัดไว้ → checkbox ติ๊กอยู่ และบันทึกกลับส่ง true
+    const form = passageFormFromApi({ ...p1, lineNumbers: true });
+    expect(form.lineNumbers).toBe(true);
+    expect(toPassageInput(form).lineNumbers).toBe(true);
+    expect(createEmptyPassage([]).lineNumbers).toBe(false);
   });
 
   it('validatePassageForms: ต้องมีเนื้อหาหรือรูป / id ซ้ำ / เกินขนาด', () => {
-    const ok: PassageForm = { id: 'a', title: '', body: 'x', images: [] };
-    expect(validatePassageForms([ok, { id: 'b', title: '', body: '', images: ['/u.png'] }])).toBeNull();
-    expect(validatePassageForms([ok, { id: 'b', title: 'มีแต่ชื่อ', body: '  ', images: [] }])).toBe(
+    const ok: PassageForm = { id: 'a', title: '', body: 'x', images: [], lineNumbers: false };
+    expect(validatePassageForms([ok, { ...ok, id: 'b', body: '', images: ['/u.png'] }])).toBeNull();
+    expect(validatePassageForms([ok, { ...ok, id: 'b', title: 'มีแต่ชื่อ', body: '  ' }])).toBe(
       'บทอ่านที่ 2: ต้องมีเนื้อหาหรือรูปอย่างน้อยหนึ่งอย่าง',
     );
     expect(validatePassageForms([ok, { ...ok }])).toContain('บทอ่านที่ 2: รหัสบทอ่าน');
@@ -158,5 +177,134 @@ describe('pack/unpackQuestionPassages (localStorage)', () => {
   it('ข้อมูลเก่า (คัดลอกทุกข้อ) อ่านได้เหมือนเดิม', () => {
     const back = unpackQuestionPassages(JSON.parse(JSON.stringify(qs)));
     expect(back.map((q) => q.passage?.id ?? null)).toEqual([null, 'big', 'big', 'big']);
+  });
+
+  it('task 09: pack/unpack คง lineNumbers ของบทอ่านทุกข้อในกลุ่ม', () => {
+    const numbered: ExamPassage = { ...big, lineNumbers: true };
+    const group = [
+      { id: 'q1', passageId: 'big', passage: numbered },
+      { id: 'q2', passageId: 'big', passage: { ...numbered } },
+    ];
+    const packed = packQuestionPassages(group) as Record<string, unknown>[];
+    expect(packed[1][PACKED_PASSAGE_FLAG]).toBe(true);
+    const back = unpackQuestionPassages(JSON.parse(JSON.stringify(packed)));
+    expect(back.map((q) => q.passage?.lineNumbers)).toEqual([true, true]);
+  });
+
+  it('task 09: id/เนื้อหาเดียวกันแต่ lineNumbers ต่างกัน → ไม่รวมกัน', () => {
+    const mixed = [
+      { id: 'q1', passageId: 'big', passage: { ...big, lineNumbers: true } },
+      { id: 'q2', passageId: 'big', passage: { ...big } },
+    ];
+    const back = unpackQuestionPassages(JSON.parse(JSON.stringify(packQuestionPassages(mixed))));
+    expect(back.map((q) => passageShowsLineNumbers(q.passage))).toEqual([true, false]);
+  });
+});
+
+describe('task 09: normalize คง lineNumbers', () => {
+  it('ข้อมูลครบ → ตัวเดิม (มี lineNumbers)', () => {
+    const p: ExamPassage = { ...p1, lineNumbers: true };
+    expect(getQuestionPassage({ passage: p })).toBe(p);
+  });
+
+  it('ต้องสร้าง object ใหม่ (images ไม่ใช่ array) → ยังคง lineNumbers: true', () => {
+    const loose = { id: 'l', title: 't', body: 'x', lineNumbers: true } as unknown as ExamPassage;
+    expect(getQuestionPassage({ passage: loose })).toEqual({ id: 'l', title: 't', body: 'x', images: [], lineNumbers: true });
+  });
+
+  it('withResolvedPassages เติม passage ที่มี lineNumbers ให้ข้อ', () => {
+    const out = withResolvedPassages({ passages: [{ ...p1, lineNumbers: true }], questions: [{ passageId: 'p1' }] });
+    expect((out.questions[0] as { passage?: ExamPassage }).passage?.lineNumbers).toBe(true);
+  });
+
+  it('ค่าไม่ใช่ boolean (localStorage เพี้ยน) → ถือว่าปิด; ไม่มี key → ปิด', () => {
+    const odd = { ...p1, lineNumbers: 'yes' } as unknown as ExamPassage;
+    const n = getQuestionPassage({ passage: odd });
+    expect(passageShowsLineNumbers(n)).toBe(false);
+    expect(passageShowsLineNumbers(p1)).toBe(false);
+    expect(passageShowsLineNumbers(null)).toBe(false);
+  });
+});
+
+describe('splitPassageLines (task 09)', () => {
+  const numbers = (lines: PassageLine[]) => lines.flatMap((l) => (l.kind === 'line' ? [l.no] : []));
+  const kinds = (lines: PassageLine[]) => lines.map((l) => l.kind);
+
+  it('ข้อความ 12 บรรทัด → เลข 1–12 ตรงข้อความ', () => {
+    const body = Array.from({ length: 12 }, (_, i) => `บรรทัด ${i + 1}`).join('\n');
+    const lines = splitPassageLines(body);
+    expect(numbers(lines)).toEqual(Array.from({ length: 12 }, (_, i) => i + 1));
+    expect(lines[11]).toEqual({ kind: 'line', no: 12, text: 'บรรทัด 12' });
+  });
+
+  it('บรรทัดว่าง / มีแต่ช่องว่าง = เว้นย่อหน้า ไม่นับเลข', () => {
+    const lines = splitPassageLines('ก\n\nข\n   \t\nค');
+    expect(kinds(lines)).toEqual(['line', 'blank', 'line', 'blank', 'line']);
+    expect(lines.filter((l) => l.kind === 'line')).toEqual([
+      { kind: 'line', no: 1, text: 'ก' },
+      { kind: 'line', no: 2, text: 'ข' },
+      { kind: 'line', no: 3, text: 'ค' },
+    ]);
+  });
+
+  it('AC3: 14 บรรทัด (ว่างคั่น 1 + สูตร) → เลข 1–13 สูตรอยู่ในบรรทัดเดิม', () => {
+    const text = Array.from({ length: 13 }, (_, i) => (i === 4 ? 'ค่าของ $x^2$ เมื่อ x = 3' : `ข้อความ ${i + 1}`));
+    const body = [...text.slice(0, 6), '', ...text.slice(6)].join('\n');
+    const lines = splitPassageLines(body);
+    expect(lines).toHaveLength(14);
+    expect(numbers(lines)).toEqual(Array.from({ length: 13 }, (_, i) => i + 1));
+    expect(lines[6]).toEqual({ kind: 'blank' });
+    expect(lines[4]).toEqual({ kind: 'line', no: 5, text: 'ค่าของ $x^2$ เมื่อ x = 3' });
+  });
+
+  it('\\r\\n และ \\r → ขึ้นบรรทัดเหมือน \\n (ไม่มี \\r ค้างในข้อความ)', () => {
+    const lines = splitPassageLines('หนึ่ง\r\nสอง\r\n\r\nสาม\rสี่');
+    expect(kinds(lines)).toEqual(['line', 'line', 'blank', 'line', 'line']);
+    expect(lines.some((l) => l.kind !== 'blank' && l.text.includes('\r'))).toBe(false);
+    expect(numbers(lines)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('ตาราง Markdown ทั้งบล็อก = block ไม่นับเลข บรรทัดหลังตารางนับต่อ', () => {
+    const table = '| ปี | ค่า |\n|---|:--:|\n| 2566 | 10 |\n| 2567 | 12 |';
+    const lines = splitPassageLines(`ก่อนตาราง\n${table}\nหลังตาราง`);
+    expect(lines).toEqual([
+      { kind: 'line', no: 1, text: 'ก่อนตาราง' },
+      { kind: 'block', text: table },
+      { kind: 'line', no: 2, text: 'หลังตาราง' },
+    ]);
+  });
+
+  it('บรรทัดขึ้นต้นด้วย | ที่ไม่ใช่ตาราง (ไม่มีเส้นคั่น / จำนวนช่องไม่ตรง) → นับเป็นบรรทัดปกติ', () => {
+    expect(kinds(splitPassageLines('| ไม่ใช่ตาราง |\nบรรทัดถัดไป'))).toEqual(['line', 'line']);
+    expect(kinds(splitPassageLines('| a | b | c |\n|---|---|'))).toEqual(['line', 'line']);
+  });
+
+  it('$$ ... $$ คร่อมหลายบรรทัด → รวมเป็น 1 บรรทัด', () => {
+    const lines = splitPassageLines('ก\n$$\nx^2 + y^2\n= 1\n$$\nข');
+    expect(lines).toEqual([
+      { kind: 'line', no: 1, text: 'ก' },
+      { kind: 'line', no: 2, text: '$$\nx^2 + y^2\n= 1\n$$' },
+      { kind: 'line', no: 3, text: 'ข' },
+    ]);
+    // $$ เปิด-ปิดในบรรทัดเดียว → บรรทัดปกติ
+    expect(numbers(splitPassageLines('$$a$$\n$$b$$'))).toEqual([1, 2]);
+    // ไม่มีตัวปิด → นับทีละบรรทัดตามปกติ
+    expect(numbers(splitPassageLines('$$ ค้าง\nต่อ'))).toEqual([1, 2]);
+  });
+
+  it('body ว่าง/null/มีแต่บรรทัดว่าง → []', () => {
+    expect(splitPassageLines(null)).toEqual([]);
+    expect(splitPassageLines('')).toEqual([]);
+    expect(splitPassageLines('\n \n\r\n')).toEqual([]);
+  });
+
+  it('บรรทัดว่างหัว/ท้าย body ถูกตัด (ไม่มีที่ว่างเกิน) บรรทัดว่างคั่นกลางยังอยู่ เลขไม่เปลี่ยน', () => {
+    expect(splitPassageLines('ก\nข\n')).toEqual([
+      { kind: 'line', no: 1, text: 'ก' },
+      { kind: 'line', no: 2, text: 'ข' },
+    ]);
+    const lines = splitPassageLines('\n\n  \nก\n\nข\r\n\r\n');
+    expect(kinds(lines)).toEqual(['line', 'blank', 'line']);
+    expect(numbers(lines)).toEqual([1, 2]);
   });
 });

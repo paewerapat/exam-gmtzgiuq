@@ -25,6 +25,10 @@ export class ExamPassage {
 
   @Field(() => [String])
   images: string[];
+
+  // Show line numbers next to the body (task 09); missing/non-true = false
+  @Field()
+  lineNumbers: boolean;
 }
 
 interface PassageInput {
@@ -32,6 +36,7 @@ interface PassageInput {
   title?: string | null;
   body?: string | null;
   images?: string[] | null;
+  lineNumbers?: boolean | null;
 }
 
 interface QuestionPassageRef {
@@ -59,6 +64,7 @@ export function normalizeStoredPassages(value: unknown): ExamPassage[] {
       title: typeof p.title === 'string' && p.title !== '' ? p.title : null,
       body: typeof p.body === 'string' && p.body !== '' ? p.body : null,
       images: nonEmptyStrings(p.images),
+      lineNumbers: p.lineNumbers === true,
     });
   }
   return passages;
@@ -111,6 +117,7 @@ export function preparePassages(
           : null,
       body,
       images,
+      lineNumbers: passage.lineNumbers === true,
     });
   });
 

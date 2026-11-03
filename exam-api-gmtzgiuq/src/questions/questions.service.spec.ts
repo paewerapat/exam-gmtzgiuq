@@ -301,6 +301,11 @@ describe('QuestionsService — images (task 07)', () => {
       body: 'เนื้อหา',
       images: [],
     });
+    // Stored JSON: p1 has line numbers on, p2 is old data without the key
+    const stored = (id: string, extra: Record<string, unknown> = {}) => ({
+      ...passage(id),
+      ...extra,
+    });
 
     const listed = (data: Partial<Question>[]) =>
       data.map((q, i) => ({ id: `q${i}`, question: 'ข้อ', ...q }) as Question);
@@ -317,17 +322,20 @@ describe('QuestionsService — images (task 07)', () => {
 
     beforeEach(() => {
       examFind.mockResolvedValue([
-        { id: 'exam-1', passages: [passage('p1'), passage('p9')] },
-        { id: 'exam-2', passages: [{ ...passage('p2'), images: null }] },
+        {
+          id: 'exam-1',
+          passages: [stored('p1', { lineNumbers: true }), stored('p9')],
+        },
+        { id: 'exam-2', passages: [stored('p2', { images: null })] },
       ]);
     });
 
     function expectAttached(questions: Question[]) {
       expect(questions.map((q) => q.passage)).toEqual([
-        passage('p1'),
-        passage('p1'),
+        { ...passage('p1'), lineNumbers: true },
+        { ...passage('p1'), lineNumbers: true },
         null,
-        passage('p2'),
+        { ...passage('p2'), lineNumbers: false },
         null,
         null,
       ]);

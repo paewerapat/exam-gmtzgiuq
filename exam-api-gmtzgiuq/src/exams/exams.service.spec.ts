@@ -586,8 +586,14 @@ describe('ExamsService', () => {
         );
 
         expect(createdExam().passages).toEqual([
-          { ...reading, images: [] },
-          { id: 'p-2', title: null, body: null, images: [url('a')] },
+          { ...reading, images: [], lineNumbers: false },
+          {
+            id: 'p-2',
+            title: null,
+            body: null,
+            images: [url('a')],
+            lineNumbers: false,
+          },
         ]);
         expect(savedQuestions().map((q) => q.passageId)).toEqual([
           null,
@@ -678,7 +684,9 @@ describe('ExamsService', () => {
           ],
         } as UpdateExamInput);
 
-        expect(examUpdate().passages).toEqual([{ ...reading, images: [] }]);
+        expect(examUpdate().passages).toEqual([
+          { ...reading, images: [], lineNumbers: false },
+        ]);
         expect(savedQuestions().map((q) => q.passageId)).toEqual([
           'reading-1',
           null,
@@ -730,7 +738,7 @@ describe('ExamsService', () => {
           passages: [{ ...reading, title: 'แก้ชื่อ' }],
         } as UpdateExamInput);
         expect(examUpdate().passages).toEqual([
-          { ...reading, title: 'แก้ชื่อ', images: [] },
+          { ...reading, title: 'แก้ชื่อ', images: [], lineNumbers: false },
         ]);
         expect(manager.delete).not.toHaveBeenCalled();
       });
@@ -744,7 +752,7 @@ describe('ExamsService', () => {
         givenExamWith([{ id: 'p', body: 'x' }, { title: 'no id' }, 'junk']);
         const exam = await service.findOne('exam-1');
         expect(exam.passages).toEqual([
-          { id: 'p', title: null, body: 'x', images: [] },
+          { id: 'p', title: null, body: 'x', images: [], lineNumbers: false },
         ]);
         // passages is select: false, so it is loaded explicitly
         expect(examsRepo.findOne.mock.calls).toContainEqual([
@@ -758,7 +766,83 @@ describe('ExamsService', () => {
       it('findPublishedOne returns passages as well', async () => {
         givenExamWith([reading]);
         const exam = await service.findPublishedOne('exam-1');
-        expect(exam.passages).toEqual([{ ...reading, images: [] }]);
+        expect(exam.passages).toEqual([
+          { ...reading, images: [], lineNumbers: false },
+        ]);
+      });
+    });
+
+    describe('task 09 passage lineNumbers', () => {
+      it('create stores lineNumbers: true and not sent → false', async () => {
+        examsRepo.findOne.mockResolvedValue(makeExam([]));
+
+        await service.create(
+          {
+            title: 'TGAT1',
+            category: 'thai',
+            passages: [
+              { ...reading, lineNumbers: true },
+              { id: 'p-2', body: 'บทที่สอง' },
+            ],
+            questions: [{ question: 'ข้อ 1', passageId: 'reading-1' }],
+          } as CreateExamInput,
+          author,
+        );
+
+        expect(
+          createdExam().passages?.map((p) => [p.id, p.lineNumbers]),
+        ).toEqual([
+          ['reading-1', true],
+          ['p-2', false],
+        ]);
+      });
+
+      it('update stores lineNumbers: true / false as sent', async () => {
+        givenExamWith([reading], [{ passageId: 'reading-1' }]);
+
+        await service.update('exam-1', {
+          passages: [
+            { ...reading, lineNumbers: true },
+            { id: 'p-2', body: 'บทที่สอง', lineNumbers: false },
+          ],
+        } as UpdateExamInput);
+
+        expect(examUpdate().passages?.map((p) => p.lineNumbers)).toEqual([
+          true,
+          false,
+        ]);
+      });
+
+      it('findOne returns lineNumbers: true when stored, false for old data or non-true values', async () => {
+        givenExamWith([
+          { ...reading, lineNumbers: true },
+          { id: 'old', body: 'ข้อมูลเก่าไม่มี key' },
+          { id: 'str', body: 'x', lineNumbers: 'true' },
+          { id: 'num', body: 'x', lineNumbers: 1 },
+          { id: 'nil', body: 'x', lineNumbers: null },
+        ]);
+
+        const exam = await service.findOne('exam-1');
+
+        expect(exam.passages).toEqual([
+          { ...reading, images: [], lineNumbers: true },
+          {
+            id: 'old',
+            title: null,
+            body: 'ข้อมูลเก่าไม่มี key',
+            images: [],
+            lineNumbers: false,
+          },
+          { id: 'str', title: null, body: 'x', images: [], lineNumbers: false },
+          { id: 'num', title: null, body: 'x', images: [], lineNumbers: false },
+          { id: 'nil', title: null, body: 'x', images: [], lineNumbers: false },
+        ]);
+      });
+
+      it('findPublishedOne returns lineNumbers as well', async () => {
+        givenExamWith([{ ...reading, lineNumbers: true }]);
+        const exam = await service.findPublishedOne('exam-1');
+        expect(exam.passages?.[0].lineNumbers).toBe(true);
       });
     });
 

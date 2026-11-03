@@ -1,9 +1,9 @@
 'use client';
 
-import { memo, useId, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, memo, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown } from 'lucide-react';
 import type { ExamPassage } from '@/lib/api/questions';
-import { getPassageImages } from '@/lib/exam-passages';
+import { getPassageImages, passageShowsLineNumbers, splitPassageLines } from '@/lib/exam-passages';
 import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
 import QuestionImages from './QuestionImages';
@@ -18,7 +18,47 @@ export function createPassageMemory(): PassageMemory {
   return { scroll: new Map(), collapsed: new Map() };
 }
 
-/** เนื้อหาบทอ่าน: เนื้อความ (LaTeX + ตาราง รักษาการขึ้นบรรทัด) + รูปทุกรูป */
+/**
+ * เนื้อความแบบมีเลขบรรทัด: กริด 2 คอลัมน์ (เลข | ข้อความ) เลขอยู่แนว baseline เดียวกับบรรทัดแรกของข้อความ
+ * บรรทัดยาวตัดลงใต้ข้อความ (ย่อหน้าแขวน) เลขเป็น select-none คัดลอกบทอ่านแล้วไม่ติดเลข
+ */
+function NumberedPassageBody({ body }: { body: string }) {
+  const lines = useMemo(() => splitPassageLines(body), [body]);
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3" data-testid="passage-numbered">
+      {lines.map((line, i) => {
+        // <br /> ให้สูง 1 บรรทัดโดยไม่พึ่งหน่วย lh (iOS < 16.4) และคัดลอกแล้วยังได้บรรทัดว่างคั่นย่อหน้า
+        if (line.kind === 'blank') {
+          return (
+            <div key={i} className="col-span-2" data-passage-blank="" aria-hidden="true">
+              <br />
+            </div>
+          );
+        }
+        if (line.kind === 'block') {
+          return (
+            <div key={i} className="col-start-2 min-w-0">
+              <LatexRenderer content={line.text} />
+            </div>
+          );
+        }
+        return (
+          <Fragment key={i}>
+            <span
+              className="select-none text-right tabular-nums text-xs text-gray-500 dark:text-gray-400"
+              data-line-number={line.no}
+            >
+              {line.no}
+            </span>
+            <LatexRenderer content={line.text} className="min-w-0" />
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/** เนื้อหาบทอ่าน: เนื้อความ (LaTeX + ตาราง รักษาการขึ้นบรรทัด; เปิดเลขบรรทัดได้) + รูปทุกรูป */
 export function PassageContent({ passage, className = '' }: { passage: ExamPassage; className?: string }) {
   const images = getPassageImages(passage);
   const hasBody = !!passage.body?.trim();
@@ -26,7 +66,11 @@ export function PassageContent({ passage, className = '' }: { passage: ExamPassa
     <div className={className}>
       {hasBody && (
         <div className="prose prose-sm max-w-none text-gray-800 dark:text-gray-200 leading-relaxed break-words">
-          <LatexRenderer content={passage.body!} />
+          {passageShowsLineNumbers(passage) ? (
+            <NumberedPassageBody body={passage.body!} />
+          ) : (
+            <LatexRenderer content={passage.body!} />
+          )}
         </div>
       )}
       <QuestionImages images={images} className={hasBody ? 'mt-4' : ''} altLabel="รูปประกอบบทอ่าน" />
@@ -130,6 +174,7 @@ function samePassage(a: ExamPassage, b: ExamPassage): boolean {
     a.id === b.id &&
     a.title === b.title &&
     a.body === b.body &&
+    passageShowsLineNumbers(a) === passageShowsLineNumbers(b) &&
     ai.length === bi.length &&
     ai.every((src, i) => src === bi[i])
   );

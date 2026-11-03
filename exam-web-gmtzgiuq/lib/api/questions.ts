@@ -33,6 +33,8 @@ export interface ExamPassage {
   /** LaTeX + ตาราง Markdown แบบเดียวกับโจทย์ (แสดงผ่าน LatexRenderer) */
   body: string | null;
   images: string[];
+  /** แสดงเลขบรรทัด (นับเฉพาะบรรทัดที่มีข้อความใน body) — ข้อมูลเก่าไม่มี key = false */
+  lineNumbers?: boolean;
 }
 
 export interface QuestionAuthor {

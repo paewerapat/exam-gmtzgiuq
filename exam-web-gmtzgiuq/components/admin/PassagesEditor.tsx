@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2 } from 'lucide-react';
-import LatexRenderer from '@/components/latex/LatexRenderer';
+import { PassageContent } from '@/components/exam/PassagePanel';
 import QuestionImagesEditor from '@/components/upload/QuestionImagesEditor';
 import {
   MAX_PASSAGE_BODY,
@@ -23,6 +23,8 @@ interface PassagesEditorProps {
   onAdd: () => void;
   onRemove: (id: string) => void;
   onFieldChange: (id: string, field: 'title' | 'body', value: string) => void;
+  /** ติ๊ก/เอาติ๊กออก "แสดงเลขบรรทัด" */
+  onLineNumbersChange: (id: string, value: boolean) => void;
   /** ลบ/เลื่อนรูป แบบ updater (หน้าแม่ตัดสินใจเรื่องลบไฟล์) */
   onImagesChange: (id: string, update: (prev: string[]) => string[]) => void;
   /** เพิ่มรูป — หน้าแม่ตรวจกับค่าล่าสุดอีกรอบ (อัปโหลดเสร็จทีหลังได้) */
@@ -38,6 +40,7 @@ export default function PassagesEditor({
   onAdd,
   onRemove,
   onFieldChange,
+  onLineNumbersChange,
   onImagesChange,
   onImageAdd,
   onUploaded,
@@ -76,6 +79,8 @@ export default function PassagesEditor({
             const isPreview = previewing.has(p.id);
             const titleId = `passage-title-${p.id}`;
             const bodyId = `passage-body-${p.id}`;
+            const lineNumbersId = `passage-line-numbers-${p.id}`;
+            const lineNumbersHintId = `${lineNumbersId}-hint`;
             return (
               <div
                 key={p.id}
@@ -173,14 +178,34 @@ export default function PassagesEditor({
                       {isPreview && p.body.trim() && (
                         <div className="mt-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40 p-3 max-h-80 overflow-y-auto">
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">ตัวอย่างการแสดงผล</p>
-                          <div className="prose prose-sm max-w-none text-gray-800 dark:text-gray-200 leading-relaxed break-words">
-                            <LatexRenderer content={p.body} />
-                          </div>
+                          <PassageContent
+                            passage={{ id: p.id, title: null, body: p.body, images: [], lineNumbers: p.lineNumbers }}
+                          />
                         </div>
                       )}
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         ต้องมีเนื้อหาหรือรูปอย่างน้อยหนึ่งอย่าง
                       </p>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <input
+                        id={lineNumbersId}
+                        type="checkbox"
+                        checked={p.lineNumbers}
+                        onChange={(e) => onLineNumbersChange(p.id, e.target.checked)}
+                        disabled={disabled}
+                        aria-describedby={lineNumbersHintId}
+                        className="mt-0.5 w-4 h-4 flex-shrink-0 rounded accent-indigo-600 focus:ring-indigo-500 disabled:opacity-60"
+                      />
+                      <div>
+                        <label htmlFor={lineNumbersId} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          แสดงเลขบรรทัด
+                        </label>
+                        <p id={lineNumbersHintId} className="text-xs text-gray-500 dark:text-gray-400">
+                          สำหรับโจทย์ที่อ้าง &quot;บรรทัดที่ …&quot; — นับเฉพาะบรรทัดที่มีข้อความ ขึ้นบรรทัดให้ตรงกับต้นฉบับ
+                        </p>
+                      </div>
                     </div>
 
                     <QuestionImagesEditor

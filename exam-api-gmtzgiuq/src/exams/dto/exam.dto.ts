@@ -65,6 +65,12 @@ export class ExamPassageInput {
   @Field(() => [String], { nullable: true })
   @IsImageUrlList('รูปบทอ่าน', 'บทอ่าน')
   images?: string[] | null;
+
+  // Show line numbers next to the body (task 09); not sent = false
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean({ message: 'การแสดงเลขบรรทัดต้องเป็น true หรือ false' })
+  lineNumbers?: boolean | null;
 }
 
 /** `passages` field of POST and PUT. */

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ExamContainer from './ExamContainer';
-import PassagePanel, { PassageDisclosure, createPassageMemory } from './PassagePanel';
+import PassagePanel, { PassageContent, PassageDisclosure, createPassageMemory } from './PassagePanel';
 import { ExamProvider, useExam } from '@/contexts/ExamContext';
 import type { ExamPassage, Question } from '@/lib/api/questions';
 import type { ExamSession } from '@/types/exam';
@@ -216,6 +216,75 @@ describe('PassagePanel แยก', () => {
     const latex = container.querySelector('[style*="pre-wrap"]')!;
     expect(latex.textContent).toContain('บรรทัดแรก\nสูตร');
     expect(container.querySelector('.katex')).not.toBeNull();
+  });
+});
+
+describe('PassageContent เลขบรรทัด (task 09)', () => {
+  // AC3: 14 บรรทัด มีบรรทัดว่างคั่นย่อหน้า 1 ครั้ง + สูตร $x^2$ ในบรรทัดหนึ่ง
+  const text = Array.from({ length: 13 }, (_, i) => (i === 2 ? 'สูตร $x^2$ ในบรรทัดนี้' : `ข้อความบรรทัด ${i + 1}`));
+  const body = [...text.slice(0, 6), '', ...text.slice(6)].join('\n');
+  const numbered: ExamPassage = { id: 'n', title: null, body, images: [], lineNumbers: true };
+  const lineNumbersOf = (root: HTMLElement) =>
+    Array.from(root.querySelectorAll('[data-line-number]')).map((el) => el.textContent);
+
+  it('เปิดเลขบรรทัด → เลข 1–13 ตรงบรรทัดที่มีข้อความ (บรรทัดว่างไม่มีเลข) สูตรยังเป็นสูตร เลขเลือก/คัดลอกไม่ได้', () => {
+    const { container } = render(<PassageContent passage={numbered} />);
+    expect(lineNumbersOf(container)).toEqual(Array.from({ length: 13 }, (_, i) => String(i + 1)));
+    const no7 = container.querySelector('[data-line-number="7"]')!;
+    expect(no7.nextElementSibling?.textContent).toBe('ข้อความบรรทัด 7');
+    expect(no7).toHaveClass('select-none');
+    expect(container.querySelector('[data-line-number="3"]')!.nextElementSibling?.querySelector('.katex')).not.toBeNull();
+  });
+
+  it('บรรทัดว่างคั่นย่อหน้า = div มี <br /> (สูง 1 บรรทัด + คัดลอกได้บรรทัดว่าง) ไม่มีเลข; บรรทัดว่างท้าย body ไม่ถูกแสดง', () => {
+    const { container } = render(<PassageContent passage={{ ...numbered, body: `${body}\n\n` }} />);
+    const blanks = container.querySelectorAll('[data-passage-blank]');
+    expect(blanks).toHaveLength(1);
+    expect(blanks[0].querySelector('br')).not.toBeNull();
+    expect(blanks[0].textContent).toBe('');
+    expect(blanks[0].querySelector('[data-line-number]')).toBeNull();
+    // อยู่ระหว่างบรรทัด 6 กับ 7
+    expect(blanks[0].previousElementSibling?.textContent).toBe('ข้อความบรรทัด 6');
+    expect(blanks[0].nextElementSibling).toHaveAttribute('data-line-number', '7');
+    expect(screen.getByTestId('passage-numbered').lastElementChild?.textContent).toBe('ข้อความบรรทัด 13');
+    expect(lineNumbersOf(container)).toHaveLength(13);
+  });
+
+  it('ไม่เปิด / ข้อมูลเก่าไม่มี key → render แบบเดิม (ไม่มีเลข)', () => {
+    for (const p of [{ ...numbered, lineNumbers: false }, { id: 'old', title: null, body, images: [] }]) {
+      const { container, unmount } = render(<PassageContent passage={p} />);
+      expect(screen.queryByTestId('passage-numbered')).not.toBeInTheDocument();
+      expect(lineNumbersOf(container)).toEqual([]);
+      expect(container.querySelector('[style*="pre-wrap"]')!.textContent).toContain('ข้อความบรรทัด 1\nข้อความบรรทัด 2');
+      unmount();
+    }
+  });
+
+  it('ตาราง Markdown ยังแสดงเป็นตารางและไม่นับเลข', () => {
+    const p: ExamPassage = {
+      id: 't',
+      title: null,
+      body: 'ก่อนตาราง\n| ปี | ค่า |\n|---|---|\n| 2566 | 10 |\nหลังตาราง',
+      images: [],
+      lineNumbers: true,
+    };
+    const { container } = render(<PassageContent passage={p} />);
+    expect(container.querySelector('table')).not.toBeNull();
+    expect(lineNumbersOf(container)).toEqual(['1', '2']);
+    expect(container.querySelector('[data-line-number="2"]')!.nextElementSibling?.textContent).toBe('หลังตาราง');
+  });
+
+  it('PassageDisclosure (หน้าทบทวน/ประวัติ) แสดงเลขบรรทัดด้วย', async () => {
+    render(<PassageDisclosure passage={numbered} />);
+    await userEvent.click(screen.getByRole('button', { name: 'บทอ่าน' }));
+    expect(screen.getByTestId('passage-numbered')).toBeInTheDocument();
+  });
+
+  it('PassagePanel: เปลี่ยน lineNumbers อย่างเดียว → render ใหม่ (memo เทียบ lineNumbers)', () => {
+    const { rerender } = render(<PassagePanel passage={{ ...numbered, lineNumbers: false }} />);
+    expect(screen.queryByTestId('passage-numbered')).not.toBeInTheDocument();
+    rerender(<PassagePanel passage={numbered} />);
+    expect(screen.getByTestId('passage-numbered')).toBeInTheDocument();
   });
 });
 

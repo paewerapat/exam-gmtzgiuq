@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ExternalLink,
   RotateCcw,
+  ListOrdered,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import FadeIn from '@/components/animations/FadeIn';
@@ -705,6 +706,12 @@ function PassageList({
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {p.lineNumbers && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+                      <ListOrdered className="w-3.5 h-3.5" />
+                      มีเลขบรรทัด
+                    </span>
+                  )}
                   {!p.usable && (
                     <span className="text-xs font-medium text-red-700 dark:text-red-300">ไม่ถูกนำเข้า</span>
                   )}

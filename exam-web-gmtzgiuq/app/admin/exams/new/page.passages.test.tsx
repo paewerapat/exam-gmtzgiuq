@@ -135,8 +135,8 @@ describe('NewExamPage — บทอ่านร่วม (task 08 AC4)', () => {
     expect(pa.id).toMatch(PASSAGE_ID_PATTERN);
     expect(pb.id).toMatch(PASSAGE_ID_PATTERN);
     expect(pa.id).not.toBe(pb.id);
-    expect(pa).toEqual({ id: pa.id, title: 'บทความเรื่องน้ำ', body: LONG_BODY, images: [] });
-    expect(pb).toEqual({ id: pb.id, title: null, body: null, images: [expect.stringMatching(/\/uploads\/p-\d+\.png$/)] });
+    expect(pa).toEqual({ id: pa.id, title: 'บทความเรื่องน้ำ', body: LONG_BODY, images: [], lineNumbers: false });
+    expect(pb).toEqual({ id: pb.id, title: null, body: null, images: [expect.stringMatching(/\/uploads\/p-\d+\.png$/)], lineNumbers: false });
     expect(input.questions.map((q: { passageId: string | null }) => q.passageId)).toEqual([null, pa.id, pb.id]);
     expect(deleteUploadedImageByUrl).not.toHaveBeenCalled();
   }, 30000);

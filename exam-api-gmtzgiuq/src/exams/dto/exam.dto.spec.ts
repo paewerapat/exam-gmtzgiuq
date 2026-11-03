@@ -195,6 +195,53 @@ describe('CreateExamInput / UpdateExamInput validation (task 07)', () => {
       const ok = await validate(UpdateExamInput, { passages: [passage()] });
       expect(ok.passages?.[0].id).toBe('reading-1');
     });
+
+    describe('lineNumbers (task 09)', () => {
+      it('keeps true / false / null and allows it to be omitted', async () => {
+        const result = await validate(
+          CreateExamInput,
+          withPassages([
+            passage({ lineNumbers: true }),
+            passage({ id: 'p2', lineNumbers: false }),
+            passage({ id: 'p3', lineNumbers: null }),
+            passage({ id: 'p4' }),
+          ]),
+        );
+
+        expect(result.passages?.map((p) => p.lineNumbers)).toEqual([
+          true,
+          false,
+          null,
+          undefined,
+        ]);
+      });
+
+      it.each([
+        ['a string', 'yes'],
+        ['the string "true"', 'true'],
+        ['a number', 1],
+        ['an object', {}],
+      ])('rejects lineNumbers as %s (400)', async (_label, lineNumbers) => {
+        expect(
+          await messageOf(
+            CreateExamInput,
+            withPassages([passage({ lineNumbers })]),
+          ),
+        ).toContain('การแสดงเลขบรรทัดต้องเป็น true หรือ false');
+      });
+
+      it('applies the same rule to PUT (UpdateExamInput)', async () => {
+        expect(
+          await messageOf(UpdateExamInput, {
+            passages: [passage({ lineNumbers: 'yes' })],
+          }),
+        ).toContain('การแสดงเลขบรรทัดต้องเป็น true หรือ false');
+        const ok = await validate(UpdateExamInput, {
+          passages: [passage({ lineNumbers: true })],
+        });
+        expect(ok.passages?.[0].lineNumbers).toBe(true);
+      });
+    });
   });
 
   it('returns the Thai message for too many images', async () => {

@@ -854,7 +854,13 @@ describe('passage_groups — บทอ่านร่วม (task 08)', () => {
       imageUrls: { 'images/q02-venn.png': 'http://api/uploads/venn.png' },
     });
     expect(input.passages).toEqual([
-      { id: 'reading-1', title: 'บทอ่านที่ 1 (ตัวอย่าง)', body: null, images: ['http://api/uploads/venn.png'] },
+      {
+        id: 'reading-1',
+        title: 'บทอ่านที่ 1 (ตัวอย่าง)',
+        body: null,
+        images: ['http://api/uploads/venn.png'],
+        lineNumbers: false,
+      },
     ]);
     expect(input.questions.map((q) => q.passageId)).toEqual([null, null, null, null, null, 'reading-1', null]);
   });
@@ -1046,5 +1052,56 @@ describe('passage_groups — รอบ 2 (applies_to กับบทอ่าน
     expect(messages(byNo(r, 7), 'warning').join()).toContain('ไม่ได้ระบุ passage_group');
     // ข้อ 6 ระบุตรงกันทั้งสองแหล่ง → ไม่เตือน
     expect(messages(byNo(r, 6), 'warning').join()).not.toContain('ไม่ตรงกัน');
+  });
+});
+
+describe('passage_groups[].line_numbers — เลขบรรทัด (task 09)', () => {
+  const body = Array.from({ length: 12 }, (_, i) => `บรรทัดที่ ${i + 1}`).join('\n');
+  function parseWith(lineNumbers: unknown, omit = false) {
+    const json = clone(sample) as Json;
+    const group: Json = { id: 'read-1', title: 'อ่านแล้วตอบ', body, applies_to: [6] };
+    if (!omit) group.line_numbers = lineNumbers;
+    json.passage_groups = [group];
+    for (const q of json.questions as Json[]) delete q.passage_group;
+    return resolve(parseImportFile('x.zip', sampleZip(json)));
+  }
+  const build = (r: ResolvedImport) => buildCreateExamInput(r, { category: 'a', subjectId: null, imageUrls: {} });
+
+  it('line_numbers: true → lineNumbers true และส่งใน payload ไม่มีคำเตือน', () => {
+    const r = parseWith(true);
+    expect(r.passages[0].lineNumbers).toBe(true);
+    expect(messages(r.passages[0], 'warning').join()).not.toContain('line_numbers');
+    expect(r.passages[0].status).toBe('ok');
+    expect(build(r).passages?.[0]).toMatchObject({ id: 'read-1', body, lineNumbers: true });
+  });
+
+  it('ไม่มี key / null / false → false ไม่เตือน', () => {
+    for (const r of [parseWith(undefined, true), parseWith(null), parseWith(false)]) {
+      expect(r.passages[0].lineNumbers).toBe(false);
+      expect(r.passages[0].status).toBe('ok');
+      expect(build(r).passages?.[0].lineNumbers).toBe(false);
+    }
+  });
+
+  it('ค่าไม่ใช่ boolean ("yes", 1) → warning แล้วใช้ false (ยังนำเข้าบทอ่านได้)', () => {
+    for (const v of ['yes', 1]) {
+      const r = parseWith(v);
+      const p = r.passages[0];
+      expect(p.lineNumbers).toBe(false);
+      expect(p.usable).toBe(true);
+      expect(p.status).toBe('warning');
+      expect(messages(p, 'warning').join()).toContain('line_numbers ต้องเป็น true หรือ false');
+      expect(build(r).passages?.[0].lineNumbers).toBe(false);
+    }
+  });
+
+  it('ข้อความเตือนแสดงค่าแบบ JSON (object ไม่เป็น [object Object]) และตัดค่าที่ยาวเกิน', () => {
+    const [objMsg] = messages(parseWith({ on: true }).passages[0], 'warning');
+    expect(objMsg).toContain('(ได้ {"on":true})');
+    expect(objMsg).not.toContain('[object Object]');
+    expect(messages(parseWith('yes').passages[0], 'warning')[0]).toContain('(ได้ "yes")');
+    const [longMsg] = messages(parseWith('ก'.repeat(500)).passages[0], 'warning');
+    expect(longMsg).toContain(`(ได้ "${'ก'.repeat(39)}…)`);
+    expect(longMsg.length).toBeLessThan(150);
   });
 });

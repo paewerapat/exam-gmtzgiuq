@@ -323,6 +323,10 @@ export default function EditExamPage({ params }: PageProps) {
     commitPassages((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
   };
 
+  const updatePassageLineNumbers = (id: string, value: boolean) => {
+    commitPassages((prev) => prev.map((p) => (p.id === id ? { ...p, lineNumbers: value } : p)));
+  };
+
   const updatePassageImages = (id: string, update: (prev: string[]) => string[]) => {
     commitPassages((prev) => prev.map((p) => (p.id === id ? { ...p, images: update(p.images) } : p)));
   };
@@ -668,6 +672,7 @@ export default function EditExamPage({ params }: PageProps) {
             onAdd={addPassage}
             onRemove={removePassage}
             onFieldChange={updatePassageField}
+            onLineNumbersChange={updatePassageLineNumbers}
             onImagesChange={updatePassageImages}
             onImageAdd={addPassageImage}
             onUploaded={recordUpload}
