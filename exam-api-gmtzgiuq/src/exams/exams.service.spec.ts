@@ -1,6 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  Repository,
+  getMetadataArgsStorage,
+} from 'typeorm';
 import { ExamsService } from './exams.service';
 import { Exam } from './exam.entity';
 import { Question, QuestionStatus } from '../questions/question.entity';
@@ -11,7 +16,8 @@ import {
   UpdateExamInput,
 } from './dto/exam.dto';
 import { User } from '../users/user.entity';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ExamAccessType, ExamLevel } from './exam-mock';
 import { UPLOAD_REFERENCE_SQL } from '../questions/question-images';
 
 const LOCAL = 'http://localhost:3001/uploads';
@@ -757,7 +763,7 @@ describe('ExamsService', () => {
         // passages is select: false, so it is loaded explicitly
         expect(examsRepo.findOne.mock.calls).toContainEqual([
           expect.objectContaining({
-            select: { id: true, passages: true },
+            select: { id: true, passages: true, detailBlocks: true },
             where: { id: 'exam-1' },
           }),
         ]);
@@ -997,7 +1003,7 @@ describe('ExamsService', () => {
         expect(query).toHaveBeenCalledTimes(1);
         const [sql, params] = query.mock.calls[0] as [string, string[]];
         expect(sql).toBe(UPLOAD_REFERENCE_SQL);
-        expect(params).toHaveLength(8);
+        expect(params).toHaveLength(9);
         expect(new Set(params)).toEqual(new Set([`%${IMG.a}%`]));
       });
 
@@ -1049,6 +1055,659 @@ describe('ExamsService', () => {
         expect(query).toHaveBeenCalledTimes(2);
         expect(deleteByUrl).not.toHaveBeenCalled();
         consoleError.mockRestore();
+      });
+    });
+  });
+
+  describe('release date (task 10)', () => {
+    const author = { id: 'admin-1' } as User;
+    const input = {
+      title: 'ชุดที่ 2',
+      category: 'physics',
+      questions: [{ question: 'ข้อ 1' }],
+    } as CreateExamInput;
+
+    function createdExam(): Partial<Exam> {
+      const calls = manager.create.mock.calls as unknown[][];
+      return calls.find((args) => args[0] === Exam)![1] as Partial<Exam>;
+    }
+
+    function examUpdate(): Partial<Exam> {
+      return (manager.update.mock.calls[0] as unknown[])[2] as Partial<Exam>;
+    }
+
+    beforeEach(() => {
+      examsRepo.findOne.mockResolvedValue(makeExam([]));
+    });
+
+    describe('create', () => {
+      it('not sent → left to the DB default CURRENT_TIMESTAMP (now)', async () => {
+        await service.create(input, author);
+
+        expect(createdExam()).not.toHaveProperty('releaseDate');
+        const column = getMetadataArgsStorage().columns.find(
+          (c) => c.target === Exam && c.propertyName === 'releaseDate',
+        )!;
+        expect(column.options.type).toBe('datetime');
+        expect(column.options.nullable).toBeFalsy();
+        expect((column.options.default as () => string)()).toBe(
+          'CURRENT_TIMESTAMP',
+        );
+      });
+
+      it('null → same as not sent', async () => {
+        await service.create({ ...input, releaseDate: null }, author);
+
+        expect(createdExam()).not.toHaveProperty('releaseDate');
+      });
+
+      it.each([
+        ['2026-11-05T03:00:00.000Z', '2026-11-05T03:00:00.000Z'],
+        ['2026-11-05T10:00:00+07:00', '2026-11-05T03:00:00.000Z'],
+        ['2020-01-31T17:30:00Z', '2020-01-31T17:30:00.000Z'],
+      ])('sent %s → stores that instant', async (sent, iso) => {
+        await service.create({ ...input, releaseDate: sent }, author);
+
+        const releaseDate = createdExam().releaseDate;
+        expect(releaseDate).toBeInstanceOf(Date);
+        expect(releaseDate!.toISOString()).toBe(iso);
+      });
+
+      it.each(['0999-06-01T00:00:00Z', 'not a date'])(
+        'rejects %s with 400 before saving',
+        async (sent) => {
+          await expect(
+            service.create({ ...input, releaseDate: sent }, author),
+          ).rejects.toBeInstanceOf(BadRequestException);
+          expect(manager.save).not.toHaveBeenCalled();
+        },
+      );
+    });
+
+    describe('update', () => {
+      it('not sent → keeps the current release date', async () => {
+        await service.update('exam-1', { title: 'ชื่อใหม่' });
+
+        expect(examUpdate()).not.toHaveProperty('releaseDate');
+        expect(examUpdate().title).toBe('ชื่อใหม่');
+      });
+
+      it('null → keeps the current release date', async () => {
+        await service.update('exam-1', { releaseDate: null });
+
+        expect(examUpdate()).not.toHaveProperty('releaseDate');
+      });
+
+      it('sent → stores that instant', async () => {
+        await service.update('exam-1', {
+          releaseDate: '2027-01-01T08:15:00+07:00',
+        });
+
+        expect(examUpdate().releaseDate).toEqual(
+          new Date('2027-01-01T01:15:00.000Z'),
+        );
+      });
+
+      it('rejects a year MySQL datetime cannot store with 400', async () => {
+        await expect(
+          service.update('exam-1', { releaseDate: '0500-01-01T00:00:00Z' }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(manager.update).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('lists order by releaseDate DESC, then createdAt DESC', () => {
+      let qb: Record<string, jest.Mock>;
+
+      beforeEach(() => {
+        qb = {};
+        for (const m of [
+          'leftJoinAndSelect',
+          'where',
+          'andWhere',
+          'orderBy',
+          'addOrderBy',
+          'skip',
+          'take',
+        ]) {
+          qb[m] = jest.fn(() => qb);
+        }
+        qb.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);
+        (
+          examsRepo as unknown as { createQueryBuilder: jest.Mock }
+        ).createQueryBuilder = jest.fn(() => qb);
+      });
+
+      function expectReleaseOrder() {
+        expect(qb.orderBy.mock.calls).toEqual([['exam.releaseDate', 'DESC']]);
+        expect(qb.addOrderBy.mock.calls).toEqual([['exam.createdAt', 'DESC']]);
+        // releaseDate is the primary sort key, createdAt only breaks ties
+        expect(qb.orderBy.mock.invocationCallOrder[0]).toBeLessThan(
+          qb.addOrderBy.mock.invocationCallOrder[0],
+        );
+      }
+
+      it('public list (GET /exams)', async () => {
+        await service.findPublished(1, 10);
+        expectReleaseOrder();
+        expect(qb.andWhere).toHaveBeenCalledWith('exam.status = :status', {
+          status: QuestionStatus.PUBLISHED,
+        });
+      });
+
+      it('admin list (GET /exams/admin/all)', async () => {
+        await service.findAll(1, 10);
+        expectReleaseOrder();
+      });
+
+      it('topic list (GET /exams/topic/:topicId)', async () => {
+        await service.findByTopic('topic-1');
+        expectReleaseOrder();
+      });
+    });
+  });
+
+  describe('Mock Exam (task 11)', () => {
+    const url = (name: keyof typeof IMG) => `${LOCAL}/${IMG[name]}`;
+    const author = { id: 'admin-1' } as User;
+    const input = {
+      title: 'Mock 1',
+      category: 'physics',
+      questions: [{ question: 'ข้อ 1' }],
+    } as CreateExamInput;
+
+    function createdExam(): Partial<Exam> {
+      const calls = manager.create.mock.calls as unknown[][];
+      return calls.find((args) => args[0] === Exam)![1] as Partial<Exam>;
+    }
+
+    function examUpdate(): Partial<Exam> {
+      return (manager.update.mock.calls[0] as unknown[])[2] as Partial<Exam>;
+    }
+
+    // Stored exam; findOne loads detailBlocks with the second findOne call
+    function givenMock(fields: Partial<Exam> = {}, questions: string[] = []) {
+      examsRepo.findOne.mockResolvedValue({
+        ...makeExam(questions),
+        isMock: true,
+        accessType: ExamAccessType.FREE,
+        price: null,
+        accessDays: null,
+        level: null,
+        passages: null,
+        detailBlocks: null,
+        ...fields,
+      } as Exam);
+    }
+
+    const textBlock = (text: string) => ({ type: 'text' as const, text });
+    const imageBlock = (u: string) => ({ type: 'image' as const, url: u });
+
+    describe('AC1 create/update/findOne store and return the new fields', () => {
+      beforeEach(() => givenMock());
+
+      it('create stores every field, keeping only the field of each block type', async () => {
+        await service.create(
+          {
+            ...input,
+            isMock: true,
+            accessType: ExamAccessType.PURCHASE,
+            price: 150,
+            accessDays: 365,
+            level: ExamLevel.HARD,
+            detailBlocks: [
+              { type: 'text', text: 'ก่อนรูป', url: '/uploads/ignored.png' },
+              { type: 'image', url: url('a'), text: 'ignored' },
+              { type: 'text', text: '   ' },
+              { type: 'text', text: 'หลังรูป' },
+            ],
+          },
+          author,
+        );
+
+        expect(createdExam()).toMatchObject({
+          isMock: true,
+          accessType: ExamAccessType.PURCHASE,
+          price: 150,
+          accessDays: 365,
+          level: ExamLevel.HARD,
+          detailBlocks: [
+            textBlock('ก่อนรูป'),
+            imageBlock(url('a')),
+            textBlock('หลังรูป'),
+          ],
+        });
+      });
+
+      it('create without the fields = normal exam, free, nulls', async () => {
+        await service.create(input, author);
+
+        expect(createdExam()).toMatchObject({
+          isMock: false,
+          accessType: ExamAccessType.FREE,
+          price: null,
+          accessDays: null,
+          level: null,
+          detailBlocks: null,
+        });
+      });
+
+      it.each([
+        ['no price', {}],
+        ['price null', { price: null }],
+        ['price 0', { price: 0 }],
+      ])(
+        'create purchase with %s → 400 before saving',
+        async (_label, fields) => {
+          const error = await service
+            .create(
+              {
+                ...input,
+                isMock: true,
+                accessType: ExamAccessType.PURCHASE,
+                ...fields,
+              },
+              author,
+            )
+            .catch((err: unknown) => err);
+
+          expect(error).toBeInstanceOf(BadRequestException);
+          expect((error as BadRequestException).message).toBe(
+            'ชุดข้อสอบที่ต้องซื้อต้องระบุราคามากกว่า 0 บาท',
+          );
+          expect(manager.save).not.toHaveBeenCalled();
+        },
+      );
+
+      it('update stores the fields that were sent', async () => {
+        await service.update('exam-1', {
+          isMock: true,
+          accessType: ExamAccessType.CODE,
+          accessDays: 30,
+          level: ExamLevel.EASY,
+          detailBlocks: [textBlock('x'), imageBlock(url('a'))],
+        });
+
+        expect(examUpdate()).toMatchObject({
+          isMock: true,
+          accessType: ExamAccessType.CODE,
+          price: null,
+          accessDays: 30,
+          level: ExamLevel.EASY,
+          detailBlocks: [textBlock('x'), imageBlock(url('a'))],
+        });
+      });
+
+      it('update without the fields keeps them (detailBlocks not written)', async () => {
+        givenMock({
+          accessType: ExamAccessType.PURCHASE,
+          price: 150,
+          accessDays: 90,
+          level: ExamLevel.MEDIUM,
+          detailBlocks: [textBlock('เดิม')],
+        });
+
+        await service.update('exam-1', { title: 'ชื่อใหม่' });
+
+        expect(examUpdate()).toMatchObject({
+          title: 'ชื่อใหม่',
+          isMock: true,
+          accessType: ExamAccessType.PURCHASE,
+          price: 150,
+          accessDays: 90,
+          level: ExamLevel.MEDIUM,
+        });
+        expect(examUpdate()).not.toHaveProperty('detailBlocks');
+      });
+
+      it('update with null clears price/accessDays/level, [] or null clears the blocks', async () => {
+        givenMock({ price: 99, accessDays: 9, level: ExamLevel.HARD });
+
+        await service.update('exam-1', {
+          price: null,
+          accessDays: null,
+          level: null,
+          detailBlocks: [],
+        });
+
+        expect(examUpdate()).toMatchObject({
+          price: null,
+          accessDays: null,
+          level: null,
+          detailBlocks: null,
+        });
+      });
+
+      it('update to purchase checks the price the exam will have', async () => {
+        // no price stored, none sent → 400
+        await expect(
+          service.update('exam-1', { accessType: ExamAccessType.PURCHASE }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        // clearing the price of a purchase exam → 400
+        givenMock({ accessType: ExamAccessType.PURCHASE, price: 150 });
+        await expect(
+          service.update('exam-1', { price: null }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(manager.update).not.toHaveBeenCalled();
+
+        // stored price is kept → OK
+        await service.update('exam-1', { title: 'x' });
+        expect(examUpdate().price).toBe(150);
+      });
+
+      it('findOne (GET /exams/admin/:id) returns detailBlocks (null → [], bad blocks skipped)', async () => {
+        givenMock({
+          detailBlocks: [
+            textBlock('a'),
+            { type: 'video', url: 'x' },
+            imageBlock('javascript:alert(1)'),
+            imageBlock(url('a')),
+          ] as never,
+        });
+        const exam = await service.findOne('exam-1');
+        expect(exam.detailBlocks).toEqual([
+          textBlock('a'),
+          imageBlock(url('a')),
+        ]);
+        expect(exam).toMatchObject({ isMock: true, accessType: 'free' });
+
+        givenMock({ detailBlocks: null });
+        await expect(service.findOne('exam-1')).resolves.toMatchObject({
+          detailBlocks: [],
+        });
+      });
+
+      it('price column is DECIMAL(10,2) read as a number', () => {
+        const column = getMetadataArgsStorage().columns.find(
+          (c) => c.target === Exam && c.propertyName === 'price',
+        )!;
+        expect(column.options).toMatchObject({
+          type: 'decimal',
+          precision: 10,
+          scale: 2,
+          nullable: true,
+        });
+        const transformer = column.options.transformer as {
+          from: (v: unknown) => unknown;
+        };
+        expect(transformer.from('150.00')).toBe(150);
+        expect(transformer.from('99.50')).toBe(99.5);
+        expect(transformer.from(null)).toBeNull();
+
+        const blocks = getMetadataArgsStorage().columns.find(
+          (c) => c.target === Exam && c.propertyName === 'detailBlocks',
+        )!;
+        expect(blocks.options).toMatchObject({ type: 'json', select: false });
+      });
+    });
+
+    describe('AC1 detail block image files', () => {
+      it('deletes a block image removed from the description, after saving', async () => {
+        givenMock({
+          detailBlocks: [imageBlock(url('a')), imageBlock(url('b'))],
+        });
+
+        await service.update('exam-1', {
+          detailBlocks: [imageBlock(url('b'))],
+        });
+
+        expect(deletedUrls()).toEqual([url('a')]);
+        expect(manager.update.mock.invocationCallOrder[0]).toBeLessThan(
+          deleteByUrl.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('keeps an image still used by another block, a question or a passage of this exam', async () => {
+        givenMock(
+          {
+            detailBlocks: [
+              imageBlock(url('a')),
+              imageBlock(url('b')),
+              imageBlock(url('c')),
+            ],
+            passages: [{ id: 'p', body: 'x', images: [url('c')] }] as never,
+          },
+          [url('b')],
+        );
+
+        await service.update('exam-1', {
+          detailBlocks: [textBlock('x'), imageBlock(url('a'))],
+        });
+
+        expect(deleteByUrl).not.toHaveBeenCalled();
+      });
+
+      it('keeps an image another exam/blog still refers to (UPLOAD_REFERENCE_SQL covers detailBlocks)', async () => {
+        givenMock({
+          detailBlocks: [imageBlock(url('a')), imageBlock(url('b'))],
+        });
+        query.mockImplementation((_sql: string, params: string[]) =>
+          Promise.resolve([{ refs: params[0].includes(IMG.a) ? 1 : 0 }]),
+        );
+
+        await service.update('exam-1', { detailBlocks: [] });
+
+        expect(deletedUrls()).toEqual([url('b')]);
+        expect(UPLOAD_REFERENCE_SQL).toContain('CAST(detailBlocks AS CHAR)');
+      });
+
+      it('detailBlocks not sent → no image is touched', async () => {
+        givenMock({ detailBlocks: [imageBlock(url('a'))] });
+
+        await service.update('exam-1', { title: 'x' });
+
+        expect(query).not.toHaveBeenCalled();
+        expect(deleteByUrl).not.toHaveBeenCalled();
+      });
+
+      it('deletes nothing when the transaction fails', async () => {
+        givenMock({ detailBlocks: [imageBlock(url('a'))] });
+        manager.update.mockRejectedValueOnce(new Error('db down'));
+
+        await expect(
+          service.update('exam-1', { detailBlocks: [] }),
+        ).rejects.toThrow('db down');
+        expect(deleteByUrl).not.toHaveBeenCalled();
+      });
+
+      it('remove deletes the block images too', async () => {
+        givenMock({ detailBlocks: [imageBlock(url('a')), textBlock('x')] }, [
+          url('b'),
+        ]);
+
+        await service.remove('exam-1');
+
+        expect(deletedUrls().sort()).toEqual([url('a'), url('b')].sort());
+      });
+    });
+
+    describe('lists', () => {
+      let qb: Record<string, jest.Mock>;
+
+      beforeEach(() => {
+        qb = {};
+        for (const m of [
+          'leftJoin',
+          'leftJoinAndSelect',
+          'select',
+          'addSelect',
+          'where',
+          'andWhere',
+          'orderBy',
+          'addOrderBy',
+          'groupBy',
+          'skip',
+          'take',
+          'offset',
+          'limit',
+        ]) {
+          qb[m] = jest.fn(() => qb);
+        }
+        qb.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);
+        qb.getRawMany = jest.fn().mockResolvedValue([]);
+        qb.getRawOne = jest.fn().mockResolvedValue(undefined);
+        qb.getCount = jest.fn().mockResolvedValue(0);
+        (
+          examsRepo as unknown as { createQueryBuilder: jest.Mock }
+        ).createQueryBuilder = jest.fn(() => qb);
+      });
+
+      const where = () => [
+        ...(qb.where.mock.calls as unknown[][]),
+        ...(qb.andWhere.mock.calls as unknown[][]),
+      ];
+      const selected = () =>
+        [
+          ...(qb.select.mock.calls as unknown[][]),
+          ...(qb.addSelect.mock.calls as unknown[][]),
+        ].map((call) => call[0] as string);
+
+      const row = {
+        id: 'm1',
+        title: 'Mock 1',
+        category: 'tgat',
+        categoryName: 'TGAT',
+        subjectId: 's1',
+        subjectName: 'คณิตศาสตร์',
+        bannerImage: null,
+        questionCount: 40,
+        durationMinutes: 90,
+        level: 'hard',
+        accessType: 'purchase',
+        price: '150.00',
+        releaseDate: new Date('2026-11-05T03:00:00.000Z'),
+      };
+
+      it('GET /exams (old list) hides mock exams', async () => {
+        await service.findPublished(1, 10);
+        expect(where()).toContainEqual([
+          'exam.isMock = :isMock',
+          { isMock: false },
+        ]);
+      });
+
+      it('GET /exams/topic/:topicId hides mock exams', async () => {
+        await service.findByTopic('topic-1');
+        expect(where()).toContainEqual([
+          'exam.isMock = :isMock',
+          { isMock: false },
+        ]);
+      });
+
+      it('admin list (GET /exams/admin/all) still shows mock exams', async () => {
+        await service.findAll(1, 10);
+        expect(JSON.stringify(where())).not.toContain('isMock');
+      });
+
+      it('GET /exams/mock: published mock exams only, newest release first, card fields only', async () => {
+        qb.getRawMany.mockResolvedValue([row]);
+        qb.getCount.mockResolvedValue(13);
+
+        const result = await service.findMockExams(2, 12);
+
+        expect(where()).toEqual(
+          expect.arrayContaining([
+            ['exam.isMock = :isMock', { isMock: true }],
+            ['exam.status = :status', { status: QuestionStatus.PUBLISHED }],
+          ]),
+        );
+        expect(qb.orderBy.mock.calls).toEqual([['exam.releaseDate', 'DESC']]);
+        expect(qb.addOrderBy.mock.calls).toEqual([['exam.createdAt', 'DESC']]);
+        expect(qb.offset).toHaveBeenCalledWith(12);
+        expect(qb.limit).toHaveBeenCalledWith(12);
+        // never questions, answers, author or the description
+        expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();
+        for (const column of selected()) {
+          expect(column).not.toMatch(/question\.|questions|author|choices/);
+        }
+        expect(selected()).not.toContain('exam.detailBlocks');
+
+        expect(result).toEqual({
+          items: [
+            {
+              ...row,
+              price: 150,
+              level: 'hard',
+              accessType: 'purchase',
+            },
+          ],
+          total: 13,
+          page: 2,
+          limit: 12,
+          totalPages: 2,
+        });
+        expect(result.items[0]).not.toHaveProperty('questions');
+      });
+
+      it('GET /exams/mock?category= filters by slug or name; bad page/limit are clamped', async () => {
+        const result = await service.findMockExams(NaN, 1000, 'tgat');
+
+        expect(qb.andWhere).toHaveBeenCalledWith(
+          '(exam.category = :category OR cat.name = :category)',
+          { category: 'tgat' },
+        );
+        expect(result).toMatchObject({ page: 1, limit: 100 });
+      });
+
+      it('GET /exams/mock/:id returns the card fields + description + blocks, no questions', async () => {
+        qb.getRawOne.mockResolvedValue({
+          ...row,
+          price: '99.50',
+          description: 'คำอธิบาย',
+          detailBlocks: JSON.stringify([
+            textBlock('a'),
+            imageBlock('/uploads/x.png'),
+          ]),
+        });
+
+        const exam = await service.findMockOne('m1');
+
+        expect(qb.andWhere).toHaveBeenCalledWith('exam.id = :id', {
+          id: 'm1',
+        });
+        expect(exam).toEqual({
+          ...row,
+          price: 99.5,
+          description: 'คำอธิบาย',
+          detailBlocks: [textBlock('a'), imageBlock('/uploads/x.png')],
+        });
+        expect(exam).not.toHaveProperty('questions');
+        expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();
+      });
+
+      it('GET /exams/mock/:id of a non-mock, draft or missing exam → 404', async () => {
+        qb.getRawOne.mockResolvedValue(undefined);
+
+        await expect(service.findMockOne('normal-exam')).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+        // the query only matches published mock exams
+        expect(where()).toEqual(
+          expect.arrayContaining([
+            ['exam.isMock = :isMock', { isMock: true }],
+            ['exam.status = :status', { status: QuestionStatus.PUBLISHED }],
+          ]),
+        );
+      });
+
+      it('GET /exams/mock/categories: published mock categories in admin order, name falls back to slug', async () => {
+        qb.getRawMany.mockResolvedValue([
+          { slug: 'old-cat', name: null, orderIndex: null, count: '1' },
+          { slug: 'tgat', name: 'TGAT', orderIndex: 2, count: '3' },
+          { slug: 'a-level', name: 'A-Level', orderIndex: '1', count: 2 },
+        ]);
+
+        await expect(service.findMockCategories()).resolves.toEqual([
+          { name: 'A-Level', slug: 'a-level', count: 2 },
+          { name: 'TGAT', slug: 'tgat', count: 3 },
+          { name: 'old-cat', slug: 'old-cat', count: 1 },
+        ]);
+        expect(where()).toEqual(
+          expect.arrayContaining([
+            ['exam.isMock = :isMock', { isMock: true }],
+            ['exam.status = :status', { status: QuestionStatus.PUBLISHED }],
+          ]),
+        );
       });
     });
   });

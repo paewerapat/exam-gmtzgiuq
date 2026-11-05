@@ -238,8 +238,12 @@ export class QuestionsService {
       .createQueryBuilder('q')
       .innerJoin('q.exam', 'exam')
       .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      // Questions of Mock Exams stay in the Mock Exam pages (task 11)
+      .andWhere('exam.isMock = :isMock', { isMock: false })
       .andWhere('q.topicId = :topicId', { topicId })
-      .orderBy('exam.createdAt', 'ASC')
+      // Oldest release first (task 10), then the old createdAt order
+      .orderBy('exam.releaseDate', 'ASC')
+      .addOrderBy('exam.createdAt', 'ASC')
       .addOrderBy('q.orderIndex', 'ASC')
       .getMany();
     return this.attachPassages(questions);
@@ -252,8 +256,12 @@ export class QuestionsService {
       .innerJoin('topics', 'topic', 'topic.id = q.topicId')
       .innerJoin('chapters', 'chapter', 'chapter.id = topic.chapterId')
       .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      // Questions of Mock Exams stay in the Mock Exam pages (task 11)
+      .andWhere('exam.isMock = :isMock', { isMock: false })
       .andWhere('chapter.subjectId = :subjectId', { subjectId })
-      .orderBy('exam.createdAt', 'ASC')
+      // Oldest release first (task 10), then the old createdAt order
+      .orderBy('exam.releaseDate', 'ASC')
+      .addOrderBy('exam.createdAt', 'ASC')
       .addOrderBy('q.orderIndex', 'ASC')
       .getMany();
     return this.attachPassages(questions);

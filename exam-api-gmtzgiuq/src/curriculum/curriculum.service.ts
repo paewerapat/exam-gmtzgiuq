@@ -194,6 +194,7 @@ export class CurriculumService {
     if (allTopicIds.length === 0) return subjects;
 
     // Count distinct published exams per topic via EITHER exam.topicId OR any question.topicId
+    // Mock Exams (task 11) are not counted: they are listed only by /exams/mock
     const placeholders = allTopicIds.map(() => '?').join(',');
 
     // Count distinct published exam sets per topic (via question.topicId)
@@ -202,6 +203,7 @@ export class CurriculumService {
         `SELECT q.topicId AS topicId, COUNT(DISTINCT e.id) AS cnt
          FROM questions q
          INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
+           AND e.isMock = 0
          WHERE q.topicId IN (${placeholders})
          GROUP BY q.topicId`,
         allTopicIds,
@@ -213,6 +215,7 @@ export class CurriculumService {
         `SELECT q.topicId AS topicId, COUNT(DISTINCT q.id) AS cnt
          FROM questions q
          INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
+           AND e.isMock = 0
          WHERE q.topicId IN (${placeholders})
          GROUP BY q.topicId`,
         allTopicIds,

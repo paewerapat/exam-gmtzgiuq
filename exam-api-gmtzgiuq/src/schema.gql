@@ -89,20 +89,33 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 type Exam {
+  accessDays: Int
+  accessType: ExamAccessType!
   author: User!
   bannerImage: String
   category: String!
   createdAt: DateTime!
   description: String
+  detailBlocks: [ExamDetailBlock!]
   durationMinutes: Int
   id: ID!
+  isMock: Boolean!
+  level: ExamLevel
   passages: [ExamPassage!]
+  price: Float
   questionCount: Int!
   questions: [Question!]!
+  releaseDate: DateTime!
   status: QuestionStatus!
   subjectId: String
   title: String!
   updatedAt: DateTime!
+}
+
+enum ExamAccessType {
+  CODE
+  FREE
+  PURCHASE
 }
 
 type ExamAttempt {
@@ -129,6 +142,18 @@ type ExamAttempt {
 type ExamCategoryCount {
   category: String!
   count: Int!
+}
+
+type ExamDetailBlock {
+  text: String
+  type: String!
+  url: String
+}
+
+enum ExamLevel {
+  EASY
+  HARD
+  MEDIUM
 }
 
 type ExamPassage {

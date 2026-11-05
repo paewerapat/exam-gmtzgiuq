@@ -37,6 +37,7 @@ import {
 import type { ExamSession } from '@/types/exam';
 import type { QuestionCategory } from '@/lib/api/questions';
 import { trackEvent } from '@/lib/api/analytics';
+import { getExamBackLink } from '@/lib/mock-exam';
 
 const BACKEND_ATTEMPT_KEY = 'real_exam_backend_attempt_id';
 
@@ -131,8 +132,13 @@ function ResultScreen({
   examTitle,
   result,
   onRetry,
+  backHref,
+  backLabel,
 }: {
   examTitle: string;
+  /** ชุด Mock → หน้ารายละเอียด Mock, ชุดปกติ → /dashboard/exam */
+  backHref: string;
+  backLabel: string;
   result: {
     totalQuestions: number;
     correctAnswers: number;
@@ -213,10 +219,10 @@ function ResultScreen({
             สอบใหม่อีกครั้ง
           </button>
           <Link
-            href="/dashboard/exam"
+            href={backHref}
             className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition"
           >
-            กลับหน้าข้อสอบจริง
+            {backLabel}
           </Link>
         </div>
       </div>
@@ -245,6 +251,9 @@ function RealExamPageContent({ examId }: { examId: string }) {
   } | null>(null);
 
   const [retryKey, setRetryKey] = useState(0);
+  // ชุด Mock Exam (จาก /exams/:id) → ปุ่มย้อนกลับไปหน้า Mock Exam แทนหน้าข้อสอบจริง
+  const [isMock, setIsMock] = useState(false);
+  const backLink = getExamBackLink(examId, isMock);
   const attemptIdRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -312,6 +321,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
       try {
         const exam = await getPublicExam(examId, examCtrl.signal);
         clearTimeout(examTimeout);
+        setIsMock(exam.isMock === true);
 
         // If there's a cached in-progress session, restore it with fresh questions
         if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
@@ -420,6 +430,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
     try {
       const exam = await getPublicExam(examId);
+      setIsMock(exam.isMock === true);
       const session: ExamSession = {
         id: generateSessionId(),
         examId,
@@ -453,6 +464,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
     try {
       const exam = await getPublicExam(examId);
+      setIsMock(exam.isMock === true);
       await startFreshExam(exam);
     } catch (err) {
       console.error('Failed to load exam:', err);
@@ -561,10 +573,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <button
-            onClick={() => router.push('/dashboard/exam')}
+            onClick={() => router.push(backLink.href)}
             className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700"
           >
-            กลับหน้าข้อสอบจริง
+            {backLink.label}
           </button>
         </div>
       </div>
@@ -577,11 +589,13 @@ function RealExamPageContent({ examId }: { examId: string }) {
         examTitle={result.examTitle}
         result={result}
         onRetry={handleRetry}
+        backHref={backLink.href}
+        backLabel={backLink.label}
       />
     );
   }
 
-  return <ExamContainer onComplete={handleComplete} mode="exam" />;
+  return <ExamContainer onComplete={handleComplete} mode="exam" backUrl={backLink.href} />;
 }
 
 // ── Root export ───────────────────────────────────────────────

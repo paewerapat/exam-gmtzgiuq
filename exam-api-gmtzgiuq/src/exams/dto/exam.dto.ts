@@ -1,12 +1,17 @@
 import { applyDecorators } from '@nestjs/common';
-import { InputType, Field, ObjectType, Int } from '@nestjs/graphql';
+import { InputType, Field, ObjectType, Int, Float } from '@nestjs/graphql';
 import {
   IsString,
   IsOptional,
   IsEnum,
   IsArray,
   IsBoolean,
+  IsDateString,
+  IsIn,
+  IsInt,
   IsNumber,
+  Max,
+  Min,
   ValidateNested,
   ValidateIf,
   ArrayMaxSize,
@@ -32,6 +37,19 @@ import {
   MAX_PASSAGES_PER_EXAM,
   PASSAGE_ID_PATTERN,
 } from '../exam-passage';
+import {
+  DETAIL_BLOCK_TYPES,
+  DETAIL_IMAGE_URL_PATTERN,
+  ExamAccessType,
+  type ExamDetailBlockType,
+  ExamLevel,
+  MAX_ACCESS_DAYS,
+  MAX_DETAIL_BLOCKS,
+  MAX_DETAIL_TEXT_LENGTH,
+  MAX_DETAIL_URL_LENGTH,
+  MAX_EXAM_PRICE,
+  MIN_ACCESS_DAYS,
+} from '../exam-mock';
 
 const PASSAGE_ID_MESSAGE =
   'id บทอ่านต้องเป็นตัวอักษรอังกฤษ ตัวเลข - หรือ _ ยาว 1–64 ตัวอักษร';
@@ -84,6 +102,116 @@ function IsPassageList() {
     ValidateNested({ each: true }),
     Type(() => ExamPassageInput),
   );
+}
+
+const RELEASE_DATE_MESSAGE =
+  'วันเผยแพร่ต้องเป็นวันที่และเวลาที่ถูกต้อง (ISO 8601)';
+
+/**
+ * Ends with a timezone: `Z` or `±hh:mm`. Without one, `new Date()` would read
+ * the value in the server's timezone, so the same input could mean a
+ * different instant depending on where the API runs.
+ */
+const RELEASE_DATE_TIMEZONE_PATTERN = /(?:[Zz]|[+-]\d{2}:\d{2})$/;
+
+/**
+ * `releaseDate` of POST and PUT (task 10): ISO 8601 date-time with a
+ * timezone, e.g. "2026-11-05T03:00:00.000Z" or "2026-11-05T10:00:00+07:00"
+ * ("2026-11-05T10:00" without an offset → 400). Not sent (or null) = DB time
+ * on create, unchanged on update. The year range is checked in the service
+ * (parseReleaseDate).
+ */
+function IsReleaseDate() {
+  return applyDecorators(
+    Field(() => String, { nullable: true }),
+    IsOptional(),
+    IsDateString({ strict: true }, { message: RELEASE_DATE_MESSAGE }),
+    Matches(RELEASE_DATE_TIMEZONE_PATTERN, { message: RELEASE_DATE_MESSAGE }),
+  );
+}
+
+// One block of the Mock Exam description (task 11): { type: 'text', text }
+// or { type: 'image', url }. The service keeps only the field of the type.
+@InputType()
+export class ExamDetailBlockInput {
+  @Field(() => String)
+  @IsIn(DETAIL_BLOCK_TYPES, {
+    message: 'ชนิดของคำอธิบายชุดข้อสอบต้องเป็น text หรือ image',
+  })
+  type: ExamDetailBlockType;
+
+  @Field(() => String, { nullable: true })
+  @ValidateIf((block: ExamDetailBlockInput) => block.type === 'text')
+  @IsString({ message: 'ข้อความในคำอธิบายชุดข้อสอบต้องเป็นข้อความ' })
+  @MaxLength(MAX_DETAIL_TEXT_LENGTH, {
+    message: 'ข้อความในคำอธิบายชุดข้อสอบยาวได้ไม่เกิน 20,000 ตัวอักษร',
+  })
+  text?: string | null;
+
+  @Field(() => String, { nullable: true })
+  @ValidateIf((block: ExamDetailBlockInput) => block.type === 'image')
+  @IsString({ message: 'URL รูปในคำอธิบายชุดข้อสอบต้องเป็นข้อความ' })
+  @MaxLength(MAX_DETAIL_URL_LENGTH, {
+    message: `URL รูปในคำอธิบายชุดข้อสอบยาวได้ไม่เกิน ${MAX_DETAIL_URL_LENGTH} ตัวอักษร`,
+  })
+  @Matches(DETAIL_IMAGE_URL_PATTERN, {
+    message:
+      'URL รูปในคำอธิบายชุดข้อสอบต้องขึ้นต้นด้วย /uploads/ หรือ http(s)://',
+  })
+  url?: string | null;
+}
+
+/**
+ * Mock Exam fields of POST and PUT (task 11). All optional: not sent = false
+ * / free / null on create, unchanged on update. "purchase needs a price
+ * above 0" spans fields and is checked in the service (assertMockAccess).
+ */
+@InputType({ isAbstract: true })
+export class MockExamFieldsInput {
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean({ message: 'การเป็นชุด Mock Exam ต้องเป็น true หรือ false' })
+  isMock?: boolean | null;
+
+  @Field(() => ExamAccessType, { nullable: true })
+  @IsOptional()
+  @IsEnum(ExamAccessType, {
+    message: 'สถานะการเข้าถึงต้องเป็น free, code หรือ purchase',
+  })
+  accessType?: ExamAccessType | null;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false },
+    { message: 'ราคาต้องเป็นตัวเลข ทศนิยมไม่เกิน 2 ตำแหน่ง' },
+  )
+  @Min(0, { message: 'ราคาต้องไม่ติดลบ' })
+  @Max(MAX_EXAM_PRICE, { message: 'ราคาต้องไม่เกิน 100,000 บาท' })
+  price?: number | null;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt({ message: 'อายุการเข้าถึงต้องเป็นจำนวนวันเต็ม' })
+  @Min(MIN_ACCESS_DAYS, { message: 'อายุการเข้าถึงต้องอยู่ระหว่าง 1–3650 วัน' })
+  @Max(MAX_ACCESS_DAYS, { message: 'อายุการเข้าถึงต้องอยู่ระหว่าง 1–3650 วัน' })
+  accessDays?: number | null;
+
+  @Field(() => ExamLevel, { nullable: true })
+  @IsOptional()
+  @IsEnum(ExamLevel, { message: 'ระดับต้องเป็น easy, medium หรือ hard' })
+  level?: ExamLevel | null;
+
+  // Sent = replaces every block (null or [] = no blocks)
+  @Field(() => [ExamDetailBlockInput], { nullable: true })
+  @IsOptional()
+  @IsArray({ message: 'คำอธิบายชุดข้อสอบต้องเป็นรายการ' })
+  @ArrayMaxSize(MAX_DETAIL_BLOCKS, {
+    message: `คำอธิบายชุดข้อสอบมีได้ไม่เกิน ${MAX_DETAIL_BLOCKS} ส่วน`,
+  })
+  @ValidateNested({ each: true })
+  @Type(() => ExamDetailBlockInput)
+  detailBlocks?: ExamDetailBlockInput[] | null;
 }
 
 // Choice input for exam questions
@@ -186,7 +314,7 @@ export class CreateExamQuestionInput {
 
 // Create exam input
 @InputType()
-export class CreateExamInput {
+export class CreateExamInput extends MockExamFieldsInput {
   @Field()
   @IsString()
   title: string;
@@ -220,6 +348,9 @@ export class CreateExamInput {
   @IsOptional()
   durationMinutes?: number | null;
 
+  @IsReleaseDate()
+  releaseDate?: string | null;
+
   @Field(() => [ExamPassageInput], { nullable: true })
   @IsPassageList()
   passages?: ExamPassageInput[];
@@ -233,7 +364,7 @@ export class CreateExamInput {
 
 // Update exam input
 @InputType()
-export class UpdateExamInput {
+export class UpdateExamInput extends MockExamFieldsInput {
   @Field({ nullable: true })
   @IsString()
   @IsOptional()
@@ -268,6 +399,9 @@ export class UpdateExamInput {
   @IsNumber()
   @IsOptional()
   durationMinutes?: number | null;
+
+  @IsReleaseDate()
+  releaseDate?: string | null;
 
   // Sent = replaces every passage. Not sent while questions are sent = []
   // (questions are recreated, so their passageId must refer to this request)

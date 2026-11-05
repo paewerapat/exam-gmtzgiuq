@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { getPublicExams, type Exam } from '@/lib/api/exams';
+import { formatExamCardDate } from '@/lib/release-date';
 import { getCategories, type Category } from '@/lib/api/categories';
 
 // ── Category banner gradients ───────────────────────────────
@@ -53,11 +54,8 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
   const router = useRouter();
   const [from, to] = getBannerGradient(exam.category);
   const catName = categories.find((c) => c.slug === exam.category)?.name ?? exam.category;
-  const createdDate = new Date(exam.createdAt).toLocaleDateString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: '2-digit',
-  });
+  // วันเผยแพร่ (ไม่มี → createdAt) ตรงกับลำดับที่ API เรียงมา
+  const releaseDate = formatExamCardDate(exam);
 
   function handleStart(e: React.MouseEvent) {
     e.preventDefault();
@@ -92,7 +90,7 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
           {catName}: {exam.title}
         </p>
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 mb-3">
-          {exam.questionCount} ข้อ · {createdDate}
+          {exam.questionCount} ข้อ · {releaseDate}
         </p>
         <div className="mt-auto">
           <button

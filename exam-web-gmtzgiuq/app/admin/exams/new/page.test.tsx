@@ -31,13 +31,15 @@ describe('NewExamPage — คำตอบที่ถูก (task 06 รอบ 2
   it('ข้อแรกและ "เพิ่มข้อใหม่" เริ่มต้นไม่มีตัวที่ติ๊ก', async () => {
     render(<NewExamPage />);
     await waitFor(() => expect(getCategories).toHaveBeenCalled());
-    expect(screen.getAllByRole('checkbox')).toHaveLength(4);
-    screen.getAllByRole('checkbox').forEach((c) => expect(c).not.toBeChecked());
+    // นับเฉพาะช่องติ๊กคำตอบ (task 11 เพิ่มช่อง "เป็นชุด Mock Exam" ในฟอร์ม)
+    const answerBoxes = () => screen.getAllByRole('checkbox', { name: /เป็นคำตอบที่ถูก/ });
+    expect(answerBoxes()).toHaveLength(4);
+    answerBoxes().forEach((c) => expect(c).not.toBeChecked());
 
     await userEvent.click(screen.getByRole('button', { name: /เพิ่มข้อใหม่/ }));
     // ข้อเดิมถูกพับ เหลือเฉพาะตัวเลือกของข้อใหม่
-    expect(screen.getAllByRole('checkbox')).toHaveLength(4);
-    screen.getAllByRole('checkbox').forEach((c) => expect(c).not.toBeChecked());
+    expect(answerBoxes()).toHaveLength(4);
+    answerBoxes().forEach((c) => expect(c).not.toBeChecked());
   });
 
   it('ติ๊กตัวเดียวไม่เตือน ติ๊ก 2 ตัวขึ้นข้อความเตือนข้อหลายคำตอบ', async () => {

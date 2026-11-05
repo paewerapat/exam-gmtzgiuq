@@ -15,6 +15,8 @@ import {
 } from '@/lib/exam-utils';
 import type { ExamSession, ExamResult } from '@/types/exam';
 import LatexText from '@/components/latex/LatexText';
+import { getMockExam } from '@/lib/api/exams';
+import { getExamBackLink } from '@/lib/mock-exam';
 
 interface PageProps {
   params: Promise<{ examId: string }>;
@@ -113,10 +115,25 @@ export default function RealExamResultsPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<'review' | 'chapter'>('review');
   const [showAll, setShowAll] = useState(false);
   const [filter, setFilter] = useState<'all' | 'incorrect' | 'marked'>('all');
+  // ชุด Mock Exam → ปุ่มย้อนกลับไปหน้า Mock Exam (/exams/mock/:id ตอบ 404 = ไม่ใช่ Mock)
+  const [isMock, setIsMock] = useState(false);
 
   useEffect(() => {
     params.then((p) => setExamId(p.examId));
   }, [params]);
+
+  useEffect(() => {
+    if (!examId) return;
+    const controller = new AbortController();
+    getMockExam(examId, controller.signal)
+      .then((mock) => {
+        if (!controller.signal.aborted) setIsMock(mock !== null);
+      })
+      .catch(() => {
+        // เช็กไม่ได้ → ใช้ลิงก์เดิม (/dashboard/exam)
+      });
+    return () => controller.abort();
+  }, [examId]);
 
   useEffect(() => {
     if (!examId) return;
@@ -150,6 +167,7 @@ export default function RealExamResultsPage({ params }: PageProps) {
   }
 
   const examTitle = session.examTitle || 'ข้อสอบ';
+  const backLink = getExamBackLink(examId, isMock);
   const questionMap = new Map(questions.map((q) => [q.id, q]));
 
   let reviewQuestionIds = session.questionIds;
@@ -161,9 +179,9 @@ export default function RealExamResultsPage({ params }: PageProps) {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <FadeIn>
-          <Link href="/dashboard/exam" className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6">
+          <Link href={backLink.href} className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6">
             <ArrowLeft className="w-4 h-4" />
-            <span>กลับหน้าข้อสอบจริง</span>
+            <span>{backLink.label}</span>
           </Link>
 
           <div className="text-center mb-8">

@@ -31,6 +31,29 @@ export class ExamsController {
     return this.examsService.findPublished(+page, +limit, category, search);
   }
 
+  // Public - Mock Exam pages (task 11). MUST be before :id.
+  // Card fields only: no questions or answers.
+  @Get('mock')
+  async findMockExams(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 12,
+    @Query('category') category?: string,
+  ) {
+    return this.examsService.findMockExams(+page, +limit, category);
+  }
+
+  // Public - categories that have published Mock Exams (dropdown)
+  @Get('mock/categories')
+  async findMockCategories() {
+    return this.examsService.findMockCategories();
+  }
+
+  // Public - Mock Exam detail page (no questions); not mock/published → 404
+  @Get('mock/:id')
+  async findMockOne(@Param('id') id: string) {
+    return this.examsService.findMockOne(id);
+  }
+
   // Admin routes MUST be before :id to avoid route conflict
   // Admin - Get all exams
   @Get('admin/all')

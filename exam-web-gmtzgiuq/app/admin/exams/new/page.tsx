@@ -52,6 +52,17 @@ import {
   validatePassageForms,
   type PassageForm,
 } from '@/lib/exam-passages';
+import { bangkokInputToIso, toBangkokInputValue } from '@/lib/release-date';
+import ReleaseDateField from '@/components/admin/ReleaseDateField';
+import MockExamSettings from '@/components/admin/MockExamSettings';
+import {
+  createMockExamForm,
+  detailBlockImageHolders,
+  toMockExamInput,
+  validateMockForm,
+  type DetailBlockForm,
+  type MockExamForm,
+} from '@/lib/mock-exam';
 
 interface QuestionForm {
   tempId: string;
@@ -71,9 +82,9 @@ interface QuestionForm {
   expanded: boolean;
 }
 
-/** รูปทั้งหมดที่ฟอร์มอ้าง (ข้อ + บทอ่าน) สำหรับตัดสินว่ารูปที่อัปรอบนี้ถูกเอาออกแล้วหรือยัง */
-function formImageHolders(questions: QuestionForm[], passages: PassageForm[]) {
-  return [...questions, ...passageImageHolders(passages)];
+/** รูปทั้งหมดที่ฟอร์มอ้าง (ข้อ + บทอ่าน + คำอธิบาย Mock Exam) สำหรับตัดสินว่ารูปที่อัปรอบนี้ถูกเอาออกแล้วหรือยัง */
+function formImageHolders(questions: QuestionForm[], passages: PassageForm[], blocks: DetailBlockForm[]) {
+  return [...questions, ...passageImageHolders(passages), ...detailBlockImageHolders(blocks)];
 }
 
 function generateTempId() {
@@ -132,6 +143,11 @@ export default function NewExamPage() {
   // Exam duration (minutes) — drives the countdown timer when taking the exam
   const [durationMinutes, setDurationMinutes] = useState('');
 
+  // วันเผยแพร่ (เวลาไทย `YYYY-MM-DDTHH:mm`) ค่าเริ่มต้น = ตอนเปิดหน้า (ตั้งหลัง mount กัน SSR/hydration ไม่ตรง)
+  // ไม่แก้ช่อง → ไม่ส่ง ให้ API ใช้เวลาตอนบันทึกจริง (ละเอียดถึงวินาที ชุดใหม่จึงอยู่บนสุดแน่นอน)
+  const [releaseDateInput, setReleaseDateInput] = useState('');
+  const releaseDateDefaultRef = useRef('');
+
   // Questions
   const [questions, setQuestions] = useState<QuestionForm[]>([createEmptyQuestion()]);
   // URL ที่อัปในหน้านี้รอบนี้ — ลบไฟล์ได้เฉพาะชุดนี้ (URL ที่พิมพ์/วางเอง หรือรูปที่บันทึกแล้วไม่ลบเด็ดขาด
@@ -150,9 +166,22 @@ export default function NewExamPage() {
     passagesRef.current = passages;
   }, [passages]);
 
+  // ตั้งค่า Mock Exam + คำอธิบายแบบ block (ค่าล่าสุดใน ref เหมือน questions — รูป block อัปเสร็จทีหลังได้)
+  const [mockForm, setMockForm] = useState<MockExamForm>(createMockExamForm);
+  const mockRef = useRef(mockForm);
+  useEffect(() => {
+    mockRef.current = mockForm;
+  }, [mockForm]);
+
   useEffect(() => {
     getCategories().then(setCategories).catch(console.error);
     getPublicCurriculumTree().then(setSubjects).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const now = toBangkokInputValue(new Date());
+    releaseDateDefaultRef.current = now;
+    setReleaseDateInput(now);
   }, []);
 
   // Chapters under the selected subject (used to resolve a topic's parent chapter)
@@ -214,10 +243,11 @@ export default function NewExamPage() {
     if (next === prev) return;
     questionsRef.current = next;
     setQuestions(next);
-    // เทียบรวมรูปบทอ่านด้วย: รูปที่ยังใช้ในบทอ่านไม่ถูกลบแม้เอาออกจากข้อ
+    // เทียบรวมรูปบทอ่าน/คำอธิบาย Mock ด้วย: รูปที่ยังใช้ที่อื่นในฟอร์มไม่ถูกลบแม้เอาออกจากข้อ
     const ps = passagesRef.current;
+    const bs = mockRef.current.blocks;
     discardUploads(
-      imagesToDiscard(formImageHolders(prev, ps), formImageHolders(next, ps), uploadedRef.current),
+      imagesToDiscard(formImageHolders(prev, ps, bs), formImageHolders(next, ps, bs), uploadedRef.current),
     );
   };
 
@@ -229,9 +259,36 @@ export default function NewExamPage() {
     passagesRef.current = next;
     setPassages(next);
     const qs = questionsRef.current;
+    const bs = mockRef.current.blocks;
     discardUploads(
-      imagesToDiscard(formImageHolders(qs, prev), formImageHolders(qs, next), uploadedRef.current),
+      imagesToDiscard(formImageHolders(qs, prev, bs), formImageHolders(qs, next, bs), uploadedRef.current),
     );
+  };
+
+  // ── Mock Exam ──
+  const commitMock = (update: (prev: MockExamForm) => MockExamForm) => {
+    const prev = mockRef.current;
+    const next = update(prev);
+    if (next === prev) return;
+    mockRef.current = next;
+    setMockForm(next);
+    const qs = questionsRef.current;
+    const ps = passagesRef.current;
+    discardUploads(
+      imagesToDiscard(formImageHolders(qs, ps, prev.blocks), formImageHolders(qs, ps, next.blocks), uploadedRef.current),
+    );
+  };
+
+  // รูปของ block — อัปโหลดเสร็จหลัง block ถูกลบ → ลบไฟล์ที่เพิ่งอัป
+  const setMockBlockImage = (key: string, url: string) => {
+    if (!mockRef.current.blocks.some((b) => b.key === key)) {
+      if (url) discardUploads([url]);
+      return;
+    }
+    commitMock((prev) => ({
+      ...prev,
+      blocks: prev.blocks.map((b) => (b.key === key ? { ...b, url } : b)),
+    }));
   };
 
   const addPassage = () => {
@@ -383,6 +440,14 @@ export default function NewExamPage() {
     if (!category) { toast.error('กรุณาเลือกหมวดหมู่'); return; }
     if (questions.length === 0) { toast.error('กรุณาเพิ่มอย่างน้อย 1 ข้อ'); return; }
 
+    // ส่งเฉพาะเมื่อแอดมินเปลี่ยนจากค่าเริ่มต้น (ไม่ส่ง = API ใช้เวลาตอนสร้าง)
+    let releaseDate: string | undefined;
+    if (releaseDateInput !== releaseDateDefaultRef.current) {
+      const iso = bangkokInputToIso(releaseDateInput);
+      if (!iso) { toast.error('กรุณาระบุวันเผยแพร่ให้ถูกต้อง'); return; }
+      releaseDate = iso;
+    }
+
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.question.trim()) { toast.error(`ข้อที่ ${i + 1}: กรุณากรอกคำถาม`); return; }
@@ -401,6 +466,11 @@ export default function NewExamPage() {
     const passageError = validatePassageForms(passages);
     if (passageError) { toast.error(passageError); return; }
     const passageIds = new Set(passages.map((p) => p.id));
+
+    const mockError = validateMockForm(mockForm);
+    if (mockError) { toast.error(mockError); return; }
+    // ส่ง field ของ Mock Exam ครบทุกครั้ง (ไม่ใช่ Mock → isMock:false พร้อมค่าที่กรอกไว้ ไม่ล้าง)
+    const mockInput = toMockExamInput(mockForm);
 
     setSaving(true);
     // URL ที่อัปรอบนี้และอยู่ใน payload: ห้ามลบระหว่างรอบันทึกและหลังบันทึก (บันทึกล้มค่อยใส่คืน)
@@ -426,7 +496,11 @@ export default function NewExamPage() {
       }));
 
       heldUploads = holdUploads(
-        collectFormImageUrls([...examQuestions, ...passageImageHolders(passages)]),
+        collectFormImageUrls([
+          ...examQuestions,
+          ...passageImageHolders(passages),
+          ...detailBlockImageHolders(mockInput.detailBlocks),
+        ]),
       );
 
       await createExam({
@@ -439,6 +513,8 @@ export default function NewExamPage() {
         subjectId: examSubjectId || null,
         bannerImage: bannerImage || null,
         durationMinutes: durationMinutes ? Number(durationMinutes) : null,
+        ...(releaseDate ? { releaseDate } : {}),
+        ...mockInput,
       });
 
       // ที่เหลือในชุด = อัปรอบนี้แต่ไม่ได้อยู่ในข้อสอบที่บันทึก (เช่นรูปตัวเลือกของข้อที่เปลี่ยนเป็นอัตนัย) → ลบไฟล์
@@ -562,6 +638,8 @@ export default function NewExamPage() {
                 />
               </div>
 
+              <ReleaseDateField value={releaseDateInput} onChange={setReleaseDateInput} />
+
               {/* Banner image */}
               <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -575,6 +653,15 @@ export default function NewExamPage() {
               </div>
             </div>
           </div>
+
+          {/* Mock Exam */}
+          <MockExamSettings
+            value={mockForm}
+            onChange={commitMock}
+            onBlockImageChange={setMockBlockImage}
+            onUploaded={recordUpload}
+            disabled={saving}
+          />
 
           {/* Shared passages */}
           <PassagesEditor

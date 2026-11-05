@@ -105,9 +105,10 @@ export interface RawQueryRunner {
 }
 
 /**
- * Counts the places that still refer to an upload (one LIKE pattern bound 8
+ * Counts the places that still refer to an upload (one LIKE pattern bound 9
  * times): every question/exam image (question images, choice images, banner,
- * passage images), blog featured image and content, and user avatars.
+ * passage images, Mock Exam description images), blog featured image and
+ * content, and user avatars.
  * JSON columns are compared as text. `!` is the LIKE escape character.
  */
 export const UPLOAD_REFERENCE_SQL = `SELECT
@@ -115,12 +116,13 @@ export const UPLOAD_REFERENCE_SQL = `SELECT
     OR CAST(questionImages AS CHAR) LIKE ? ESCAPE '!'
     OR CAST(choices AS CHAR) LIKE ? ESCAPE '!')
   + EXISTS(SELECT 1 FROM exams WHERE bannerImage LIKE ? ESCAPE '!'
-    OR CAST(passages AS CHAR) LIKE ? ESCAPE '!')
+    OR CAST(passages AS CHAR) LIKE ? ESCAPE '!'
+    OR CAST(detailBlocks AS CHAR) LIKE ? ESCAPE '!')
   + EXISTS(SELECT 1 FROM blogs WHERE featuredImage LIKE ? ESCAPE '!'
     OR content LIKE ? ESCAPE '!')
   + EXISTS(SELECT 1 FROM users WHERE avatar LIKE ? ESCAPE '!') AS refs`;
 
-const UPLOAD_REFERENCE_PARAM_COUNT = 8;
+const UPLOAD_REFERENCE_PARAM_COUNT = 9;
 
 /** Escape LIKE wildcards (`%`, `_`) and the escape character `!`. */
 export function escapeLike(value: string): string {

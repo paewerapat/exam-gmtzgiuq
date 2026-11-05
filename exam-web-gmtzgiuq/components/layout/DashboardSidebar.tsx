@@ -21,6 +21,7 @@ import {
   Library,
   GraduationCap,
   MessageSquare,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const menuItems = [
@@ -28,6 +29,7 @@ const menuItems = [
   { href: '/dashboard/practice', label: 'ฝึกทำข้อสอบ', icon: ClipboardList },
   { href: '/dashboard/library', label: 'ทำข้อสอบแยกบท', icon: Library },
   { href: '/dashboard/exam', label: 'ฝึกทำข้อสอบ(จับเวลา)', icon: GraduationCap },
+  { href: '/dashboard/mock-exams', label: 'Mock Exam', icon: ClipboardCheck },
   { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: Clock },
   { href: '/blogs', label: 'บทความ', icon: BookOpen },
   { href: '/dashboard/profile', label: 'โปรไฟล์', icon: User },

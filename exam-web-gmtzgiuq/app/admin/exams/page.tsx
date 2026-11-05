@@ -31,6 +31,7 @@ import {
 } from '@/lib/api/questions';
 import { getCategories, type Category } from '@/lib/api/categories';
 import { toast } from 'react-toastify';
+import { examReleaseDate, formatReleaseDate } from '@/lib/release-date';
 
 export default function AdminExamsPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -239,6 +240,7 @@ export default function AdminExamsPage() {
                           <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ชื่อชุดข้อสอบ</th>
                           <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">หมวดหมู่</th>
                           <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">จำนวนข้อ</th>
+                          <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">วันเผยแพร่</th>
                           <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">สถานะ</th>
                           <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">จัดการ</th>
                         </tr>
@@ -260,6 +262,11 @@ export default function AdminExamsPage() {
                             </td>
                             <td className="px-4 py-4">
                               <span className="text-sm text-gray-600 dark:text-gray-400">{exam.questionCount} ข้อ</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                {formatReleaseDate(examReleaseDate(exam))}
+                              </span>
                             </td>
                             <td className="px-4 py-4">
                               <button

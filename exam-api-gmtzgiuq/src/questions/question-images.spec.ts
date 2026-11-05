@@ -117,6 +117,7 @@ describe('question-images helpers', () => {
         'FROM exams',
         'bannerImage LIKE',
         'CAST(passages AS CHAR)',
+        'CAST(detailBlocks AS CHAR)',
         'FROM blogs',
         'featuredImage LIKE',
         'content LIKE',
@@ -127,7 +128,7 @@ describe('question-images helpers', () => {
       }
       // values are bound, never concatenated
       expect(UPLOAD_REFERENCE_SQL).not.toContain(file);
-      expect(UPLOAD_REFERENCE_SQL.match(/\?/g)).toHaveLength(8);
+      expect(UPLOAD_REFERENCE_SQL.match(/\?/g)).toHaveLength(9);
     });
 
     it('binds the escaped pattern and reads the count', async () => {
@@ -135,7 +136,7 @@ describe('question-images helpers', () => {
       await expect(isUploadReferenced(db, '1-a_b.png')).resolves.toBe(false);
       expect(db.query).toHaveBeenCalledWith(
         UPLOAD_REFERENCE_SQL,
-        Array(8).fill('%1-a!_b.png%'),
+        Array(9).fill('%1-a!_b.png%'),
       );
 
       db.query.mockResolvedValue([{ refs: 2 }]);

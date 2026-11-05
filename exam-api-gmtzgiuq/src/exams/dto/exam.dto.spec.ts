@@ -256,4 +256,200 @@ describe('CreateExamInput / UpdateExamInput validation (task 07)', () => {
       JSON.stringify((error as BadRequestException).getResponse()),
     ).toContain('ใส่รูปโจทย์ได้ไม่เกิน 6 รูปต่อข้อ');
   });
+
+  describe('releaseDate (task 10)', () => {
+    const exam = (extra: Record<string, unknown>) => ({
+      ...examWith({}),
+      ...extra,
+    });
+
+    it.each([
+      '2026-11-05T03:00:00.000Z',
+      '2026-11-05T10:00:00+07:00',
+      '2026-11-05T10:00Z',
+      '2026-11-05T03:30:00-03:30',
+    ])('accepts %s and keeps it as sent', async (releaseDate) => {
+      const created = await validate(CreateExamInput, exam({ releaseDate }));
+      const updated = await validate(UpdateExamInput, { releaseDate });
+
+      expect(created.releaseDate).toBe(releaseDate);
+      expect(updated.releaseDate).toBe(releaseDate);
+    });
+
+    it('is optional on POST and PUT (not sent / null)', async () => {
+      const created = await validate(CreateExamInput, exam({}));
+      const updated = await validate(UpdateExamInput, { title: 'x' });
+      const nulled = await validate(UpdateExamInput, { releaseDate: null });
+
+      expect(created.releaseDate).toBeUndefined();
+      expect(updated.releaseDate).toBeUndefined();
+      expect(nulled.releaseDate).toBeNull();
+    });
+
+    it.each([
+      ['not a date', 'พรุ่งนี้'],
+      ['an impossible date', '2026-02-30T10:00:00Z'],
+      ['no timezone (minutes)', '2026-11-05T10:00'],
+      ['no timezone (seconds)', '2026-11-05T10:00:00.000'],
+      ['a date only', '2026-11-05'],
+      ['an offset without colon', '2026-11-05T10:00:00+0700'],
+      ['an empty string', ''],
+      ['a number', 1762311600000],
+      ['an object', { $date: '2026-11-05' }],
+    ])(
+      'rejects %s with 400 and the Thai message',
+      async (_label, releaseDate) => {
+        const bodies: [new () => object, unknown][] = [
+          [CreateExamInput, exam({ releaseDate })],
+          [UpdateExamInput, { releaseDate }],
+        ];
+        for (const [metatype, body] of bodies) {
+          const error = await validate(metatype, body).catch(
+            (err: unknown) => err,
+          );
+
+          expect(error).toBeInstanceOf(BadRequestException);
+          expect(
+            JSON.stringify((error as BadRequestException).getResponse()),
+          ).toContain('วันเผยแพร่ต้องเป็นวันที่และเวลาที่ถูกต้อง');
+        }
+      },
+    );
+  });
+
+  describe('Mock Exam fields (task 11)', () => {
+    const exam = (extra: Record<string, unknown>) => ({
+      ...examWith({}),
+      ...extra,
+    });
+
+    async function rejectionOf(
+      metatype: new () => object,
+      body: unknown,
+    ): Promise<string> {
+      const error = await validate(metatype, body).catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(BadRequestException);
+      return JSON.stringify((error as BadRequestException).getResponse());
+    }
+
+    const blocks = [
+      { type: 'text', text: 'บรรทัดแรก\nบรรทัดสอง' },
+      { type: 'image', url: '/uploads/1700000000001-000000000000000a.png' },
+      { type: 'image', url: 'https://cdn.example/banner.png' },
+      { type: 'text', text: 'ท้ายสุด' },
+    ];
+
+    it('accepts every field on POST and PUT and keeps them', async () => {
+      const fields = {
+        isMock: true,
+        accessType: 'purchase',
+        price: 150.5,
+        accessDays: 365,
+        level: 'hard',
+        detailBlocks: blocks,
+      };
+      const created = await validate(CreateExamInput, exam(fields));
+      const updated = await validate(UpdateExamInput, fields);
+
+      for (const result of [created, updated]) {
+        expect(result).toMatchObject({
+          isMock: true,
+          accessType: 'purchase',
+          price: 150.5,
+          accessDays: 365,
+          level: 'hard',
+        });
+        expect(result.detailBlocks).toEqual(blocks);
+      }
+    });
+
+    it('all fields are optional; price/accessDays/level/detailBlocks may be null', async () => {
+      const created = await validate(CreateExamInput, exam({}));
+      expect(created.isMock).toBeUndefined();
+      expect(created.detailBlocks).toBeUndefined();
+
+      const cleared = await validate(UpdateExamInput, {
+        price: null,
+        accessDays: null,
+        level: null,
+        detailBlocks: null,
+      });
+      expect(cleared).toMatchObject({
+        price: null,
+        accessDays: null,
+        level: null,
+        detailBlocks: null,
+      });
+    });
+
+    it('accepts 50 blocks and a 20,000-character text', async () => {
+      const many = Array.from({ length: 50 }, () => ({
+        type: 'text',
+        text: 'x'.repeat(20_000),
+      }));
+      const result = await validate(UpdateExamInput, { detailBlocks: many });
+      expect(result.detailBlocks).toHaveLength(50);
+    });
+
+    it.each([
+      ['another block type', [{ type: 'video', url: '/uploads/a.mp4' }]],
+      [
+        'a javascript: image URL',
+        [{ type: 'image', url: 'javascript:alert(1)' }],
+      ],
+      [
+        'a data: image URL',
+        [{ type: 'image', url: 'data:image/png;base64,AA' }],
+      ],
+      ['a relative image URL', [{ type: 'image', url: 'uploads/a.png' }]],
+      ['an image without url', [{ type: 'image' }]],
+      [
+        'an image URL over 500 chars',
+        [{ type: 'image', url: `/uploads/${'x'.repeat(492)}` }],
+      ],
+      ['a text block without text', [{ type: 'text' }]],
+      [
+        'a text over 20,000 chars',
+        [{ type: 'text', text: 'x'.repeat(20_001) }],
+      ],
+      [
+        'more than 50 blocks',
+        Array.from({ length: 51 }, () => ({ type: 'text', text: 'x' })),
+      ],
+      ['a non-object block', ['text']],
+      ['a non-array value', { type: 'text', text: 'x' }],
+    ])('rejects detailBlocks with %s (400)', async (_label, detailBlocks) => {
+      await rejectionOf(CreateExamInput, exam({ detailBlocks }));
+      await rejectionOf(UpdateExamInput, { detailBlocks });
+    });
+
+    it.each([
+      [
+        'price over 100,000',
+        { price: 100_000.01 },
+        'ราคาต้องไม่เกิน 100,000 บาท',
+      ],
+      ['negative price', { price: -1 }, 'ราคาต้องไม่ติดลบ'],
+      ['price with 3 decimals', { price: 1.234 }, 'ทศนิยมไม่เกิน 2 ตำแหน่ง'],
+      ['price as a string', { price: '150' }, 'ราคาต้องเป็นตัวเลข'],
+      ['accessDays 0', { accessDays: 0 }, '1–3650 วัน'],
+      ['accessDays 3651', { accessDays: 3651 }, '1–3650 วัน'],
+      ['accessDays 1.5', { accessDays: 1.5 }, 'จำนวนวันเต็ม'],
+      ['unknown accessType', { accessType: 'vip' }, 'free, code หรือ purchase'],
+      ['unknown level', { level: 'expert' }, 'easy, medium หรือ hard'],
+      [
+        'isMock as a string',
+        { isMock: 'yes' },
+        'Mock Exam ต้องเป็น true หรือ false',
+      ],
+    ])(
+      'rejects %s with 400 and a Thai message',
+      async (_label, fields, message) => {
+        expect(await rejectionOf(CreateExamInput, exam(fields))).toContain(
+          message,
+        );
+        expect(await rejectionOf(UpdateExamInput, fields)).toContain(message);
+      },
+    );
+  });
 });

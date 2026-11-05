@@ -378,4 +378,38 @@ describe('QuestionsService — images (task 07)', () => {
       expect(questions.map((q) => q.passage)).toEqual([null, null]);
     });
   });
+
+  describe('exam order of /questions/topic and /questions/subject (task 10)', () => {
+    it.each([
+      ['topic', (svc: QuestionsService) => svc.findByTopic('topic-1')],
+      ['subject', (svc: QuestionsService) => svc.findBySubject('subject-1')],
+    ])(
+      '%s: exam releaseDate ASC, createdAt ASC, then orderIndex',
+      async (_label, run) => {
+        await run(service);
+
+        expect(qb.orderBy.mock.calls).toEqual([['exam.releaseDate', 'ASC']]);
+        expect(qb.addOrderBy.mock.calls).toEqual([
+          ['exam.createdAt', 'ASC'],
+          ['q.orderIndex', 'ASC'],
+        ]);
+      },
+    );
+  });
+
+  describe('mock exams are left out of topic/subject practice (task 11)', () => {
+    it.each([
+      ['topic', (svc: QuestionsService) => svc.findByTopic('topic-1')],
+      ['subject', (svc: QuestionsService) => svc.findBySubject('subject-1')],
+    ])('%s: only questions of non-mock published exams', async (_l, run) => {
+      await run(service);
+
+      expect(qb.where).toHaveBeenCalledWith('exam.status = :status', {
+        status: QuestionStatus.PUBLISHED,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('exam.isMock = :isMock', {
+        isMock: false,
+      });
+    });
+  });
 });
