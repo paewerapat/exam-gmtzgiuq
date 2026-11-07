@@ -167,7 +167,7 @@ export default function MockExamDetail({ id }: { id: string }) {
 
   return (
     <FadeIn>
-      <nav aria-label="breadcrumb" className="text-sm text-gray-400 dark:text-gray-500 mb-4 flex items-center gap-1 min-w-0">
+      <nav aria-label="breadcrumb" className="text-sm text-gray-400 mb-4 flex items-center gap-1 min-w-0">
         <Link href={BACK_HREF} className="hover:text-indigo-600 dark:hover:text-indigo-400 flex-shrink-0">
           Mock Exam
         </Link>
@@ -268,7 +268,7 @@ export default function MockExamDetail({ id }: { id: string }) {
             {exam.description}
           </p>
         ) : (
-          <p className="text-sm text-gray-400 dark:text-gray-500">ยังไม่มีรายละเอียดสำหรับชุดนี้</p>
+          <p className="text-sm text-gray-400">ยังไม่มีรายละเอียดสำหรับชุดนี้</p>
         )}
       </section>
     </FadeIn>

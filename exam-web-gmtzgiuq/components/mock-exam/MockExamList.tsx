@@ -87,7 +87,7 @@ export default function MockExamList() {
 
   return (
     <FadeIn>
-      <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
+      <p className="text-sm text-gray-400 mb-6">
         Dashboard / <span className="text-gray-600 dark:text-gray-400 font-medium">Mock Exam</span>
       </p>
 
@@ -120,7 +120,7 @@ export default function MockExamList() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           </div>
         </div>
       </div>

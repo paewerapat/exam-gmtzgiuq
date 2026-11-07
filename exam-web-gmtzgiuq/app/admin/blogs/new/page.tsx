@@ -77,7 +77,7 @@ export default function NewBlogPage() {
       <div className="mb-8">
         <Link
           href="/admin/blogs"
-          className="flex items-center text-gray-600 dark:text-gray-400 hover:text-indigo-600 mb-4"
+          className="flex items-center text-gray-600 dark:text-gray-400 hover:text-indigo-600 mb-4 dark:hover:text-indigo-300"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           กลับไปหน้ารายการ

@@ -25,7 +25,7 @@ function BlogCard({ blog }: { blog: Blog }) {
         )}
 
         <div className="p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition line-clamp-2">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition line-clamp-2 dark:group-hover:text-indigo-300">
             {blog.title}
           </h3>
 
@@ -48,7 +48,7 @@ function BlogCard({ blog }: { blog: Blog }) {
             </div>
           </div>
 
-          <span className="inline-block mt-4 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 font-medium">
+          <span className="inline-block mt-4 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 font-medium dark:group-hover:text-indigo-300">
             เธญเนเธฒเธเน€เธเธดเนเธกเน€เธ•เธดเธก โ’
           </span>
         </div>
@@ -60,13 +60,13 @@ function BlogCard({ blog }: { blog: Blog }) {
 function BlogCardSkeleton() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden animate-pulse">
-      <div className="h-48 bg-gray-200" />
+      <div className="h-48 bg-gray-200 dark:bg-gray-700" />
       <div className="p-6">
-        <div className="h-6 bg-gray-200 rounded mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
+        <div className="h-6 bg-gray-200 rounded mb-2 dark:bg-gray-700" />
+        <div className="h-4 bg-gray-200 rounded w-3/4 mb-4 dark:bg-gray-700" />
         <div className="flex justify-between">
-          <div className="h-4 bg-gray-200 rounded w-24" />
-          <div className="h-4 bg-gray-200 rounded w-12" />
+          <div className="h-4 bg-gray-200 rounded w-24 dark:bg-gray-700" />
+          <div className="h-4 bg-gray-200 rounded w-12 dark:bg-gray-700" />
         </div>
       </div>
     </div>
@@ -76,15 +76,15 @@ function BlogCardSkeleton() {
 function FeaturedPostSkeleton() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden lg:flex animate-pulse">
-      <div className="lg:w-1/2 h-64 lg:h-auto bg-gray-200" />
+      <div className="lg:w-1/2 h-64 lg:h-auto bg-gray-200 dark:bg-gray-700" />
       <div className="lg:w-1/2 p-8">
         <div className="flex space-x-4 mb-4">
-          <div className="h-4 bg-gray-200 rounded w-24" />
-          <div className="h-4 bg-gray-200 rounded w-16" />
+          <div className="h-4 bg-gray-200 rounded w-24 dark:bg-gray-700" />
+          <div className="h-4 bg-gray-200 rounded w-16 dark:bg-gray-700" />
         </div>
-        <div className="h-8 bg-gray-200 rounded mb-4" />
-        <div className="h-4 bg-gray-200 rounded w-full mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-3/4" />
+        <div className="h-8 bg-gray-200 rounded mb-4 dark:bg-gray-700" />
+        <div className="h-4 bg-gray-200 rounded w-full mb-2 dark:bg-gray-700" />
+        <div className="h-4 bg-gray-200 rounded w-3/4 dark:bg-gray-700" />
       </div>
     </div>
   );
@@ -119,7 +119,7 @@ function BlogSection({
         </h2>
         <Link
           href={viewAllLink}
-          className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium transition"
+          className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium transition dark:hover:text-indigo-300"
         >
           เธ”เธนเธ—เธฑเนเธเธซเธกเธ”
           <ArrowRight className="w-4 h-4 ml-1" />
@@ -229,7 +229,7 @@ export default function BlogsPage() {
                     </span>
                   </div>
 
-                  <h3 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 group-hover:text-indigo-600 transition">
+                  <h3 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 group-hover:text-indigo-600 transition dark:group-hover:text-indigo-300">
                     {featuredPost.title}
                   </h3>
 
@@ -237,7 +237,7 @@ export default function BlogsPage() {
                     {featuredPost.excerpt}
                   </p>
 
-                  <span className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-semibold group-hover:text-indigo-700">
+                  <span className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-semibold group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
                     เธญเนเธฒเธเน€เธเธดเนเธกเน€เธ•เธดเธก
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition" />
                   </span>
@@ -293,7 +293,7 @@ export default function BlogsPage() {
           </p>
           <Link
             href="/register"
-            className="inline-block bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-8 py-3 rounded-lg text-lg font-medium hover:bg-gray-100 transition"
+            className="inline-block bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-8 py-3 rounded-lg text-lg font-medium hover:bg-gray-100 transition dark:hover:bg-gray-700"
           >
             เน€เธฃเธดเนเธกเธ•เนเธเธเธฃเธต
           </Link>
@@ -301,7 +301,7 @@ export default function BlogsPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12">
+      <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>&copy; 2024 LUMO. All rights reserved.</p>
         </div>

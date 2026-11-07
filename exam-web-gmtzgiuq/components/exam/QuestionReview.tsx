@@ -61,7 +61,7 @@ export default function QuestionReview({
           <span
             className={`
               flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
-              ${isCorrect ? 'bg-green-200 text-green-700 dark:text-green-300' : isUnanswered ? 'bg-gray-200 text-gray-600 dark:text-gray-400' : 'bg-red-200 text-red-700 dark:text-red-300'}
+              ${isCorrect ? 'bg-green-200 text-green-700 dark:text-green-300 dark:bg-green-800/50' : isUnanswered ? 'bg-gray-200 text-gray-600 dark:text-gray-400 dark:bg-gray-700' : 'bg-red-200 text-red-700 dark:text-red-300 dark:bg-red-800/50'}
             `}
           >
             {questionNumber}
@@ -84,9 +84,9 @@ export default function QuestionReview({
           </div>
         </div>
         {isExpanded ? (
-          <ChevronUp className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+          <ChevronUp className="w-5 h-5 text-gray-400" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+          <ChevronDown className="w-5 h-5 text-gray-400" />
         )}
       </button>
 
@@ -168,7 +168,7 @@ export default function QuestionReview({
                     className={`
                       flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full
                       text-xs font-medium
-                      ${isCorrectAnswer ? 'bg-green-600 text-white' : isUserAnswer ? 'bg-red-600 text-white' : 'bg-gray-300 text-gray-600 dark:text-gray-400'}
+                      ${isCorrectAnswer ? 'bg-green-600 text-white' : isUserAnswer ? 'bg-red-600 text-white' : 'bg-gray-300 text-gray-600 dark:text-gray-400 dark:bg-gray-600'}
                     `}
                   >
                     {getChoiceLetter(index)}

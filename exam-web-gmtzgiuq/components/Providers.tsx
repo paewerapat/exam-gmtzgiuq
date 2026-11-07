@@ -6,9 +6,28 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import client from '@/lib/apollo-client';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/contexts/ThemeContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+
+// toast ใช้สีตามธีม (เดิม light ตายตัว ทำให้ toast สว่างจ้าใน dark mode)
+function ThemedToastContainer() {
+  const { theme } = useTheme();
+  return (
+    <ToastContainer
+      position="top-right"
+      autoClose={3000}
+      hideProgressBar={false}
+      newestOnTop
+      closeOnClick
+      rtl={false}
+      pauseOnFocusLoss
+      draggable
+      pauseOnHover
+      theme={theme === 'dark' ? 'dark' : 'light'}
+    />
+  );
+}
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -17,18 +36,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <ApolloProvider client={client}>
           <AuthProvider>
             {children}
-            <ToastContainer
-            position="top-right"
-            autoClose={3000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="light"
-          />
+            <ThemedToastContainer />
         </AuthProvider>
       </ApolloProvider>
     </GoogleOAuthProvider>

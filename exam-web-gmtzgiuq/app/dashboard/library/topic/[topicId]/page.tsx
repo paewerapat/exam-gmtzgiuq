@@ -48,7 +48,7 @@ function ExamCard({ exam }: { exam: Exam }) {
         </h3>
       </div>
       <div className="p-4 flex flex-col flex-1">
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+        <p className="text-xs text-gray-400 mb-4">
           {exam.questionCount} ข้อ
         </p>
         <div className="mt-auto">
@@ -88,7 +88,7 @@ export default function TopicExamsPage() {
       {/* Back */}
       <Link
         href="/dashboard/library"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 mb-6 transition"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 mb-6 transition dark:hover:text-gray-100"
       >
         <ArrowLeft className="w-4 h-4" />
         กลับไปคลังข้อสอบ
@@ -107,12 +107,12 @@ export default function TopicExamsPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-32">
-          <Loader2 className="w-9 h-9 animate-spin text-indigo-500" />
+          <Loader2 className="w-9 h-9 animate-spin text-indigo-500 dark:text-indigo-400" />
         </div>
       ) : exams.length === 0 ? (
         <div className="py-32 text-center">
           <BookOpen className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-400 dark:text-gray-500 font-medium">
+          <p className="text-gray-400 font-medium">
             ยังไม่มีข้อสอบในหัวข้อนี้
           </p>
         </div>

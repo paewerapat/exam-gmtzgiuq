@@ -136,7 +136,7 @@ export default function MockExamSettings({
                     key={t}
                     className={`flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition ${
                       checked
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-500'
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
                         : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600'
                     } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
@@ -165,7 +165,7 @@ export default function MockExamSettings({
             <div>
               <label htmlFor="mock-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 ราคา (บาท ก่อน VAT)
-                {value.accessType === 'purchase' && <span className="text-red-500"> *</span>}
+                {value.accessType === 'purchase' && <span className="text-red-500 dark:text-red-400"> *</span>}
               </label>
               <input
                 id="mock-price"
@@ -225,7 +225,7 @@ export default function MockExamSettings({
             <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">คำอธิบายชุดข้อสอบ</h3>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-gray-400">
                   {blocks.length}/{MAX_DETAIL_BLOCKS} ช่อง
                 </span>
                 <button

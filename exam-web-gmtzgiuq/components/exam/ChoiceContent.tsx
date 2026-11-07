@@ -38,7 +38,7 @@ export default function ChoiceContent({
         />
       )}
       {!!image && !hasImage && (
-        <span className={`block text-xs text-gray-400 dark:text-gray-500 ${hasText ? 'mt-1' : ''}`}>
+        <span className={`block text-xs text-gray-400 ${hasText ? 'mt-1' : ''}`}>
           (โหลดรูปตัวเลือก {letter} ไม่ได้)
         </span>
       )}

@@ -100,3 +100,29 @@ describe('LoginPage — redirect หลัง login (SEC-13)', () => {
     });
   });
 });
+
+describe('LoginPage — ฟอร์ม a11y (task 12)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    query = '';
+    mockedUseAuth.mockReturnValue({ user: null, loading: false, login, loginWithGoogle });
+  });
+
+  it('ช่องมี autocomplete และปุ่มแสดงรหัสผ่าน', () => {
+    render(<LoginPage />);
+    expect(screen.getByLabelText('อีเมล')).toHaveAttribute('autocomplete', 'email');
+    expect(screen.getByLabelText('รหัสผ่าน')).toHaveAttribute('autocomplete', 'current-password');
+    fireEvent.click(screen.getByRole('button', { name: 'แสดงรหัสผ่าน' }));
+    expect(screen.getByLabelText('รหัสผ่าน')).toHaveAttribute('type', 'text');
+  });
+
+  it('login ไม่สำเร็จ → แสดง error รวม role="alert" และไม่ redirect', async () => {
+    login.mockRejectedValue(new Error('bad'));
+    render(<LoginPage />);
+    fireEvent.change(screen.getByLabelText('อีเมล'), { target: { value: 'a@b.c' } });
+    fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    expect(replace).not.toHaveBeenCalled();
+  });
+});

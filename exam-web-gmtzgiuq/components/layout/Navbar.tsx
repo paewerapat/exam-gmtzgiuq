@@ -46,7 +46,7 @@ export default function Navbar() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition text-gray-700 dark:text-gray-300"
-              aria-label="Toggle theme"
+              aria-label={theme === 'light' ? 'เปลี่ยนเป็นโหมดมืด' : 'เปลี่ยนเป็นโหมดสว่าง'}
             >
               {theme === 'light' ? (
                 <Moon className="w-5 h-5" />
@@ -56,7 +56,7 @@ export default function Navbar() {
             </button>
 
             {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+              <Loader2 className="w-5 h-5 animate-spin text-indigo-600 dark:text-indigo-400" />
             ) : user ? (
               <>
                 <Link
@@ -91,7 +91,7 @@ export default function Navbar() {
                 </Link>
                 <Link
                   href="/register"
-                  className="border border-indigo-600 text-indigo-600 px-6 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 transition"
+                  className="border border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400 px-6 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 transition"
                 >
                   เริ่มใช้งานฟรี
                 </Link>
@@ -104,7 +104,7 @@ export default function Navbar() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition text-gray-700 dark:text-gray-300"
-              aria-label="Toggle theme"
+              aria-label={theme === 'light' ? 'เปลี่ยนเป็นโหมดมืด' : 'เปลี่ยนเป็นโหมดสว่าง'}
             >
               {theme === 'light' ? (
                 <Moon className="w-5 h-5" />
@@ -114,6 +114,8 @@ export default function Navbar() {
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="เมนู"
+              aria-expanded={mobileMenuOpen}
               className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
             >
               <Menu size={24} />
@@ -142,13 +144,13 @@ export default function Navbar() {
             </Link>
             {loading ? (
               <div className="px-3 py-2 flex items-center">
-                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-600 dark:text-indigo-400" />
               </div>
             ) : user ? (
               <>
                 <Link
                   href="/dashboard"
-                  className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md font-medium flex items-center gap-2"
+                  className="block px-3 py-2 text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md font-medium flex items-center gap-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <LayoutDashboard className="w-4 h-4" />
@@ -166,7 +168,7 @@ export default function Navbar() {
               <>
                 <Link
                   href="/dashboard"
-                  className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md font-medium flex items-center gap-2"
+                  className="block px-3 py-2 text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md font-medium flex items-center gap-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <LayoutDashboard className="w-4 h-4" />
@@ -181,7 +183,7 @@ export default function Navbar() {
                 </Link>
                 <Link
                   href="/register"
-                  className="block px-3 py-2 text-indigo-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md font-medium"
+                  className="block px-3 py-2 text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   เริ่มใช้งานฟรี

@@ -26,7 +26,7 @@ function BlogCard({ blog }: { blog: Blog }) {
         )}
 
         <div className="p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-emerald-600 transition line-clamp-2">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-emerald-600 transition line-clamp-2 dark:group-hover:text-emerald-300">
             {blog.title}
           </h3>
 
@@ -49,7 +49,7 @@ function BlogCard({ blog }: { blog: Blog }) {
             </div>
           </div>
 
-          <span className="inline-block mt-4 text-emerald-600 group-hover:text-emerald-700 font-medium">
+          <span className="inline-block mt-4 text-emerald-600 group-hover:text-emerald-700 font-medium dark:text-emerald-400 dark:group-hover:text-emerald-300">
             เธญเนเธฒเธเน€เธเธดเนเธกเน€เธ•เธดเธก โ’
           </span>
         </div>
@@ -61,13 +61,13 @@ function BlogCard({ blog }: { blog: Blog }) {
 function BlogCardSkeleton() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden animate-pulse">
-      <div className="h-48 bg-gray-200" />
+      <div className="h-48 bg-gray-200 dark:bg-gray-700" />
       <div className="p-6">
-        <div className="h-6 bg-gray-200 rounded mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
+        <div className="h-6 bg-gray-200 rounded mb-2 dark:bg-gray-700" />
+        <div className="h-4 bg-gray-200 rounded w-3/4 mb-4 dark:bg-gray-700" />
         <div className="flex justify-between">
-          <div className="h-4 bg-gray-200 rounded w-24" />
-          <div className="h-4 bg-gray-200 rounded w-12" />
+          <div className="h-4 bg-gray-200 rounded w-24 dark:bg-gray-700" />
+          <div className="h-4 bg-gray-200 rounded w-12 dark:bg-gray-700" />
         </div>
       </div>
     </div>
@@ -106,7 +106,7 @@ function Pagination({
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition dark:hover:bg-gray-700"
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
@@ -119,7 +119,7 @@ function Pagination({
             className={`px-4 py-2 rounded-lg font-medium transition ${
               currentPage === page
                 ? 'bg-emerald-600 text-white'
-                : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100'
+                : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
             {page}
@@ -132,7 +132,7 @@ function Pagination({
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition dark:hover:bg-gray-700"
       >
         <ChevronRight className="w-5 h-5" />
       </button>
@@ -209,7 +209,7 @@ export default function NotesBlogsPage() {
         {/* Search Bar */}
         <div className="mb-8">
           <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="เธเนเธเธซเธฒเธเธ—เธเธงเธฒเธก..."
@@ -244,7 +244,7 @@ export default function NotesBlogsPage() {
         {/* Error State */}
         {error && (
           <div className="text-center py-16">
-            <p className="text-red-500 mb-4">{error}</p>
+            <p className="text-red-500 mb-4 dark:text-red-400">{error}</p>
             <button
               onClick={fetchBlogs}
               className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
@@ -295,7 +295,7 @@ export default function NotesBlogsPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12">
+      <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>&copy; 2024 LUMO. All rights reserved.</p>
         </div>

@@ -27,9 +27,9 @@ import {
 import { formatTimeReadable } from '@/lib/exam-utils';
 
 function getScoreBadge(score: number) {
-  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300';
-  return 'bg-red-100 text-red-700 dark:text-red-300';
+  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-900/40';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/40';
+  return 'bg-red-100 text-red-700 dark:text-red-300 dark:bg-red-900/40';
 }
 
 export default function DashboardPage() {
@@ -100,7 +100,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-indigo-100 rounded-lg">
+                <div className="p-2 bg-indigo-100 rounded-lg dark:bg-indigo-900/40">
                   <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">ทำข้อสอบ</span>
@@ -112,7 +112,7 @@ export default function DashboardPage() {
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-yellow-100 rounded-lg">
+                <div className="p-2 bg-yellow-100 rounded-lg dark:bg-yellow-900/40">
                   <TrendingUp className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนเฉลี่ย</span>
@@ -124,7 +124,7 @@ export default function DashboardPage() {
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-green-100 rounded-lg">
+                <div className="p-2 bg-green-100 rounded-lg dark:bg-green-900/40">
                   <Trophy className="w-5 h-5 text-green-600 dark:text-green-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนสูงสุด</span>
@@ -136,7 +136,7 @@ export default function DashboardPage() {
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
+                <div className="p-2 bg-blue-100 rounded-lg dark:bg-blue-900/40">
                   <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">เวลารวม</span>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
                 </h2>
                 <Link
                   href="/dashboard/history"
-                  className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 flex items-center gap-1"
+                  className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 flex items-center gap-1 dark:hover:text-indigo-200"
                 >
                   ดูทั้งหมด <ArrowRight className="w-4 h-4" />
                 </Link>
@@ -196,7 +196,7 @@ export default function DashboardPage() {
                     <Link
                       key={attempt.id}
                       href={`/dashboard/history/${attempt.id}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg hover:bg-gray-100 transition"
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg hover:bg-gray-100 transition dark:hover:bg-gray-700"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
@@ -234,7 +234,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href="/dashboard/history"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 transition text-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 transition text-sm dark:hover:bg-gray-700/50"
             >
               <History className="w-4 h-4" />
               ดูประวัติทั้งหมด

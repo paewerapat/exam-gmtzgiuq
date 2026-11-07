@@ -26,9 +26,9 @@ import {
 import { formatTimeReadable } from '@/lib/exam-utils';
 
 function getScoreBadge(score: number) {
-  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300';
-  return 'bg-red-100 text-red-700 dark:text-red-300';
+  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-900/40';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/40';
+  return 'bg-red-100 text-red-700 dark:text-red-300 dark:bg-red-900/40';
 }
 
 export default function AdminAttemptsPage() {
@@ -108,7 +108,7 @@ export default function AdminAttemptsPage() {
               </div>
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Trophy className="w-5 h-5 text-yellow-500" />
+                  <Trophy className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
                   <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนเฉลี่ย</span>
                 </div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -148,7 +148,7 @@ export default function AdminAttemptsPage() {
                 className={`px-3 py-1.5 text-sm rounded-full transition ${
                   selectedCategory === cat.id
                     ? 'bg-indigo-600 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 border border-gray-200 dark:border-gray-700'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 border border-gray-200 dark:border-gray-700 dark:hover:bg-gray-700'
                 }`}
               >
                 {cat.id !== 'all' && (
@@ -161,7 +161,7 @@ export default function AdminAttemptsPage() {
 
           {/* Search */}
           <div className="mb-4 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               value={searchTerm}
@@ -211,9 +211,9 @@ export default function AdminAttemptsPage() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {data.items.map((attempt) => (
-                        <tr key={attempt.id} className="hover:bg-gray-50">
+                        <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-3">
                             <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                               {attempt.user?.name || 'Unknown'}
@@ -226,7 +226,7 @@ export default function AdminAttemptsPage() {
                             {attempt.examId ? (
                               <Link
                                 href={`/admin/attempts/exam/${attempt.examId}`}
-                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline"
+                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline dark:hover:text-indigo-200"
                               >
                                 {attempt.examTitle}
                               </Link>
@@ -285,14 +285,14 @@ export default function AdminAttemptsPage() {
                       <button
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ก่อนหน้า
                       </button>
                       <button
                         onClick={() => setCurrentPage((p) => Math.min(data.totalPages, p + 1))}
                         disabled={currentPage === data.totalPages}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ถัดไป
                       </button>

@@ -56,7 +56,7 @@ export default function FeedbackModal({ open, onClose, examId }: { open: boolean
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 z-10 border border-gray-100 dark:border-gray-700">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300 transition"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300 transition"
           aria-label="ปิด"
         >
           <X className="w-4 h-4" />
@@ -94,7 +94,7 @@ export default function FeedbackModal({ open, onClose, examId }: { open: boolean
 
         <div className="mt-5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
-            <User className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+            <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <select
               value={age as any}
               onChange={(e) => setAge(e.target.value ? Number(e.target.value) : '')}

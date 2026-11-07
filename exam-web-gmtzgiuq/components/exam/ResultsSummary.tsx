@@ -22,20 +22,20 @@ export default function ResultsSummary({ result, className = '' }: ResultsSummar
 
   // Determine grade color
   let gradeColor = 'text-red-600 dark:text-red-400';
-  let gradeBg = 'bg-red-100';
+  let gradeBg = 'bg-red-100 dark:bg-red-900/40';
   let gradeText = 'ต้องพยายามต่อไป';
 
   if (score >= 80) {
     gradeColor = 'text-green-600 dark:text-green-400';
-    gradeBg = 'bg-green-100';
+    gradeBg = 'bg-green-100 dark:bg-green-900/40';
     gradeText = 'ยอดเยี่ยม!';
   } else if (score >= 60) {
     gradeColor = 'text-blue-600 dark:text-blue-400';
-    gradeBg = 'bg-blue-100';
+    gradeBg = 'bg-blue-100 dark:bg-blue-900/40';
     gradeText = 'ดีมาก';
   } else if (score >= 40) {
     gradeColor = 'text-yellow-600 dark:text-yellow-400';
-    gradeBg = 'bg-yellow-100';
+    gradeBg = 'bg-yellow-100 dark:bg-yellow-900/40';
     gradeText = 'พอใช้';
   }
 

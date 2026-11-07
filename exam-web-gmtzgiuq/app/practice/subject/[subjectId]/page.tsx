@@ -159,7 +159,7 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
             onClick={() => router.back()}
-            className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 transition text-sm"
+            className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 transition text-sm dark:hover:bg-gray-700/50"
           >
             กลับ
           </button>
@@ -172,7 +172,7 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-indigo-900/40">
             <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">ทำค้างอยู่</h2>
@@ -193,7 +193,7 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
             </button>
             <button
               onClick={handleStartFresh}
-              className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2"
+              className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2 dark:hover:bg-gray-700/50"
             >
               <RotateCcw className="w-4 h-4" />
               เริ่มทำใหม่
@@ -209,22 +209,22 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${passed ? 'bg-green-100' : 'bg-red-100'}`}>
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${passed ? 'bg-green-100 dark:bg-green-900/40' : 'bg-red-100 dark:bg-red-900/40'}`}>
             <BookOpen className={`w-10 h-10 ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">ผลการทำข้อสอบ</h2>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-5">{result.examTitle}</p>
           <div className={`inline-flex items-center justify-center w-28 h-28 rounded-full border-4 mb-6 ${passed ? 'border-green-500' : 'border-red-400'}`}>
             <div>
-              <p className={`text-3xl font-bold leading-none ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+              <p className={`text-3xl font-bold leading-none ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                 {Math.round(result.score)}
               </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">คะแนน</p>
+              <p className="text-xs text-gray-400 mt-0.5">คะแนน</p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 mb-8">
             <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3">
-              <CheckCircle className="w-5 h-5 text-green-500 mx-auto mb-1" />
+              <CheckCircle className="w-5 h-5 text-green-500 mx-auto mb-1 dark:text-green-400" />
               <p className="text-xl font-bold text-green-700 dark:text-green-300">{result.correctAnswers}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">ถูก</p>
             </div>
@@ -234,7 +234,7 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
               <p className="text-xs text-gray-500 dark:text-gray-400">ผิด</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-3">
-              <MinusCircle className="w-5 h-5 text-gray-400 dark:text-gray-500 mx-auto mb-1" />
+              <MinusCircle className="w-5 h-5 text-gray-400 mx-auto mb-1" />
               <p className="text-xl font-bold text-gray-600 dark:text-gray-400">{result.unanswered}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">ไม่ตอบ</p>
             </div>
@@ -249,7 +249,7 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
             </button>
             <button
               onClick={() => router.push('/dashboard/library')}
-              className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition"
+              className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition dark:hover:bg-gray-700/50"
             >
               กลับคลังข้อสอบ
             </button>

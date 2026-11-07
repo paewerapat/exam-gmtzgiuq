@@ -66,7 +66,7 @@ export default function QuestionImagesEditor({
     <div>
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">รูปภาพ (ถ้ามี)</span>
-        <span className="text-xs text-gray-400 dark:text-gray-500">
+        <span className="text-xs text-gray-400">
           {images.length}/{MAX_QUESTION_IMAGES} รูป · แสดงตามลำดับนี้
         </span>
       </div>
@@ -86,7 +86,7 @@ export default function QuestionImagesEditor({
               />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">รูปที่ {i + 1}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 truncate" title={url}>{url}</p>
+                <p className="text-xs text-gray-400 truncate" title={url}>{url}</p>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button

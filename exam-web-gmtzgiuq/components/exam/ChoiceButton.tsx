@@ -32,7 +32,7 @@ export default function ChoiceButton({
 }: ChoiceButtonProps) {
   const letter = getChoiceLetter(index);
 
-  let cardStyle = 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-300 hover:bg-indigo-50/40 dark:hover:bg-indigo-900/20';
+  let cardStyle = 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-300 hover:bg-indigo-50/40 dark:hover:bg-indigo-900/20 dark:hover:border-indigo-700';
   let circleStyle = 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400';
   let icon: React.ReactNode = null;
   // ข้อหลายคำตอบ: ตัวที่ถูกแต่ไม่ได้เลือก ต้องแยกจากตัวที่เลือกถูก

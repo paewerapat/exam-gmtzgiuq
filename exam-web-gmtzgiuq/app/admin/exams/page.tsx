@@ -171,7 +171,7 @@ export default function AdminExamsPage() {
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${
                           selectedCategory === cat.id
                             ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium'
-                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                         }`}
                       >
                         <span className="flex items-center gap-2">
@@ -179,7 +179,7 @@ export default function AdminExamsPage() {
                           {cat.id === 'all' && <Icon className="w-4 h-4" />}
                           <span>{cat.name}</span>
                         </span>
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{cat.count}</span>
+                        <span className="text-xs text-gray-400">{cat.count}</span>
                       </button>
                     );
                   })}
@@ -197,7 +197,7 @@ export default function AdminExamsPage() {
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
                         selectedStatus === status
                           ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                       }`}
                     >
                       {status === 'all' ? 'ทั้งหมด' : status === 'published' ? 'เผยแพร่' : 'แบบร่าง'}
@@ -211,7 +211,7 @@ export default function AdminExamsPage() {
             <div className="flex-1">
               {/* Search */}
               <div className="mb-4 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
                   value={searchTerm}
@@ -245,9 +245,9 @@ export default function AdminExamsPage() {
                           <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">จัดการ</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200">
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {data.items.map((exam) => (
-                          <tr key={exam.id} className="hover:bg-gray-50">
+                          <tr key={exam.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                             <td className="px-4 py-4">
                               <div className="font-medium text-gray-900 dark:text-gray-100">{exam.title}</div>
                               {exam.description && (
@@ -294,14 +294,14 @@ export default function AdminExamsPage() {
                               <div className="flex items-center justify-end space-x-1">
                                 <Link
                                   href={`/admin/exams/${exam.id}/edit`}
-                                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition dark:hover:text-indigo-300 dark:hover:bg-indigo-900/30"
                                 >
                                   <Edit className="w-4 h-4" />
                                 </Link>
                                 <button
                                   onClick={() => handleDelete(exam.id)}
                                   disabled={deleting === exam.id}
-                                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50 dark:hover:text-red-300 dark:hover:bg-red-900/30"
                                 >
                                   {deleting === exam.id ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -326,14 +326,14 @@ export default function AdminExamsPage() {
                           <button
                             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
-                            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                           >
                             ก่อนหน้า
                           </button>
                           <button
                             onClick={() => setCurrentPage((p) => Math.min(data.totalPages, p + 1))}
                             disabled={currentPage === data.totalPages}
-                            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                           >
                             ถัดไป
                           </button>

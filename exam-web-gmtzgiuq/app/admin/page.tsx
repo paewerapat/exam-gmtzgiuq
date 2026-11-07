@@ -29,9 +29,9 @@ import {
 } from '@/lib/api/questions';
 
 function getScoreBadge(score: number) {
-  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300';
-  return 'bg-red-100 text-red-700 dark:text-red-300';
+  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-900/40';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/40';
+  return 'bg-red-100 text-red-700 dark:text-red-300 dark:bg-red-900/40';
 }
 
 export default function AdminDashboard() {
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 rounded-lg">
+            <div className="p-2 bg-blue-100 rounded-lg dark:bg-blue-900/40">
               <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <span className="text-sm text-gray-500 dark:text-gray-400">สอบทั้งหมด</span>
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-yellow-100 rounded-lg">
+            <div className="p-2 bg-yellow-100 rounded-lg dark:bg-yellow-900/40">
               <Trophy className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
             </div>
             <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนเฉลี่ย</span>
@@ -103,7 +103,7 @@ export default function AdminDashboard() {
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-purple-100 rounded-lg">
+            <div className="p-2 bg-purple-100 rounded-lg dark:bg-purple-900/40">
               <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
             <span className="text-sm text-gray-500 dark:text-gray-400">ผู้ใช้ที่สอบ</span>
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-100 rounded-lg">
+            <div className="p-2 bg-green-100 rounded-lg dark:bg-green-900/40">
               <ClipboardList className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
             <span className="text-sm text-gray-500 dark:text-gray-400">ชุดข้อสอบ</span>
@@ -123,7 +123,7 @@ export default function AdminDashboard() {
           <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             {examStats?.total || 0} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">ชุด</span>
           </div>
-          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+          <div className="text-xs text-gray-400 mt-1">
             เผยแพร่ {examStats?.published || 0} | แบบร่าง {examStats?.draft || 0}
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
           <div className="space-y-3">
             <Link
               href="/admin/exams/new"
-              className="flex items-center p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 transition"
+              className="flex items-center p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 transition dark:hover:bg-indigo-900/40"
             >
               <Plus className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mr-4" />
               <div>
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
             </Link>
             <Link
               href="/admin/exams"
-              className="flex items-center p-4 bg-green-50 dark:bg-green-900/30 rounded-lg hover:bg-green-100 transition"
+              className="flex items-center p-4 bg-green-50 dark:bg-green-900/30 rounded-lg hover:bg-green-100 transition dark:hover:bg-green-900/40"
             >
               <ClipboardList className="w-8 h-8 text-green-600 dark:text-green-400 mr-4" />
               <div>
@@ -184,7 +184,7 @@ export default function AdminDashboard() {
             </Link>
             <Link
               href="/admin/attempts"
-              className="flex items-center p-4 bg-purple-50 dark:bg-purple-900/30 rounded-lg hover:bg-purple-100 transition"
+              className="flex items-center p-4 bg-purple-50 dark:bg-purple-900/30 rounded-lg hover:bg-purple-100 transition dark:hover:bg-purple-900/40"
             >
               <BarChart3 className="w-8 h-8 text-purple-600 dark:text-purple-400 mr-4" />
               <div>
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
             </h2>
             <Link
               href="/admin/attempts"
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 flex items-center gap-1"
+              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 flex items-center gap-1 dark:hover:text-indigo-200"
             >
               ดูทั้งหมด <ArrowRight className="w-4 h-4" />
             </Link>
@@ -222,9 +222,9 @@ export default function AdminDashboard() {
                   <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">วันที่</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {recentAttempts.items.map((attempt) => (
-                  <tr key={attempt.id} className="hover:bg-gray-50">
+                  <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-3">
                       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{attempt.user?.name || 'Unknown'}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">{attempt.user?.email}</div>
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
                       {attempt.examId ? (
                         <Link
                           href={`/admin/attempts/exam/${attempt.examId}`}
-                          className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline"
+                          className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline dark:hover:text-indigo-200"
                         >
                           {attempt.examTitle}
                         </Link>

@@ -96,7 +96,7 @@ export default function ResultsPage({ params }: PageProps) {
           {/* Back link */}
           <Link
             href="/dashboard/practice"
-            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6"
+            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6 dark:hover:text-gray-100"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>กลับหน้าเลือกหมวดหมู่</span>
@@ -129,7 +129,7 @@ export default function ResultsPage({ params }: PageProps) {
             </button>
             <Link
               href="/dashboard/practice"
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium dark:hover:bg-gray-700/50"
             >
               <Home className="w-5 h-5" />
               <span>กลับหน้าหลัก</span>
@@ -145,8 +145,8 @@ export default function ResultsPage({ params }: PageProps) {
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     filter === 'all'
-                      ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-300'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                      ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-900/40'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   ทั้งหมด ({session.questionIds.length})
@@ -155,8 +155,8 @@ export default function ResultsPage({ params }: PageProps) {
                   onClick={() => setFilter('incorrect')}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     filter === 'incorrect'
-                      ? 'bg-red-100 text-red-700 dark:text-red-300'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                      ? 'bg-red-100 text-red-700 dark:text-red-300 dark:bg-red-900/40'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   ผิด ({result.incorrectQuestionIds.length})
@@ -166,8 +166,8 @@ export default function ResultsPage({ params }: PageProps) {
                     onClick={() => setFilter('marked')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       filter === 'marked'
-                        ? 'bg-orange-100 text-orange-700 dark:text-orange-300'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                        ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-900/40'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     ทำเครื่องหมาย ({session.markedForReview.length})
@@ -201,7 +201,7 @@ export default function ResultsPage({ params }: PageProps) {
                 {reviewQuestionIds.length > 5 && !showAll && (
                   <button
                     onClick={() => setShowAll(true)}
-                    className="w-full py-3 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
+                    className="w-full py-3 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium dark:hover:text-indigo-300"
                   >
                     แสดงทั้งหมด ({reviewQuestionIds.length} ข้อ)
                   </button>

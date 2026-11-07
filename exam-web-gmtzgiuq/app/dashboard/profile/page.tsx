@@ -25,7 +25,7 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-indigo-900/40">
           <User className="w-10 h-10 text-indigo-400" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">เข้าสู่ระบบเพื่อดูโปรไฟล์</h2>
@@ -40,7 +40,7 @@ export default function ProfilePage() {
           </Link>
           <Link
             href="/register"
-            className="px-6 py-2.5 border border-indigo-300 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 text-sm font-semibold rounded-full transition"
+            className="px-6 py-2.5 border border-indigo-300 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 text-sm font-semibold rounded-full transition dark:border-indigo-700 dark:hover:bg-indigo-900/30"
           >
             สมัครสมาชิก
           </Link>
@@ -150,7 +150,7 @@ export default function ProfilePage() {
               บันทึก
             </button>
             <button
-              className="px-4 py-2 bg-gray-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-300 transition"
+              className="px-4 py-2 bg-gray-200 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-300 transition dark:bg-gray-700 dark:hover:bg-gray-600"
             >
               ยกเลิก
             </button>

@@ -57,7 +57,7 @@ function ChapterScoreSection({ session, questions }: { session: ExamSession; que
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
       {!hasChapterData && (
         <div className="px-5 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/30 flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <BookOpen className="w-4 h-4 text-amber-500 flex-shrink-0 dark:text-amber-400" />
           <p className="text-xs text-amber-700 dark:text-amber-400">ข้อสอบนี้ยังไม่มีการแท็กบท — แสดงภาพรวมทั้งชุด</p>
         </div>
       )}
@@ -76,14 +76,14 @@ function ChapterScoreSection({ session, questions }: { session: ExamSession; que
           <tbody>
             {chapters.map((ch) => {
               const pct = ch.total > 0 ? Math.round((ch.correct / ch.total) * 100) : 0;
-              const pctColor = pct >= 70 ? 'text-green-600 dark:text-green-400' : pct >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-500';
+              const pctColor = pct >= 70 ? 'text-green-600 dark:text-green-400' : pct >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
               return (
                 <tr key={ch.name} className="border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/30">
                   <td className="px-5 py-3 font-medium text-gray-800 dark:text-gray-200">{ch.name}</td>
                   <td className={`px-4 py-3 text-center font-bold ${pctColor}`}>{pct}%</td>
                   <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{ch.correct}</td>
-                  <td className="px-4 py-3 text-center text-red-500 font-medium">{ch.incorrect}</td>
-                  <td className="px-4 py-3 text-center text-gray-400 dark:text-gray-500">{ch.skipped}</td>
+                  <td className="px-4 py-3 text-center text-red-500 font-medium dark:text-red-400">{ch.incorrect}</td>
+                  <td className="px-4 py-3 text-center text-gray-400">{ch.skipped}</td>
                   <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{ch.total}</td>
                 </tr>
               );
@@ -297,7 +297,7 @@ export default function RealExamResultsPage({ params }: PageProps) {
                   {reviewQuestionIds.length > 5 && !showAll && (
                     <button
                       onClick={() => setShowAll(true)}
-                      className="w-full py-3 text-rose-600 dark:text-rose-400 hover:text-rose-700 font-medium"
+                      className="w-full py-3 text-rose-600 dark:text-rose-400 hover:text-rose-700 font-medium dark:hover:text-rose-300"
                     >
                       แสดงทั้งหมด ({reviewQuestionIds.length} ข้อ)
                     </button>

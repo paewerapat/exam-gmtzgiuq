@@ -142,7 +142,7 @@ function ChapterExamContent({ chapterId }: { chapterId: string }) {
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
             onClick={() => router.back()}
-            className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 transition text-sm"
+            className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 transition text-sm dark:hover:bg-gray-700/50"
           >
             กลับ
           </button>
@@ -155,7 +155,7 @@ function ChapterExamContent({ chapterId }: { chapterId: string }) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-indigo-900/40">
             <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">ทำค้างอยู่</h2>
@@ -176,7 +176,7 @@ function ChapterExamContent({ chapterId }: { chapterId: string }) {
             </button>
             <button
               onClick={handleStartFresh}
-              className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2"
+              className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2 dark:hover:bg-gray-700/50"
             >
               <RotateCcw className="w-4 h-4" />
               เริ่มทำใหม่

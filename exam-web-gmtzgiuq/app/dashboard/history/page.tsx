@@ -31,7 +31,7 @@ function getBarColor(score: number) {
 }
 
 function getRecommendation(score: number) {
-  if (score >= 80) return { title: 'ยกระดับคะแนนให้สูง!', sub: 'ฝึกทำข้อสอบชุดอื่นเพื่อรักษาฟอร์ม', bg: 'bg-violet-50', btn: 'text-violet-600' };
+  if (score >= 80) return { title: 'ยกระดับคะแนนให้สูง!', sub: 'ฝึกทำข้อสอบชุดอื่นเพื่อรักษาฟอร์ม', bg: 'bg-violet-50 dark:bg-violet-900/30', btn: 'text-violet-600 dark:text-violet-400' };
   if (score >= 60) return { title: 'พร้อมพัฒนาต่อไหม?', sub: 'ฝึกเพิ่มอีกนิด เป้าหมาย 80% อยู่ไม่ไกล', bg: 'bg-blue-50 dark:bg-blue-900/30', btn: 'text-blue-600 dark:text-blue-400' };
   return { title: 'ฝึกอีกนิดเพื่อทะลุเป้า', sub: 'ทบทวนและฝึกเพิ่มอีกนิด', bg: 'bg-rose-50 dark:bg-rose-900/30', btn: 'text-rose-600 dark:text-rose-400' };
 }
@@ -47,14 +47,14 @@ function AttemptCard({ attempt, scoreChange, categories }: { attempt: ExamAttemp
     : '#';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex">
       {/* Left */}
       <div className="flex-1 p-5">
-        <span className="inline-block text-[11px] font-bold bg-indigo-100 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 rounded-full mb-2 uppercase tracking-wide">
+        <span className="inline-block text-[11px] font-bold bg-indigo-100 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 rounded-full mb-2 uppercase tracking-wide dark:bg-indigo-900/40">
           {catName}
         </span>
         <h3 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-snug mb-0.5">{attempt.examTitle}</h3>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+        <p className="text-xs text-gray-400 mb-3">
           {new Date(attempt.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
           {' · '}ใช้เวลา {formatTimeReadable(attempt.totalTime)}
         </p>
@@ -65,7 +65,7 @@ function AttemptCard({ attempt, scoreChange, categories }: { attempt: ExamAttemp
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{score}%</span>
             {scoreChange !== null && (
-              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${scoreChange >= 0 ? 'bg-green-100 text-green-700 dark:text-green-300' : 'bg-red-100 text-red-600 dark:text-red-400'}`}>
+              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${scoreChange >= 0 ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-900/40' : 'bg-red-100 text-red-600 dark:text-red-400 dark:bg-red-900/40'}`}>
                 {scoreChange >= 0 ? '+' : ''}{scoreChange}%
               </span>
             )}
@@ -77,7 +77,7 @@ function AttemptCard({ attempt, scoreChange, categories }: { attempt: ExamAttemp
 
         <Link
           href={`/dashboard/history/${attempt.id}`}
-          className="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 font-medium border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1.5 transition hover:border-gray-400"
+          className="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 font-medium border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1.5 transition hover:border-gray-400 dark:hover:text-gray-100"
         >
           ดูรายละเอียดข้อสอบ <span className="text-sm leading-none">›</span>
         </Link>
@@ -111,12 +111,12 @@ function ChartTooltip({ active, payload, label }: any) {
   const score = payload[0].value;
   const change = payload[0]?.payload?.change;
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[140px]">
+    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[140px]">
       <p className="text-gray-500 dark:text-gray-400 text-xs mb-1.5">{payload[0]?.payload?.fullDate || label}</p>
       <div className="flex items-center gap-2">
         <p className="font-bold text-indigo-600 dark:text-indigo-400 text-base">{score}%</p>
         {change !== null && change !== undefined && (
-          <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${change >= 0 ? 'bg-green-100 text-green-600 dark:text-green-400' : 'bg-red-100 text-red-500'}`}>
+          <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${change >= 0 ? 'bg-green-100 text-green-600 dark:text-green-400 dark:bg-green-900/40' : 'bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400'}`}>
             {change >= 0 ? '+' : ''}{change}%
           </span>
         )}
@@ -249,7 +249,7 @@ export default function HistoryPage() {
   return (
     <FadeIn>
       {/* Breadcrumb */}
-      <p className="text-sm text-gray-400 dark:text-gray-500 mb-2">
+      <p className="text-sm text-gray-400 mb-2">
         Dashboard / <span className="text-gray-600 dark:text-gray-400 font-medium">ประวัติการสอบ</span>
       </p>
 
@@ -267,7 +267,7 @@ export default function HistoryPage() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">จำนวนข้อสอบที่ทำทั้งหมด</p>
             <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center">
@@ -276,15 +276,15 @@ export default function HistoryPage() {
           </div>
           <p className="text-4xl font-bold text-gray-900 dark:text-gray-100">{stats?.totalAttempts ?? allAttempts.length}</p>
           {stats?.byCategory?.length ? (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{stats.byCategory.length} วิชาที่สอบ</p>
+            <p className="text-xs text-gray-400 mt-1">{stats.byCategory.length} วิชาที่สอบ</p>
           ) : null}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">คะแนนเฉลี่ย</p>
             <div className="w-12 h-12 bg-yellow-50 dark:bg-yellow-900/30 rounded-2xl flex items-center justify-center">
-              <Trophy className="w-6 h-6 text-yellow-500" />
+              <Trophy className="w-6 h-6 text-yellow-500 dark:text-yellow-400" />
             </div>
           </div>
           <div className="flex items-end gap-2">
@@ -292,21 +292,21 @@ export default function HistoryPage() {
               {stats?.averageScore != null ? `${Math.round(stats.averageScore)}%` : '-'}
             </p>
             {improvement !== null && improvement !== 0 && (
-              <span className={`text-sm font-bold mb-1 ${improvement > 0 ? 'text-green-500' : 'text-red-500'}`}>
+              <span className={`text-sm font-bold mb-1 ${improvement > 0 ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                 {improvement > 0 ? '+' : ''}{improvement}% ↑
               </span>
             )}
           </div>
           {stats?.bestScore != null && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">จาก {Math.round(stats.bestScore)}% เดือนที่แล้ว</p>
+            <p className="text-xs text-gray-400 mt-1">จาก {Math.round(stats.bestScore)}% เดือนที่แล้ว</p>
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">เวลาที่ใช้ทำข้อสอบทั้งหมด</p>
             <div className="w-12 h-12 bg-orange-50 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center">
-              <Clock className="w-6 h-6 text-orange-500" />
+              <Clock className="w-6 h-6 text-orange-500 dark:text-orange-400" />
             </div>
           </div>
           <p className="text-4xl font-bold text-gray-900 dark:text-gray-100">{formatHours(stats?.totalTime ?? 0)}</p>
@@ -315,7 +315,7 @@ export default function HistoryPage() {
 
       {/* Chart */}
       {allAttempts.length >= 1 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
               พัฒนาการคะแนน{selectedExamTitle ? <> <span className="text-indigo-600 dark:text-indigo-400">{selectedExamTitle}</span></> : ' ทั้งหมด'}
@@ -325,18 +325,18 @@ export default function HistoryPage() {
             <div className="relative">
               <button
                 onClick={() => setChartDropdownOpen(!chartDropdownOpen)}
-                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 hover:border-indigo-300 transition"
+                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 hover:border-indigo-300 transition dark:hover:border-indigo-700"
               >
                 วิชา: {selectedExamTitle || 'เลือกวิชา'}
                 <ChevronDown className={`w-4 h-4 transition-transform ${chartDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {chartDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 min-w-52 max-h-52 overflow-y-auto">
+                <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-lg py-1 min-w-52 max-h-52 overflow-y-auto">
                   {examTitles.map((title) => (
                     <button
                       key={title}
                       onClick={() => { setSelectedExamTitle(title); setChartDropdownOpen(false); }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition ${selectedExamTitle === title ? 'text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-700 dark:text-gray-300'}`}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition dark:hover:bg-gray-700/50 ${selectedExamTitle === title ? 'text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-700 dark:text-gray-300'}`}
                     >
                       {title}
                     </button>
@@ -375,7 +375,7 @@ export default function HistoryPage() {
       {/* Search + filter */}
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="ค้นหาข้อสอบ..."
@@ -397,16 +397,16 @@ export default function HistoryPage() {
       </div>
 
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-gray-400 dark:text-gray-500">เรียงจากล่าสุด</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500">ข้อสอบทั้งหมด {filteredAttempts.length} ชุด</p>
+        <p className="text-xs text-gray-400">เรียงจากล่าสุด</p>
+        <p className="text-xs text-gray-400">ข้อสอบทั้งหมด {filteredAttempts.length} ชุด</p>
       </div>
 
       {/* Cards */}
       {pagedAttempts.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center shadow-sm border border-gray-100 dark:border-gray-700">
           <BookOpen className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-gray-400 font-medium">ยังไม่มีประวัติการสอบ</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">เริ่มทำข้อสอบเพื่อดูผลที่นี่</p>
+          <p className="text-gray-400 text-sm mt-1">เริ่มทำข้อสอบเพื่อดูผลที่นี่</p>
           <Link href="/dashboard/practice" className="inline-block mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
             ไปฝึกทำข้อสอบ
           </Link>
@@ -426,7 +426,7 @@ export default function HistoryPage() {
             <button
               key={p}
               onClick={() => setPage(p)}
-              className={`w-8 h-8 rounded-full text-sm font-medium transition ${page === p ? 'bg-indigo-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100'}`}
+              className={`w-8 h-8 rounded-full text-sm font-medium transition ${page === p ? 'bg-indigo-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
             >
               {p}
             </button>

@@ -107,6 +107,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
     const unanswered = session.questionIds.filter((id) => !session.answers[id]).length;
 
     const result = await Swal.fire({
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
       title: 'ส่งข้อสอบ?',
       html: unanswered > 0
         ? `<p class="text-gray-600 dark:text-gray-400">คุณยังมี <strong class="text-red-500">${unanswered} ข้อ</strong> ที่ยังไม่ได้ตอบ<br/>ต้องการส่งข้อสอบหรือไม่?</p>`
@@ -277,7 +278,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   >
                     <Lightbulb
                       className={`w-6 h-6 transition-colors ${
-                        isHintVisible ? 'text-yellow-400' : 'text-gray-400 dark:text-gray-500'
+                        isHintVisible ? 'text-yellow-400' : 'text-gray-400'
                       }`}
                       fill={isHintVisible ? 'currentColor' : 'none'}
                     />
@@ -292,7 +293,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                 >
                   <Bookmark
                     className={`w-6 h-6 transition-colors ${
-                      isMarked ? 'text-orange-500' : 'text-gray-400 dark:text-gray-500'
+                      isMarked ? 'text-orange-500 dark:text-orange-400' : 'text-gray-400'
                     }`}
                     fill={isMarked ? 'currentColor' : 'none'}
                   />
@@ -309,7 +310,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
               className={
                 passage
                   ? 'relative flex flex-col min-h-[320px] lg:min-h-0 lg:flex-1 lg:overflow-y-auto'
-                  : 'flex flex-col lg:flex-row lg:divide-x divide-gray-100 min-h-[320px]'
+                  : 'flex flex-col lg:flex-row lg:divide-x divide-gray-100 min-h-[320px] dark:divide-gray-700'
               }
             >
 
@@ -394,8 +395,8 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
               <div
                 className={
                   passage
-                    ? 'flex-1 px-6 pb-6 pt-4 border-t border-gray-100 dark:border-gray-800'
-                    : 'flex-1 px-6 pb-6 lg:pt-0 pt-4 border-t lg:border-t-0 border-gray-100 dark:border-gray-800'
+                    ? 'flex-1 px-6 pb-6 pt-4 border-t border-gray-100 dark:border-gray-700'
+                    : 'flex-1 px-6 pb-6 lg:pt-0 pt-4 border-t lg:border-t-0 border-gray-100 dark:border-gray-700'
                 }
               >
                 {isShortAnswer ? (
@@ -420,7 +421,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                     />
                     {/* Show how the system reads the user's current input */}
                     {!answerChecked && userAnswer?.trim() && (
-                      <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                      <p className="mt-1.5 text-xs text-gray-400">
                         ระบบอ่านเป็น:{' '}
                         <code className="font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">
                           {prettyMathAnswer(userAnswer)}
@@ -485,7 +486,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
 
             {/* Bottom prev / next */}
             <div
-              className={`flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-800${
+              className={`flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-700${
                 passage ? ' flex-shrink-0' : ''
               }`}
             >
@@ -496,7 +497,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                 className={`flex items-center gap-1.5 text-sm font-medium transition ${
                   isFirst
                     ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100'
                 }`}
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -506,7 +507,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 transition"
+                className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 transition dark:hover:text-indigo-200"
               >
                 {isLastQuestion ? 'ส่งข้อสอบ' : 'ข้อถัดไป'}
                 <ChevronRight className="w-4 h-4" />
@@ -528,7 +529,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
               <span className="font-bold text-gray-800 dark:text-gray-200 text-sm">Question Bank</span>
               <div className="flex items-center gap-2">
                 <button
@@ -545,8 +546,8 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   title="Group answered questions at the start and jump to first unanswered"
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
                     groupAnswered
-                      ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-300'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                      ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-900/40'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   <ListFilter className="w-3.5 h-3.5" />
@@ -555,7 +556,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                 <button
                   type="button"
                   onClick={() => setIsNavOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 dark:text-gray-500 hover:text-gray-600"
+                  className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -563,22 +564,22 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
             </div>
 
             {/* Legend */}
-            <div className="px-4 py-2 flex flex-wrap gap-x-4 gap-y-1.5 border-b border-gray-50 flex-shrink-0">
+            <div className="px-4 py-2 flex flex-wrap gap-x-4 gap-y-1.5 border-b border-gray-50 flex-shrink-0 dark:border-gray-700">
               <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-                <span className="w-5 h-5 rounded-md bg-green-100 border-2 border-green-400 flex items-center justify-center flex-shrink-0">
+                <span className="w-5 h-5 rounded-md bg-green-100 border-2 border-green-400 flex items-center justify-center flex-shrink-0 dark:bg-green-900/40">
                   <Check className="w-3 h-3 text-green-600 dark:text-green-400" strokeWidth={3} />
                 </span>
                 ถูกต้อง
               </span>
               <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-                <span className="w-5 h-5 rounded-md bg-red-100 border-2 border-red-400 flex items-center justify-center flex-shrink-0">
+                <span className="w-5 h-5 rounded-md bg-red-100 border-2 border-red-400 flex items-center justify-center flex-shrink-0 dark:bg-red-900/40">
                   <X className="w-3 h-3 text-red-600 dark:text-red-400" strokeWidth={3} />
                 </span>
                 ผิด
               </span>
               <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-                <span className="w-5 h-5 rounded-md bg-orange-100 border-2 border-orange-400 flex items-center justify-center flex-shrink-0">
-                  <Bookmark className="w-3 h-3 text-orange-500" fill="currentColor" />
+                <span className="w-5 h-5 rounded-md bg-orange-100 border-2 border-orange-400 flex items-center justify-center flex-shrink-0 dark:bg-orange-900/40">
+                  <Bookmark className="w-3 h-3 text-orange-500 dark:text-orange-400" fill="currentColor" />
                 </span>
                 ทำเครื่องหมาย
               </span>
@@ -610,15 +611,15 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                       const checkedResult = checkedAnswers[qId]; // true/false/undefined
 
                       let cls =
-                        'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200'; // unanswered
+                        'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'; // unanswered
                       if (isAnswered && checkedResult === undefined)
-                        cls = 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 hover:bg-blue-100'; // answered, not yet checked
+                        cls = 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/40'; // answered, not yet checked
                       if (checkedResult === true)
-                        cls = 'bg-green-100 text-green-700 dark:text-green-300 border-2 border-green-400 hover:bg-green-200'; // correct
+                        cls = 'bg-green-100 text-green-700 dark:text-green-300 border-2 border-green-400 hover:bg-green-200 dark:bg-green-900/40 dark:hover:bg-green-800/50'; // correct
                       if (checkedResult === false)
-                        cls = 'bg-red-100 text-red-700 dark:text-red-300 border-2 border-red-400 hover:bg-red-200'; // incorrect
+                        cls = 'bg-red-100 text-red-700 dark:text-red-300 border-2 border-red-400 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-800/50'; // incorrect
                       if (isMk)
-                        cls = 'bg-orange-100 text-orange-600 dark:text-orange-400 border-2 border-orange-400 hover:bg-orange-200'; // marked
+                        cls = 'bg-orange-100 text-orange-600 dark:text-orange-400 border-2 border-orange-400 hover:bg-orange-200 dark:bg-orange-900/40 dark:hover:bg-orange-800/50'; // marked
                       if (isCurrent)
                         cls = 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-2 border-gray-900 font-bold shadow-sm'; // current
 
@@ -663,7 +664,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
         <button
           type="button"
           onClick={handleFinish}
-          className="w-24 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold rounded-full transition shadow-md"
+          className="w-24 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-full transition shadow-md"
         >
           ส่งข้อสอบ
         </button>

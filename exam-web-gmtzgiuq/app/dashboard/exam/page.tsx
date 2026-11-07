@@ -73,7 +73,7 @@ function InProgressBanner({ attempts }: { attempts: ExamAttempt[] }) {
               <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                 {attempt.examTitle}
               </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
+              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 ทำถึงข้อที่{' '}
                 <span className="font-semibold text-rose-600 dark:text-rose-400">
@@ -129,7 +129,7 @@ function ExamCard({ exam, categories }: { exam: Exam; categories: Category[] }) 
         <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm truncate">
           {catName}: {exam.title}
         </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 mb-3">
+        <p className="text-xs text-gray-400 mt-0.5 mb-3">
           {exam.questionCount} ข้อ · {releaseDate}
         </p>
         <div className="mt-auto">
@@ -180,7 +180,7 @@ function CategoryDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-full text-sm text-gray-600 dark:text-gray-400 hover:border-indigo-300 transition whitespace-nowrap"
+        className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-full text-sm text-gray-600 dark:text-gray-400 hover:border-indigo-300 transition whitespace-nowrap dark:hover:border-indigo-700"
       >
         {selectedLabel}
         <ChevronDown
@@ -188,7 +188,7 @@ function CategoryDropdown({
         />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl py-2 min-w-48">
+        <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl shadow-xl py-2 min-w-48">
           {options.map((opt) => (
             <button
               key={opt.value}
@@ -196,7 +196,7 @@ function CategoryDropdown({
                 onChange(opt.value);
                 setOpen(false);
               }}
-              className={`w-full text-left px-4 py-2.5 text-sm transition hover:bg-gray-50 ${
+              className={`w-full text-left px-4 py-2.5 text-sm transition hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
                 value === opt.value
                   ? 'text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-900/30'
                   : 'text-gray-700 dark:text-gray-300'
@@ -283,7 +283,7 @@ export default function RealExamPage() {
   return (
     <FadeIn>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-gray-400 dark:text-gray-500">
+        <p className="text-sm text-gray-400">
           Dashboard /{' '}
           <span className="text-gray-600 dark:text-gray-400 font-medium">ทำข้อสอบจริง</span>
         </p>
@@ -305,7 +305,7 @@ export default function RealExamPage() {
         {/* Toolbar */}
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <div className="relative flex-1 min-w-52">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="ค้นหาข้อสอบ..."
@@ -332,12 +332,12 @@ export default function RealExamPage() {
         {/* Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <Loader2 className="w-9 h-9 animate-spin text-rose-500" />
+            <Loader2 className="w-9 h-9 animate-spin text-rose-500 dark:text-rose-400" />
           </div>
         ) : !data || data.items.length === 0 ? (
           <div className="py-24 text-center">
             <BookOpen className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-400 dark:text-gray-500 font-medium">ไม่พบข้อสอบที่ตรงกับการค้นหา</p>
+            <p className="text-gray-400 font-medium">ไม่พบข้อสอบที่ตรงกับการค้นหา</p>
             {(search || category) && (
               <button
                 onClick={() => {
@@ -365,7 +365,7 @@ export default function RealExamPage() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition dark:hover:text-gray-100"
             >
               &lt; Previous
             </button>
@@ -376,7 +376,7 @@ export default function RealExamPage() {
                 className={`w-9 h-9 rounded-full text-sm font-medium transition ${
                   page === p
                     ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 {p}
@@ -385,7 +385,7 @@ export default function RealExamPage() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition dark:hover:text-gray-100"
             >
               Next &gt;
             </button>

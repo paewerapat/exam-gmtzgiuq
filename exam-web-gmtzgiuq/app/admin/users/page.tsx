@@ -22,7 +22,7 @@ import {
 
 function getRoleBadge(role: string) {
   if (role?.toLowerCase() === 'admin') {
-    return 'bg-purple-100 text-purple-700 dark:text-purple-300';
+    return 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-900/40';
   }
   return 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400';
 }
@@ -138,7 +138,7 @@ export default function AdminUsersPage() {
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 value={searchTerm}
@@ -162,7 +162,7 @@ export default function AdminUsersPage() {
                   className={`px-3 py-2 text-sm rounded-lg transition ${
                     roleFilter === role.id
                       ? 'bg-indigo-600 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 border border-gray-200 dark:border-gray-700'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 border border-gray-200 dark:border-gray-700 dark:hover:bg-gray-700'
                   }`}
                 >
                   {role.label}
@@ -208,9 +208,9 @@ export default function AdminUsersPage() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {data.items.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50">
+                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <UserAvatar avatar={user.avatar} name={user.firstName} email={user.email} size={36} />
@@ -246,7 +246,7 @@ export default function AdminUsersPage() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             {user.isEmailVerified ? (
-                              <Mail className="w-4 h-4 text-green-500 mx-auto" />
+                              <Mail className="w-4 h-4 text-green-500 mx-auto dark:text-green-400" />
                             ) : (
                               <Mail className="w-4 h-4 text-gray-300 mx-auto" />
                             )}
@@ -266,7 +266,7 @@ export default function AdminUsersPage() {
                           <td className="px-4 py-3 text-center">
                             <Link
                               href={`/admin/users/${user.id}`}
-                              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline"
+                              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline dark:hover:text-indigo-200"
                             >
                               ดูสถิติ
                             </Link>
@@ -290,7 +290,7 @@ export default function AdminUsersPage() {
                           setCurrentPage((p) => Math.max(1, p - 1))
                         }
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ก่อนหน้า
                       </button>
@@ -301,7 +301,7 @@ export default function AdminUsersPage() {
                           )
                         }
                         disabled={currentPage === data.totalPages}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ถัดไป
                       </button>

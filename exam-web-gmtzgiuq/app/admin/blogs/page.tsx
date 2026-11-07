@@ -68,7 +68,7 @@ export default function AdminBlogsPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
               placeholder="ค้นหาบทความ..."
@@ -119,9 +119,9 @@ export default function AdminBlogsPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {blogs.map((blog) => (
-                <tr key={blog.id} className="hover:bg-gray-50">
+                <tr key={blog.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4">
                     <div>
                       <p className="font-medium text-gray-900 dark:text-gray-100">{blog.title}</p>
@@ -131,8 +131,8 @@ export default function AdminBlogsPage() {
                   <td className="px-6 py-4">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                       blog.category === 'notes'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
                     }`}>
                       {blog.category}
                     </span>
@@ -141,8 +141,8 @@ export default function AdminBlogsPage() {
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         blog.status === 'published'
-                          ? 'bg-green-100 text-green-800 dark:text-green-300'
-                          : 'bg-yellow-100 text-yellow-800 dark:text-yellow-300'
+                          ? 'bg-green-100 text-green-800 dark:text-green-300 dark:bg-green-900/40'
+                          : 'bg-yellow-100 text-yellow-800 dark:text-yellow-300 dark:bg-yellow-900/40'
                       }`}
                     >
                       {blog.status === 'published' ? 'เผยแพร่' : 'แบบร่าง'}
@@ -157,21 +157,21 @@ export default function AdminBlogsPage() {
                       <Link
                         href={`/blogs/${blog.slug}`}
                         target="_blank"
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded"
+                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded dark:hover:text-indigo-300 dark:hover:bg-gray-700"
                         title="View"
                       >
                         <Eye className="w-4 h-4" />
                       </Link>
                       <Link
                         href={`/admin/blogs/${blog.id}`}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded"
+                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded dark:hover:text-indigo-300 dark:hover:bg-gray-700"
                         title="Edit"
                       >
                         <Edit className="w-4 h-4" />
                       </Link>
                       <button
                         onClick={() => handleDelete(blog.id, blog.title)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:bg-gray-100 rounded"
+                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:bg-gray-100 rounded dark:hover:text-red-300 dark:hover:bg-gray-700"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />

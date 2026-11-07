@@ -56,18 +56,18 @@ export default function AdminFeedbackPage() {
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">ยังไม่มี feedback</div>
             ) : (
               <>
-                <ul className="divide-y divide-gray-200">
+                <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                   {data.items.map((fb) => (
                     <li key={fb.id} className="p-4">
                       <div className="flex items-center justify-between gap-3 mb-2">
                         <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                          <User className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                          <User className="w-4 h-4 text-gray-400" />
                           {userLabel(fb.user)}
                           {fb.age != null && (
-                            <span className="text-gray-400 dark:text-gray-500">· อายุ {fb.age}</span>
+                            <span className="text-gray-400">· อายุ {fb.age}</span>
                           )}
                         </div>
-                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                        <span className="text-xs text-gray-400">
                           {new Date(fb.createdAt).toLocaleDateString('th-TH', {
                             year: 'numeric',
                             month: 'short',
@@ -82,7 +82,7 @@ export default function AdminFeedbackPage() {
                         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{fb.details}</p>
                       )}
                       {fb.examId && (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">เกี่ยวกับข้อสอบ: {fb.examId}</p>
+                        <p className="text-xs text-gray-400 mt-2">เกี่ยวกับข้อสอบ: {fb.examId}</p>
                       )}
                     </li>
                   ))}
@@ -97,14 +97,14 @@ export default function AdminFeedbackPage() {
                       <button
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ก่อนหน้า
                       </button>
                       <button
                         onClick={() => setCurrentPage((p) => Math.min(data.totalPages, p + 1))}
                         disabled={currentPage === data.totalPages}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ถัดไป
                       </button>

@@ -108,7 +108,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
           <p className="text-gray-600 dark:text-gray-400 mb-8">บทความที่คุณค้นหาไม่มีอยู่หรือถูกลบออกแล้ว</p>
           <Link
             href="/blogs"
-            className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
+            className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium dark:hover:text-indigo-300"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             กลับหน้าบทความ
@@ -138,7 +138,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
       <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-12">
         <Link
           href="/blogs"
-          className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 mb-8"
+          className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 mb-8 dark:hover:text-indigo-300"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           กลับหน้าบทความ
@@ -178,7 +178,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
         <div className="mt-12 pt-8 border-t">
           <Link
             href="/blogs"
-            className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
+            className="inline-flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium dark:hover:text-indigo-300"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             กลับหน้าบทความ
@@ -187,7 +187,7 @@ export default function BlogDetailClient({ slug }: BlogDetailClientProps) {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12 mt-16">
+      <footer className="bg-gray-900 text-gray-400 py-12 mt-16">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p>&copy; 2024 LUMO. All rights reserved.</p>
         </div>

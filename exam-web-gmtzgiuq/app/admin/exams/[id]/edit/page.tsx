@@ -416,6 +416,7 @@ export default function EditExamPage({ params }: PageProps) {
     const label = passageLabel(passagesRef.current[index], index);
     if (passageHasContent(passagesRef.current[index])) {
       const confirm = await Swal.fire({
+        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
         title: 'ลบบทอ่านนี้?',
         text: `"${label}" จะถูกลบ ข้อที่ใช้บทอ่านนี้จะเปลี่ยนเป็นไม่ใช้บทอ่าน`,
         icon: 'warning',
@@ -633,7 +634,7 @@ export default function EditExamPage({ params }: PageProps) {
         <FadeIn>
           <Link
             href="/admin/exams"
-            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6"
+            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6 dark:hover:text-gray-100"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>กลับรายการชุดข้อสอบ</span>
@@ -646,7 +647,7 @@ export default function EditExamPage({ params }: PageProps) {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  ชื่อชุดข้อสอบ <span className="text-red-500">*</span>
+                  ชื่อชุดข้อสอบ <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -669,7 +670,7 @@ export default function EditExamPage({ params }: PageProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    หมวดหมู่ <span className="text-red-500">*</span>
+                    หมวดหมู่ <span className="text-red-500 dark:text-red-400">*</span>
                   </label>
                   <select
                     value={category}
@@ -696,11 +697,11 @@ export default function EditExamPage({ params }: PageProps) {
               </div>
 
               {/* Exam-level curriculum */}
-              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <BookOpen className="w-4 h-4 text-indigo-500" />
+                  <BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">วิชา</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">(ใช้กำหนดหัวข้อที่เลือกได้ในแต่ละข้อ)</span>
+                  <span className="text-xs text-gray-400">(ใช้กำหนดหัวข้อที่เลือกได้ในแต่ละข้อ)</span>
                 </div>
                 <select
                   value={examSubjectId}
@@ -715,11 +716,11 @@ export default function EditExamPage({ params }: PageProps) {
               </div>
 
               {/* Exam duration */}
-              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <Timer className="w-4 h-4 text-indigo-500" />
+                  <Timer className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">เวลาทำข้อสอบ (นาที)</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">(ปล่อยว่างไว้ = ไม่จับเวลาถอยหลัง)</span>
+                  <span className="text-xs text-gray-400">(ปล่อยว่างไว้ = ไม่จับเวลาถอยหลัง)</span>
                 </div>
                 <input
                   type="number"
@@ -734,10 +735,10 @@ export default function EditExamPage({ params }: PageProps) {
               <ReleaseDateField value={releaseDateInput} onChange={setReleaseDateInput} />
 
               {/* Banner image */}
-              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   ภาพแบนเนอร์ชุดข้อสอบ
-                  <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 font-normal">แนะนำ 16:9 (เช่น 1280×720px)</span>
+                  <span className="ml-2 text-xs text-gray-400 font-normal">แนะนำ 16:9 (เช่น 1280×720px)</span>
                 </label>
                 <ImageUpload
                   value={bannerImage}
@@ -779,11 +780,11 @@ export default function EditExamPage({ params }: PageProps) {
             {questions.map((q, qIndex) => (
                 <div key={q.tempId} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
                   <div
-                    className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100 dark:border-gray-800"
+                    className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100 dark:border-gray-700 dark:hover:bg-gray-700/50"
                     onClick={() => toggleExpand(q.tempId)}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <GripVertical className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                      <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       <span className="font-medium text-gray-900 dark:text-gray-100 flex-shrink-0">ข้อที่ {qIndex + 1}</span>
                       {!q.expanded && q.question && (
                         <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
@@ -811,12 +812,12 @@ export default function EditExamPage({ params }: PageProps) {
                         <button
                           onClick={(e) => { e.stopPropagation(); removeQuestion(q.tempId); }}
                           disabled={saving}
-                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed dark:hover:bg-red-900/30"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
-                      {q.expanded ? <ChevronUp className="w-5 h-5 text-gray-400 dark:text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
+                      {q.expanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
                     </div>
                   </div>
 
@@ -827,7 +828,7 @@ export default function EditExamPage({ params }: PageProps) {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             หัวข้อ
-                            <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 font-normal">(ไม่บังคับ)</span>
+                            <span className="ml-1 text-xs text-gray-400 font-normal">(ไม่บังคับ)</span>
                           </label>
                           <select
                             value={q.topicId}
@@ -870,7 +871,7 @@ export default function EditExamPage({ params }: PageProps) {
                             className={`px-4 py-1.5 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed ${
                               q.type === 'multiple_choice'
                                 ? 'bg-indigo-600 text-white'
-                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50'
+                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                             }`}
                           >
                             ปรนัย
@@ -882,7 +883,7 @@ export default function EditExamPage({ params }: PageProps) {
                             className={`px-4 py-1.5 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed border-l border-gray-200 dark:border-gray-700 ${
                               q.type === 'short_answer'
                                 ? 'bg-indigo-600 text-white'
-                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50'
+                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                             }`}
                           >
                             อัตนัย
@@ -892,7 +893,7 @@ export default function EditExamPage({ params }: PageProps) {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          คำถาม <span className="text-red-500">*</span>
+                          คำถาม <span className="text-red-500 dark:text-red-400">*</span>
                         </label>
                         <textarea
                           value={q.question}
@@ -915,7 +916,7 @@ export default function EditExamPage({ params }: PageProps) {
                       {q.type === 'multiple_choice' && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            ตัวเลือก <span className="text-red-500">*</span>
+                            ตัวเลือก <span className="text-red-500 dark:text-red-400">*</span>
                           </label>
                           <div className="space-y-2">
                             {(q.choices ?? defaultChoices()).map((choice, cIndex) => (
@@ -938,14 +939,14 @@ export default function EditExamPage({ params }: PageProps) {
                                   onChange={(e) => updateChoice(q.tempId, cIndex, 'text', e.target.value)}
                                   placeholder={`ตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
                                   className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                                    choice.isCorrect ? 'border-green-300 bg-green-50 dark:bg-green-900/30' : 'border-gray-300 dark:border-gray-600'
+                                    choice.isCorrect ? 'border-green-300 bg-green-50 dark:bg-green-900/30 dark:border-green-700' : 'border-gray-300 dark:border-gray-600'
                                   }`}
                                 />
                                 {(q.choices ?? []).length > 2 && (
                                   <button
                                     onClick={() => removeChoice(q.tempId, cIndex)}
                                     disabled={saving}
-                                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="p-1 text-gray-400 hover:text-red-500 transition disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -969,7 +970,7 @@ export default function EditExamPage({ params }: PageProps) {
                             <button
                               onClick={() => addChoice(q.tempId)}
                               disabled={saving}
-                              className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed dark:hover:text-indigo-300"
                             >
                               <Plus className="w-3 h-3" /> เพิ่มตัวเลือก
                             </button>
@@ -1000,14 +1001,14 @@ export default function EditExamPage({ params }: PageProps) {
                       {q.type === 'short_answer' && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            คำตอบที่ถูกต้อง <span className="text-red-500">*</span>
+                            คำตอบที่ถูกต้อง <span className="text-red-500 dark:text-red-400">*</span>
                           </label>
                           <input
                             type="text"
                             value={q.correctAnswer}
                             onChange={(e) => updateQuestion(q.tempId, 'correctAnswer', e.target.value)}
                             placeholder="พิมพ์คำตอบที่ถูกต้อง"
-                            className="w-full px-4 py-2.5 border border-green-300 bg-green-50 dark:bg-green-900/30 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-green-300 bg-green-50 dark:bg-green-900/30 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:border-green-700"
                           />
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             ระบบจะตรวจสอบคำตอบของผู้เรียนกับค่านี้ (ตรงทุกตัวอักษร)
@@ -1043,7 +1044,7 @@ export default function EditExamPage({ params }: PageProps) {
 
           <button
             onClick={addQuestion}
-            className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-2 transition mb-6"
+            className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-2 transition mb-6 dark:hover:text-indigo-300"
           >
             <Plus className="w-5 h-5" /> เพิ่มข้อใหม่
           </button>
@@ -1051,7 +1052,7 @@ export default function EditExamPage({ params }: PageProps) {
           <div className="flex justify-end gap-4">
             <Link
               href="/admin/exams"
-              className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 transition font-medium"
+              className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 transition font-medium dark:hover:bg-gray-700/50"
             >
               ยกเลิก
             </Link>

@@ -27,9 +27,9 @@ import {
 import { formatTimeReadable } from '@/lib/exam-utils';
 
 function getScoreBadge(score: number) {
-  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300';
-  return 'bg-red-100 text-red-700 dark:text-red-300';
+  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-900/40';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/40';
+  return 'bg-red-100 text-red-700 dark:text-red-300 dark:bg-red-900/40';
 }
 
 export default function ExamAttemptStatsPage({
@@ -99,7 +99,7 @@ export default function ExamAttemptStatsPage({
           <div className="mb-6">
             <Link
               href="/admin/attempts"
-              className="inline-flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 mb-3"
+              className="inline-flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 mb-3 dark:hover:text-indigo-200"
             >
               <ArrowLeft className="w-4 h-4" />
               กลับไปประวัติการสอบ
@@ -126,7 +126,7 @@ export default function ExamAttemptStatsPage({
                   <span className="text-xs text-gray-500 dark:text-gray-400">ทำข้อสอบ</span>
                 </div>
                 <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  {stats.totalAttempts} <span className="text-xs font-normal text-gray-400 dark:text-gray-500">ครั้ง</span>
+                  {stats.totalAttempts} <span className="text-xs font-normal text-gray-400">ครั้ง</span>
                 </div>
               </div>
 
@@ -136,7 +136,7 @@ export default function ExamAttemptStatsPage({
                   <span className="text-xs text-gray-500 dark:text-gray-400">ผู้เข้าสอบ</span>
                 </div>
                 <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  {stats.uniqueUsers} <span className="text-xs font-normal text-gray-400 dark:text-gray-500">คน</span>
+                  {stats.uniqueUsers} <span className="text-xs font-normal text-gray-400">คน</span>
                 </div>
               </div>
 
@@ -162,17 +162,17 @@ export default function ExamAttemptStatsPage({
 
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <TrendingDown className="w-4 h-4 text-red-500" />
+                  <TrendingDown className="w-4 h-4 text-red-500 dark:text-red-400" />
                   <span className="text-xs text-gray-500 dark:text-gray-400">ต่ำสุด</span>
                 </div>
-                <div className="text-xl font-bold text-red-500">
+                <div className="text-xl font-bold text-red-500 dark:text-red-400">
                   {stats.lowestScore.toFixed(1)}%
                 </div>
               </div>
 
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Clock className="w-4 h-4 text-orange-500" />
+                  <Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" />
                   <span className="text-xs text-gray-500 dark:text-gray-400">เวลาเฉลี่ย</span>
                 </div>
                 <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -218,10 +218,10 @@ export default function ExamAttemptStatsPage({
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {attempts.items.map((attempt, index) => (
-                        <tr key={attempt.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">
+                        <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td className="px-4 py-3 text-sm text-gray-400">
                             {(attempts.page - 1) * attempts.limit + index + 1}
                           </td>
                           <td className="px-4 py-3">
@@ -281,7 +281,7 @@ export default function ExamAttemptStatsPage({
                       <button
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ก่อนหน้า
                       </button>
@@ -292,7 +292,7 @@ export default function ExamAttemptStatsPage({
                           )
                         }
                         disabled={currentPage === attempts.totalPages}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ถัดไป
                       </button>

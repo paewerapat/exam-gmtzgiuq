@@ -35,7 +35,7 @@ interface PageProps {
 function getScoreColor(score: number) {
   if (score >= 70) return 'text-green-600 dark:text-green-400';
   if (score >= 50) return 'text-yellow-600 dark:text-yellow-400';
-  return 'text-red-500';
+  return 'text-red-500 dark:text-red-400';
 }
 
 function getScoreBorderColor(score: number) {
@@ -121,10 +121,10 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
 
   if (!exam || !exam.questions?.length) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 p-8 text-center shadow-sm">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-8 text-center shadow-sm">
         <BookOpen className="w-10 h-10 text-gray-200 mx-auto mb-3" />
         <p className="text-gray-500 dark:text-gray-400">ไม่สามารถโหลดข้อมูลคำถามได้</p>
-        <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">ข้อสอบอาจถูกลบหรือไม่ได้เผยแพร่แล้ว</p>
+        <p className="text-gray-400 text-sm mt-1">ข้อสอบอาจถูกลบหรือไม่ได้เผยแพร่แล้ว</p>
       </div>
     );
   }
@@ -171,7 +171,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
             key={t.key}
             onClick={() => setFilter(t.key)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-              filter === t.key ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50'
+              filter === t.key ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
             }`}
           >
             {t.label} ({t.count})
@@ -180,11 +180,11 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+              <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                 <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium w-14">ข้อที่</th>
                 <th className="text-left px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">คำถาม</th>
                 <th className="text-left px-4 py-3 text-gray-500 dark:text-gray-400 font-medium w-32">Section</th>
@@ -193,7 +193,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                 <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium w-20">View</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
               {filtered.map((item) => {
                 if (!item.question) return null;
                 const globalIdx = attempt.questionIds.indexOf(item.qId) + 1;
@@ -213,14 +213,14 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                 const canExpand = hasExplanation || questionImages.length > 0 || hasChoiceImages || !!passage;
 
                 const statusIcon =
-                  item.status === 'correct' ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto" /> :
+                  item.status === 'correct' ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto dark:text-green-400" /> :
                   item.status === 'incorrect' ? <XCircle className="w-4 h-4 text-red-400 mx-auto" /> :
                   <MinusCircle className="w-4 h-4 text-gray-300 mx-auto" />;
 
                 const userAnswerColor =
                   item.status === 'correct' ? 'text-green-600 dark:text-green-400 font-semibold' :
-                  item.status === 'incorrect' ? 'text-red-500 font-semibold' :
-                  'text-gray-400 dark:text-gray-500';
+                  item.status === 'incorrect' ? 'text-red-500 font-semibold dark:text-red-400' :
+                  'text-gray-400';
 
                 return (
                   <>
@@ -250,8 +250,8 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                       </td>
                       <td className={`px-4 py-3 text-xs ${userAnswerColor}`}>
                         {isMulti
-                          ? userLetters || <span className="text-gray-300 dark:text-gray-600">ไม่ตอบ</span>
-                          : userAnswerChoice ? <ChoiceCell question={item.question} choiceId={userAnswerChoice.id} /> : <span className="text-gray-300">ไม่ตอบ</span>}
+                          ? userLetters || <span className="text-gray-500 dark:text-gray-400">ไม่ตอบ</span>
+                          : userAnswerChoice ? <ChoiceCell question={item.question} choiceId={userAnswerChoice.id} /> : <span className="text-gray-500 dark:text-gray-400">ไม่ตอบ</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {canExpand && (
@@ -260,7 +260,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                             className={`text-xs font-medium px-3 py-1 rounded-lg transition ${
                               isExpanded
                                 ? 'bg-indigo-600 text-white'
-                                : 'border border-indigo-300 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50'
+                                : 'border border-indigo-300 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:border-indigo-700 dark:hover:bg-indigo-900/30'
                             }`}
                           >
                             {isExpanded ? 'ปิด' : 'View'}
@@ -349,9 +349,9 @@ function buildChapterStats(attempt: ExamAttempt, exam: Exam): ChapterStats[] {
 export function ScoreByChapterTable({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | null }) {
   if (!exam || !exam.questions?.length) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 p-8 text-center shadow-sm">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-8 text-center shadow-sm">
         <BookOpen className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-        <p className="text-sm text-gray-400 dark:text-gray-500">ไม่สามารถโหลดข้อมูลได้</p>
+        <p className="text-sm text-gray-400">ไม่สามารถโหลดข้อมูลได้</p>
       </div>
     );
   }
@@ -366,17 +366,17 @@ export function ScoreByChapterTable({ attempt, exam }: { attempt: ExamAttempt; e
   const hasChapterData = chapters.some((c) => c.name !== '(ไม่ระบุบท)');
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
       {!hasChapterData && (
-        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          <p className="text-xs text-amber-700">ข้อสอบนี้ยังไม่มีการแท็กบท — แสดงภาพรวมทั้งชุด</p>
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2 dark:bg-amber-900/30 dark:border-amber-800/50">
+          <BookOpen className="w-4 h-4 text-amber-500 flex-shrink-0 dark:text-amber-400" />
+          <p className="text-xs text-amber-700 dark:text-amber-300">ข้อสอบนี้ยังไม่มีการแท็กบท — แสดงภาพรวมทั้งชุด</p>
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 dark:border-gray-800">
+            <tr className="border-b border-gray-100 dark:border-gray-700">
               <th className="text-left px-5 py-3 text-gray-500 dark:text-gray-400 font-medium">ชื่อบท / Section</th>
               <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">คะแนน %</th>
               <th className="text-center px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">ถูก</th>
@@ -388,14 +388,14 @@ export function ScoreByChapterTable({ attempt, exam }: { attempt: ExamAttempt; e
           <tbody>
             {chapters.map((ch) => {
               const pct = ch.total > 0 ? Math.round((ch.correct / ch.total) * 100) : 0;
-              const pctColor = pct >= 70 ? 'text-green-600 dark:text-green-400' : pct >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-500';
+              const pctColor = pct >= 70 ? 'text-green-600 dark:text-green-400' : pct >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
               return (
-                <tr key={ch.name} className="border-b border-gray-50 hover:bg-gray-50/50">
+                <tr key={ch.name} className="border-b border-gray-50 hover:bg-gray-50/50 dark:border-gray-700 dark:hover:bg-gray-700/50">
                   <td className="px-5 py-3 font-medium text-gray-800 dark:text-gray-200">{ch.name}</td>
                   <td className={`px-4 py-3 text-center font-bold ${pctColor}`}>{pct}%</td>
                   <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{ch.correct}</td>
-                  <td className="px-4 py-3 text-center text-red-500 font-medium">{ch.incorrect}</td>
-                  <td className="px-4 py-3 text-center text-gray-400 dark:text-gray-500">{ch.skipped}</td>
+                  <td className="px-4 py-3 text-center text-red-500 font-medium dark:text-red-400">{ch.incorrect}</td>
+                  <td className="px-4 py-3 text-center text-gray-400">{ch.skipped}</td>
                   <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{ch.total}</td>
                 </tr>
               );
@@ -482,7 +482,7 @@ export default function AttemptDetailPage({ params }: PageProps) {
   return (
     <FadeIn>
       {/* Back */}
-      <Link href="/dashboard/history" className="inline-flex items-center text-gray-400 dark:text-gray-500 hover:text-gray-600 text-sm mb-4 gap-1">
+      <Link href="/dashboard/history" className="inline-flex items-center text-gray-400 hover:text-gray-600 text-sm mb-4 gap-1 dark:hover:text-gray-300">
         <ArrowLeft className="w-4 h-4" /> กลับไปที่หน้าประวัติการสอบ
       </Link>
 
@@ -490,10 +490,10 @@ export default function AttemptDetailPage({ params }: PageProps) {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{attempt.examTitle}</h1>
         <div className="flex items-center gap-3 mt-2">
-          <span className="text-xs font-bold bg-indigo-100 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-full uppercase">
+          <span className="text-xs font-bold bg-indigo-100 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-full uppercase dark:bg-indigo-900/40">
             {catName}
           </span>
-          <span className="text-sm text-gray-400 dark:text-gray-500">
+          <span className="text-sm text-gray-400">
             {new Date(attempt.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
           </span>
         </div>
@@ -502,43 +502,43 @@ export default function AttemptDetailPage({ params }: PageProps) {
       {/* Stats cards */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {/* Score */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
           <p className={`text-3xl font-bold ${getScoreColor(score)}`}>{score}%</p>
           <div className="flex items-center gap-1.5 mt-1">
             <Trophy className={`w-4 h-4 ${getScoreColor(score)}`} />
             <p className="text-xs text-gray-500 dark:text-gray-400">คะแนน (%)</p>
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">สัดส่วนคำตอบที่ถูกต้อง</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">สัดส่วนคำตอบที่ถูกต้อง</p>
         </div>
 
         {/* Correct/Total */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
           <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{attempt.correctAnswers}/{attempt.totalQuestions}</p>
           <div className="flex items-center gap-1.5 mt-1">
-            <Target className="w-4 h-4 text-indigo-500" />
+            <Target className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
             <p className="text-xs text-gray-500 dark:text-gray-400">คะแนนที่ทำได้</p>
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">จำนวนข้อตอบถูกทั้งหมด</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">จำนวนข้อตอบถูกทั้งหมด</p>
         </div>
 
         {/* Time */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
           <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{formatTimeReadable(attempt.totalTime)}</p>
           <div className="flex items-center gap-1.5 mt-1">
-            <Clock className="w-4 h-4 text-blue-500" />
+            <Clock className="w-4 h-4 text-blue-500 dark:text-blue-400" />
             <p className="text-xs text-gray-500 dark:text-gray-400">ระยะเวลา</p>
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">ระยะเวลาที่ใช้จนเสร็จสิ้น</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">ระยะเวลาที่ใช้จนเสร็จสิ้น</p>
         </div>
 
         {/* Unanswered */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
           <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{attempt.unanswered}</p>
           <div className="flex items-center gap-1.5 mt-1">
-            <MinusCircle className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <MinusCircle className="w-4 h-4 text-gray-400" />
             <p className="text-xs text-gray-500 dark:text-gray-400">ข้อที่ได้ตอบ</p>
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">จำนวนคำถามที่ว่างไว้</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">จำนวนคำถามที่ว่างไว้</p>
         </div>
       </div>
 
@@ -549,7 +549,7 @@ export default function AttemptDetailPage({ params }: PageProps) {
           className={`px-5 py-2 rounded-xl text-sm font-semibold transition border ${
             activeTab === 'review'
               ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
           }`}
         >
           เฉลยข้อสอบ
@@ -559,7 +559,7 @@ export default function AttemptDetailPage({ params }: PageProps) {
           className={`px-5 py-2 rounded-xl text-sm font-semibold transition border ${
             activeTab === 'chapter'
               ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
           }`}
         >
           สัดส่วนคะแนนตามบท

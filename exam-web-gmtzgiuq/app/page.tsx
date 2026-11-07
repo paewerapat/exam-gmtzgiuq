@@ -95,7 +95,7 @@ export default function Home() {
             >
               <Link
                 href="/practice"
-                className="bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                className="bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2 dark:hover:bg-gray-700"
               >
                 <Play className="w-5 h-5" />
                 เริ่มฝึกทำโจทย์ ฟรี
@@ -187,8 +187,8 @@ export default function Home() {
                 className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
                 whileHover={{ y: -5 }}
               >
-                <div className="inline-block p-4 bg-indigo-100 rounded-2xl mb-6 group-hover:bg-indigo-600 transition">
-                  <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition" />
+                <div className="inline-block p-4 bg-indigo-100 rounded-2xl mb-6 group-hover:bg-indigo-600 transition dark:bg-indigo-900/40 dark:group-hover:bg-indigo-600">
+                  <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition dark:group-hover:text-white" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
                   ข้อสอบครอบคลุม
@@ -201,8 +201,8 @@ export default function Home() {
                 className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
                 whileHover={{ y: -5 }}
               >
-                <div className="inline-block p-4 bg-purple-100 rounded-2xl mb-6 group-hover:bg-purple-600 transition">
-                  <Target className="w-8 h-8 text-purple-600 dark:text-purple-400 group-hover:text-white transition" />
+                <div className="inline-block p-4 bg-purple-100 rounded-2xl mb-6 group-hover:bg-purple-600 transition dark:bg-purple-900/40 dark:group-hover:bg-purple-600">
+                  <Target className="w-8 h-8 text-purple-600 dark:text-purple-400 group-hover:text-white transition dark:group-hover:text-white" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
                   Feedback ทันที
@@ -215,8 +215,8 @@ export default function Home() {
                 className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
                 whileHover={{ y: -5 }}
               >
-                <div className="inline-block p-4 bg-green-100 rounded-2xl mb-6 group-hover:bg-green-600 transition">
-                  <TrendingUp className="w-8 h-8 text-green-600 dark:text-green-400 group-hover:text-white transition" />
+                <div className="inline-block p-4 bg-green-100 rounded-2xl mb-6 group-hover:bg-green-600 transition dark:bg-green-900/40 dark:group-hover:bg-green-600">
+                  <TrendingUp className="w-8 h-8 text-green-600 dark:text-green-400 group-hover:text-white transition dark:group-hover:text-white" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
                   ติดตามความก้าวหน้า
@@ -229,8 +229,8 @@ export default function Home() {
                 className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
                 whileHover={{ y: -5 }}
               >
-                <div className="inline-block p-4 bg-yellow-100 rounded-2xl mb-6 group-hover:bg-yellow-600 transition">
-                  <Award className="w-8 h-8 text-yellow-600 dark:text-yellow-400 group-hover:text-white transition" />
+                <div className="inline-block p-4 bg-yellow-100 rounded-2xl mb-6 group-hover:bg-yellow-600 transition dark:bg-yellow-900/40 dark:group-hover:bg-yellow-600">
+                  <Award className="w-8 h-8 text-yellow-600 dark:text-yellow-400 group-hover:text-white transition dark:group-hover:text-white" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
                   เนื้อหาจากผู้เชี่ยวชาญ
@@ -243,8 +243,8 @@ export default function Home() {
                 className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm hover:shadow-lg transition group"
                 whileHover={{ y: -5 }}
               >
-                <div className="inline-block p-4 bg-pink-100 rounded-2xl mb-6 group-hover:bg-pink-600 transition">
-                  <Gift className="w-8 h-8 text-pink-600 group-hover:text-white transition" />
+                <div className="inline-block p-4 bg-pink-100 rounded-2xl mb-6 group-hover:bg-pink-600 transition dark:bg-pink-900/40 dark:group-hover:bg-pink-600">
+                  <Gift className="w-8 h-8 text-pink-600 group-hover:text-white transition dark:text-pink-400 dark:group-hover:text-white" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
                   ฝึกได้ฟรี ไม่มีค่าใช้จ่าย
@@ -280,7 +280,7 @@ export default function Home() {
                 </motion.div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">เริ่มต้นใช้งานฟรี</h3>
                 <p className="text-gray-600 dark:text-gray-400">ใช้เวลาไม่ถึง 30 วินาที ไม่ต้องใช้บัตรเครดิต</p>
-                <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200"></div>
+                <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200 dark:bg-gray-700"></div>
               </div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -294,7 +294,7 @@ export default function Home() {
                 </motion.div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">เลือกสิ่งที่คุณอยากสอบ</h3>
                 <p className="text-gray-600 dark:text-gray-400">เลือกหมวดหมู่และข้อสอบที่เหมาะกับคุณได้เลย</p>
-                <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200"></div>
+                <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gray-200 dark:bg-gray-700"></div>
               </div>
             </StaggerItem>
             <StaggerItem direction="up">
@@ -333,16 +333,16 @@ export default function Home() {
                   href="/practice"
                   className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
-                  <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition">
-                    <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition" />
+                  <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition dark:bg-indigo-900/40 dark:group-hover:bg-indigo-600">
+                    <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition dark:group-hover:text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition dark:group-hover:text-indigo-300">
                       เตรียมสอบ A-LEVEL  คณิตศาสตร์
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">5,000+ ข้อ</p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition dark:group-hover:text-indigo-300" />
                 </Link>
               </motion.div>
             </StaggerItem>
@@ -352,16 +352,16 @@ export default function Home() {
                   href="/practice"
                   className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
-                  <div className="p-4 bg-purple-100 rounded-xl mr-4 group-hover:bg-purple-600 transition">
-                    <FileQuestion className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:text-white transition" />
+                  <div className="p-4 bg-purple-100 rounded-xl mr-4 group-hover:bg-purple-600 transition dark:bg-purple-900/40 dark:group-hover:bg-purple-600">
+                    <FileQuestion className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:text-white transition dark:group-hover:text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition dark:group-hover:text-indigo-300">
                       เตรียมสอบ A-LEVEL ชีวะ
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">3,000+ ข้อ</p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition dark:group-hover:text-indigo-300" />
                 </Link>
               </motion.div>
             </StaggerItem>
@@ -371,16 +371,16 @@ export default function Home() {
                   href="/practice"
                   className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
-                  <div className="p-4 bg-green-100 rounded-xl mr-4 group-hover:bg-green-600 transition">
-                    <BarChart3 className="w-6 h-6 text-green-600 dark:text-green-400 group-hover:text-white transition" />
+                  <div className="p-4 bg-green-100 rounded-xl mr-4 group-hover:bg-green-600 transition dark:bg-green-900/40 dark:group-hover:bg-green-600">
+                    <BarChart3 className="w-6 h-6 text-green-600 dark:text-green-400 group-hover:text-white transition dark:group-hover:text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition dark:group-hover:text-indigo-300">
                       เตรียมสอบ A-LEVEL เคมี
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">4,500+ ข้อ</p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition dark:group-hover:text-indigo-300" />
                 </Link>
               </motion.div>
             </StaggerItem>
@@ -390,16 +390,16 @@ export default function Home() {
                   href="/practice"
                   className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
-                  <div className="p-4 bg-orange-100 rounded-xl mr-4 group-hover:bg-orange-600 transition">
-                    <BookOpen className="w-6 h-6 text-orange-600 dark:text-orange-400 group-hover:text-white transition" />
+                  <div className="p-4 bg-orange-100 rounded-xl mr-4 group-hover:bg-orange-600 transition dark:bg-orange-900/40 dark:group-hover:bg-orange-600">
+                    <BookOpen className="w-6 h-6 text-orange-600 dark:text-orange-400 group-hover:text-white transition dark:group-hover:text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition dark:group-hover:text-indigo-300">
                       เตรียมสอบ สอวน. ชีวะ
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">6,000+ ข้อ</p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition dark:group-hover:text-indigo-300" />
                 </Link>
               </motion.div>
             </StaggerItem>
@@ -409,16 +409,16 @@ export default function Home() {
                   href="/practice"
                   className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
-                  <div className="p-4 bg-red-100 rounded-xl mr-4 group-hover:bg-red-600 transition">
-                    <CheckCircle className="w-6 h-6 text-red-600 dark:text-red-400 group-hover:text-white transition" />
+                  <div className="p-4 bg-red-100 rounded-xl mr-4 group-hover:bg-red-600 transition dark:bg-red-900/40 dark:group-hover:bg-red-600">
+                    <CheckCircle className="w-6 h-6 text-red-600 dark:text-red-400 group-hover:text-white transition dark:group-hover:text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition dark:group-hover:text-indigo-300">
                       เตรียมสอบ สอวน. คณิต
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">1,500+ ข้อ</p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition dark:group-hover:text-indigo-300" />
                 </Link>
               </motion.div>
             </StaggerItem>
@@ -428,16 +428,16 @@ export default function Home() {
                   href="/dashboard/library"
                   className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm hover:shadow-lg transition flex items-center group block"
                 >
-                  <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition">
-                    <BookOpen className="w-6 h-6 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition" />
+                  <div className="p-4 bg-indigo-100 rounded-xl mr-4 group-hover:bg-indigo-600 transition dark:bg-indigo-900/40 dark:group-hover:bg-indigo-600">
+                    <BookOpen className="w-6 h-6 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition dark:group-hover:text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 transition dark:group-hover:text-indigo-300">
                       ฝึกทำข้อสอบแยกบท
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">5,000+ ข้อ</p>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition dark:group-hover:text-indigo-300" />
                 </Link>
               </motion.div>
             </StaggerItem>
@@ -473,7 +473,7 @@ export default function Home() {
           >
             <Link
               href="/practice"
-              className="inline-block bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              className="inline-block bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-10 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 dark:hover:bg-gray-700"
             >
               เริ่มฝึกทำโจทย์ ฟรี
             </Link>
@@ -491,7 +491,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 dark:text-gray-500 py-12">
+      <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>

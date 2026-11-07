@@ -445,7 +445,7 @@ export default function ImportExamPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center">
-                  <FileUp className="w-10 h-10 text-gray-400 dark:text-gray-500 mb-2" />
+                  <FileUp className="w-10 h-10 text-gray-400 mb-2" />
                   <p className="text-gray-600 dark:text-gray-400 mb-3">
                     {fileName ? (
                       <>
@@ -494,7 +494,7 @@ export default function ImportExamPage() {
               {exam && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 break-words">
-                    {exam.title ? <LatexText text={exam.title} /> : <span className="text-gray-400 dark:text-gray-500">(ไม่มีชื่อ)</span>}
+                    {exam.title ? <LatexText text={exam.title} /> : <span className="text-gray-400">(ไม่มีชื่อ)</span>}
                   </h2>
                   {exam.description && (
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 whitespace-pre-wrap break-words">{exam.description}</p>
@@ -549,7 +549,7 @@ export default function ImportExamPage() {
                       <label htmlFor="import-subject" className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         <BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                         วิชา
-                        <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">(ใช้จับคู่หัวข้อของแต่ละข้อ)</span>
+                        <span className="text-xs text-gray-400 font-normal">(ใช้จับคู่หัวข้อของแต่ละข้อ)</span>
                       </label>
                       <select
                         id="import-subject"
@@ -717,9 +717,9 @@ function PassageList({
                   )}
                   <StatusBadge status={p.status} />
                   {isOpen ? (
-                    <ChevronUp className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                    <ChevronUp className="w-4 h-4 text-gray-400" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
                   )}
                 </div>
               </button>
@@ -788,7 +788,7 @@ function QuestionRow({
           {q.question.trim() ? (
             <LatexRenderer content={q.question} className="line-clamp-2 break-words" />
           ) : (
-            <span className="text-gray-400 dark:text-gray-500">(ไม่มีโจทย์)</span>
+            <span className="text-gray-400">(ไม่มีโจทย์)</span>
           )}
           {q.passageId && (
             <span className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
@@ -808,7 +808,7 @@ function QuestionRow({
               <span className="break-words">{q.topicName}</span>
             </span>
           ) : (
-            <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+            <span className="text-xs text-gray-400">-</span>
           )}
         </td>
         <td className="px-4 py-3">
@@ -831,13 +831,13 @@ function QuestionRow({
               )}
             </div>
           ) : (
-            <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+            <span className="text-xs text-gray-400">-</span>
           )}
         </td>
         <td className="px-4 py-3">
           <StatusBadge status={q.status} />
         </td>
-        <td className="px-2 py-3 text-gray-400 dark:text-gray-500">
+        <td className="px-2 py-3 text-gray-400">
           {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </td>
       </tr>

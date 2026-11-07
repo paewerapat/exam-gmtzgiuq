@@ -135,7 +135,7 @@ function PassagePanelInner({ passage, memory, mode = 'practice', className = '' 
           <PassageTitle passage={passage} />
         </span>
         <ChevronDown
-          className={`w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500 transition-transform ${collapsed ? '' : 'rotate-180'}`}
+          className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${collapsed ? '' : 'rotate-180'}`}
         />
       </button>
 

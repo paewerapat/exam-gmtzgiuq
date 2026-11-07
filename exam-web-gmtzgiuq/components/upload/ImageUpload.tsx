@@ -249,7 +249,7 @@ export default function ImageUpload({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled}
-              className="p-2 bg-white dark:bg-gray-800 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100"
+              className="p-2 bg-white dark:bg-gray-800 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               title="เปลี่ยนรูป"
             >
               <Upload className="w-5 h-5" />
@@ -258,7 +258,7 @@ export default function ImageUpload({
               type="button"
               onClick={handleRemove}
               disabled={disabled}
-              className="p-2 bg-white dark:bg-gray-800 rounded-full text-red-600 dark:text-red-400 hover:bg-red-50"
+              className="p-2 bg-white dark:bg-gray-800 rounded-full text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
               title="ลบรูป"
             >
               <X className="w-5 h-5" />
@@ -284,11 +284,11 @@ export default function ImageUpload({
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <ImageIcon className="w-10 h-10 text-gray-400 dark:text-gray-500 mb-2" />
+              <ImageIcon className="w-10 h-10 text-gray-400 mb-2" />
               <p className="text-gray-600 dark:text-gray-400 mb-1">
                 ลากไฟล์มาวางที่นี่ หรือ <span className="text-indigo-600 dark:text-indigo-400">คลิกเพื่อเลือก</span>
               </p>
-              <p className="text-sm text-gray-400 dark:text-gray-500">PNG, JPG, GIF (สูงสุด 5MB)</p>
+              <p className="text-sm text-gray-400">PNG, JPG, GIF (สูงสุด 5MB)</p>
             </div>
           )}
         </div>

@@ -52,7 +52,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
   const initial = (user?.firstName?.[0] || user?.email?.[0] || 'U').toUpperCase();
 
   return (
-    <aside className="w-64 bg-white dark:bg-gray-800 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-gray-100 dark:border-gray-800 flex-shrink-0">
+    <aside className="w-64 bg-white dark:bg-gray-800 sticky top-0 h-screen overflow-y-auto flex flex-col border-r border-gray-100 dark:border-gray-700 flex-shrink-0">
       {/* Logo */}
       <div className="px-6 pt-7 pb-5">
         <Link href="/" className="flex items-center">
@@ -73,17 +73,17 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
                   ? `${user.firstName} ${user.lastName || ''}`.trim()
                   : user.email?.split('@')[0]}
               </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{user.email}</p>
+              <p className="text-xs text-gray-400 truncate mt-0.5">{user.email}</p>
             </div>
           </>
         ) : (
           <>
-            <div className="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-              <User className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+            <div className="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 dark:bg-gray-700">
+              <User className="w-5 h-5 text-gray-400" />
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-gray-700 dark:text-gray-300 text-sm">ผู้เยี่ยมชม</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">ยังไม่ได้เข้าสู่ระบบ</p>
+              <p className="text-xs text-gray-400 mt-0.5">ยังไม่ได้เข้าสู่ระบบ</p>
             </div>
           </>
         )}
@@ -103,7 +103,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
               <button
                 key="feedback"
                 onClick={() => setFeedbackOpen(true)}
-                className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-gray-500 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-800"
+                className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-gray-500 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-800 dark:hover:bg-gray-700/50 dark:hover:text-gray-100"
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
                 {item.label}
@@ -123,7 +123,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
               className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isActive
                   ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-800'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-800 dark:hover:bg-gray-700/50 dark:hover:text-gray-100'
               }`}
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
@@ -136,11 +136,11 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       {/* Login / Logout */}
-      <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+      <div className="p-4 border-t border-gray-100 dark:border-gray-700">
         {user ? (
           <button
             onClick={logout}
-            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-800 transition-all"
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-800 transition-all dark:hover:bg-gray-700/50 dark:hover:text-gray-100"
           >
             <LogOut className="w-5 h-5" />
             ออกจากระบบ
@@ -148,7 +148,7 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
         ) : (
           <Link
             href="/login"
-            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 transition-all"
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 transition-all dark:hover:bg-indigo-900/30"
           >
             <LogIn className="w-5 h-5" />
             เข้าสู่ระบบ

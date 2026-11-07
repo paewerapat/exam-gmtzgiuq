@@ -29,9 +29,9 @@ import {
 import { formatTimeReadable } from '@/lib/exam-utils';
 
 function getScoreBadge(score: number) {
-  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300';
-  return 'bg-red-100 text-red-700 dark:text-red-300';
+  if (score >= 80) return 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-900/40';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/40';
+  return 'bg-red-100 text-red-700 dark:text-red-300 dark:bg-red-900/40';
 }
 
 export default function AdminUserDetailPage({
@@ -144,7 +144,7 @@ export default function AdminUserDetailPage({
           <div className="mb-6">
             <Link
               href="/admin/users"
-              className="inline-flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 mb-3"
+              className="inline-flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 mb-3 dark:hover:text-indigo-200"
             >
               <ArrowLeft className="w-4 h-4" />
               กลับไปรายชื่อผู้ใช้
@@ -169,14 +169,14 @@ export default function AdminUserDetailPage({
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                       user.role?.toLowerCase() === 'admin'
-                        ? 'bg-purple-100 text-purple-700 dark:text-purple-300'
+                        ? 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-900/40'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
                     }`}
                   >
                     <Shield className="w-3 h-3" />
                     {user.role?.toLowerCase() === 'admin' ? 'Admin' : 'User'}
                   </span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                  <span className="text-xs text-gray-400">
                     สมัคร{' '}
                     {new Date(user.createdAt).toLocaleDateString('th-TH', {
                       year: 'numeric',
@@ -200,7 +200,7 @@ export default function AdminUserDetailPage({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-indigo-100 rounded-lg">
+                <div className="p-2 bg-indigo-100 rounded-lg dark:bg-indigo-900/40">
                   <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">ทำข้อสอบ</span>
@@ -213,7 +213,7 @@ export default function AdminUserDetailPage({
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-yellow-100 rounded-lg">
+                <div className="p-2 bg-yellow-100 rounded-lg dark:bg-yellow-900/40">
                   <TrendingUp className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนเฉลี่ย</span>
@@ -225,7 +225,7 @@ export default function AdminUserDetailPage({
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-green-100 rounded-lg">
+                <div className="p-2 bg-green-100 rounded-lg dark:bg-green-900/40">
                   <Trophy className="w-5 h-5 text-green-600 dark:text-green-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">คะแนนสูงสุด</span>
@@ -237,7 +237,7 @@ export default function AdminUserDetailPage({
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
+                <div className="p-2 bg-blue-100 rounded-lg dark:bg-blue-900/40">
                   <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">เวลารวม</span>
@@ -323,14 +323,14 @@ export default function AdminUserDetailPage({
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {attempts.items.map((attempt) => (
-                        <tr key={attempt.id} className="hover:bg-gray-50">
+                        <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-3">
                             {attempt.examId ? (
                               <Link
                                 href={`/admin/attempts/exam/${attempt.examId}`}
-                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline"
+                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:underline dark:hover:text-indigo-200"
                               >
                                 {attempt.examTitle}
                               </Link>
@@ -398,7 +398,7 @@ export default function AdminUserDetailPage({
                           setCurrentPage((p) => Math.max(1, p - 1))
                         }
                         disabled={currentPage === 1}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ก่อนหน้า
                       </button>
@@ -409,7 +409,7 @@ export default function AdminUserDetailPage({
                           )
                         }
                         disabled={currentPage === attempts.totalPages}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-700/50"
                       >
                         ถัดไป
                       </button>

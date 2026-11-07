@@ -69,6 +69,9 @@ jest.mock('@/components/animations/FadeIn', () => ({
 }));
 jest.mock('react-toastify', () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 
+// ฟอร์ม admin ขนาดใหญ่ render ช้าเมื่อรัน jest ทั้งชุดแบบขนาน (เกิน default 5s) — ขยาย timeout เฉพาะไฟล์นี้
+jest.setTimeout(30000);
+
 const API = 'http://localhost:3001/uploads';
 const saved = (name: string) => `${API}/${name}`;
 

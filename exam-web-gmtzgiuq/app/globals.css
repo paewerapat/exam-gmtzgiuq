@@ -38,7 +38,126 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: #6366f1 !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  /* focus ring ต้องเห็นชัดทั้งสองโหมด (เดิม alpha 0.1 แทบมองไม่เห็น) */
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.45);
+}
+
+html.dark input:focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.6);
+}
+
+/* ช่องที่ invalid ต้องคงขอบแดงตอน focus (กฎ focus ด้านบนใช้ !important ทับ class ขอบแดง) */
+input[aria-invalid="true"]:focus,
+textarea[aria-invalid="true"]:focus,
+select[aria-invalid="true"]:focus {
+  border-color: #ef4444 !important; /* red-500 */
+}
+
+html.dark input[aria-invalid="true"]:focus,
+html.dark textarea[aria-invalid="true"]:focus,
+html.dark select[aria-invalid="true"]:focus {
+  border-color: #f87171 !important; /* red-400 */
+}
+
+/* Quill (react-quill-new, theme snow) — โหมดมืด: โทนเดียวกับการ์ด admin (gray-800/900, ขอบ gray-700) */
+html.dark .ql-snow.ql-toolbar,
+html.dark .rich-text-editor .ql-toolbar {
+  background: #1f2937; /* gray-800 */
+  border-color: #374151; /* gray-700 */
+}
+
+html.dark .ql-snow.ql-container,
+html.dark .rich-text-editor .ql-container {
+  background: #111827; /* gray-900 */
+  border-color: #374151;
+  color: #f3f4f6; /* gray-100 */
+}
+
+html.dark .ql-snow .ql-stroke {
+  stroke: #d1d5db; /* gray-300 */
+}
+
+html.dark .ql-snow .ql-fill,
+html.dark .ql-snow .ql-stroke.ql-fill {
+  fill: #d1d5db;
+}
+
+html.dark .ql-snow .ql-picker {
+  color: #d1d5db;
+}
+
+html.dark .ql-snow .ql-picker-options {
+  background: #1f2937;
+  border-color: #374151 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+html.dark .ql-snow .ql-picker.ql-expanded .ql-picker-label {
+  border-color: #374151;
+}
+
+html.dark .ql-snow.ql-toolbar button:hover .ql-stroke,
+html.dark .ql-snow.ql-toolbar button:focus .ql-stroke,
+html.dark .ql-snow.ql-toolbar button.ql-active .ql-stroke,
+html.dark .ql-snow.ql-toolbar .ql-picker-label:hover .ql-stroke,
+html.dark .ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-stroke {
+  stroke: #818cf8; /* indigo-400 */
+}
+
+html.dark .ql-snow.ql-toolbar button:hover .ql-fill,
+html.dark .ql-snow.ql-toolbar button:focus .ql-fill,
+html.dark .ql-snow.ql-toolbar button.ql-active .ql-fill,
+html.dark .ql-snow.ql-toolbar .ql-picker-label:hover .ql-fill,
+html.dark .ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-fill {
+  fill: #818cf8;
+}
+
+html.dark .ql-snow.ql-toolbar button:hover,
+html.dark .ql-snow.ql-toolbar button.ql-active,
+html.dark .ql-snow.ql-toolbar .ql-picker-label:hover,
+html.dark .ql-snow.ql-toolbar .ql-picker-label.ql-active,
+html.dark .ql-snow.ql-toolbar .ql-picker-item:hover,
+html.dark .ql-snow.ql-toolbar .ql-picker-item.ql-selected {
+  color: #818cf8;
+}
+
+html.dark .ql-snow .ql-editor.ql-blank::before {
+  color: #9ca3af; /* gray-400 */
+}
+
+html.dark .ql-snow .ql-tooltip {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f3f4f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* ลิงก์ใน tooltip (Save / Edit / Remove / preview) เดิม #06c contrast ต่ำบน gray-800 */
+html.dark .ql-snow .ql-tooltip a,
+html.dark .ql-snow .ql-tooltip a.ql-action,
+html.dark .ql-snow .ql-tooltip a.ql-remove,
+html.dark .ql-snow .ql-tooltip a.ql-preview,
+html.dark .ql-snow .ql-editor a {
+  color: #818cf8; /* indigo-400 */
+}
+
+html.dark .ql-snow .ql-tooltip a:hover {
+  color: #a5b4fc; /* indigo-300 */
+}
+
+html.dark .ql-snow .ql-tooltip input[type="text"] {
+  background: #111827;
+  border-color: #4b5563; /* gray-600 */
+  color: #f3f4f6;
+}
+
+html.dark .ql-snow .ql-editor pre.ql-syntax,
+html.dark .ql-snow .ql-editor code {
+  background: #0f172a;
+  color: #e5e7eb;
 }
 
 /* Better input styling */

@@ -21,6 +21,9 @@ jest.mock('@/components/animations/FadeIn', () => ({
 }));
 jest.mock('react-toastify', () => ({ toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() } }));
 
+// ฟอร์ม admin ขนาดใหญ่ render ช้าเมื่อรัน jest ทั้งชุดแบบขนาน (เกิน default 5s) — ขยาย timeout เฉพาะไฟล์นี้
+jest.setTimeout(30000);
+
 // 2026-11-05 14:30 เวลาไทย
 const NOW = new Date('2026-11-05T07:30:00.000Z');
 

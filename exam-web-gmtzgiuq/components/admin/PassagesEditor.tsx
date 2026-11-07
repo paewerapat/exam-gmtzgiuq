@@ -95,9 +95,9 @@ export default function PassagesEditor({
                     className="flex items-center gap-2 min-w-0 text-left"
                   >
                     {isCollapsed ? (
-                      <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                      <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     ) : (
-                      <ChevronUp className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                      <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     )}
                     <span className="font-medium text-gray-900 dark:text-gray-100 flex-shrink-0">{label}</span>
                     {p.title.trim() && (
@@ -120,7 +120,7 @@ export default function PassagesEditor({
                       disabled={disabled}
                       aria-label={`ลบ${label}`}
                       title="ลบบทอ่าน"
-                      className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -135,7 +135,7 @@ export default function PassagesEditor({
                     <div>
                       <label htmlFor={titleId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         ชื่อบทอ่าน
-                        <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 font-normal">
+                        <span className="ml-1 text-xs text-gray-400 font-normal">
                           (ไม่บังคับ เช่น &quot;ใช้สถานการณ์ต่อไปนี้ตอบคำถามข้อ 28–30&quot;)
                         </span>
                       </label>

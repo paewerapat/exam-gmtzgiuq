@@ -36,7 +36,7 @@ export default function ExamHeader({
         {/* Back link */}
         <Link
           href={backUrl}
-          className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500 hover:text-gray-700 transition text-sm font-medium min-w-[90px]"
+          className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 transition text-sm font-medium min-w-[90px] dark:hover:text-gray-200"
         >
           <ChevronLeft className="w-4 h-4" />
           Go back
@@ -46,7 +46,7 @@ export default function ExamHeader({
         <div className="flex-1 flex flex-col items-center">
           <div className="flex items-center gap-2">
             <Timer className={`w-5 h-5 ${isPaused ? 'text-orange-400' : 'text-gray-600 dark:text-gray-400'}`} />
-            <span className={`font-bold text-2xl tabular-nums tracking-tight ${isPaused ? 'text-orange-500' : 'text-gray-900 dark:text-gray-100'}`}>
+            <span className={`font-bold text-2xl tabular-nums tracking-tight ${isPaused ? 'text-orange-500 dark:text-orange-400' : 'text-gray-900 dark:text-gray-100'}`}>
               {formatTime(timer)}
             </span>
             {hasDuration && (
@@ -56,7 +56,7 @@ export default function ExamHeader({
                 title={isPaused ? 'ทำต่อ' : 'หยุดชั่วคราว'}
                 className={`ml-1 p-1.5 rounded-full transition ${
                   isPaused
-                    ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
+                    ? 'bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-400 dark:hover:bg-orange-800/50'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
@@ -67,7 +67,7 @@ export default function ExamHeader({
             )}
           </div>
           {isPaused && (
-            <span className="text-xs text-orange-500 font-medium mt-0.5">หยุดชั่วคราว</span>
+            <span className="text-xs text-orange-500 font-medium mt-0.5 dark:text-orange-400">หยุดชั่วคราว</span>
           )}
         </div>
 

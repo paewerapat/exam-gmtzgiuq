@@ -11,13 +11,13 @@ interface ReleaseDateFieldProps {
 /** ช่อง "วันเผยแพร่" ในฟอร์มชุดข้อสอบของแอดมิน (แปลงเป็น ISO ด้วย lib/release-date ตอนบันทึก) */
 export default function ReleaseDateField({ value, onChange }: ReleaseDateFieldProps) {
   return (
-    <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+    <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
         <CalendarClock className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
         <label htmlFor="exam-release-date" className="text-sm font-medium text-gray-700 dark:text-gray-300">
           วันเผยแพร่
         </label>
-        <span className="text-xs text-gray-400 dark:text-gray-500">
+        <span className="text-xs text-gray-400">
           (ใช้จัดลำดับบนหน้าเว็บ (ใหม่สุดอยู่บน) · เวลาไทย · ไม่ได้ซ่อนชุดข้อสอบก่อนถึงวัน)
         </span>
       </div>

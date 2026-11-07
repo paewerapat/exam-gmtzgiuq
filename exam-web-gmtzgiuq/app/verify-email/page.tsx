@@ -6,6 +6,7 @@ import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
 import Link from 'next/link';
+import { AuthShell, authPrimaryButtonClass, authSecondaryButtonClass } from '@/components/auth/AuthShell';
 
 const VERIFY_EMAIL_MUTATION = gql`
   mutation VerifyEmail($token: String!) {
@@ -55,75 +56,63 @@ function VerifyEmailContent() {
   }, [token, verifyEmailMutation, router]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center py-12 px-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
-          {status === 'loading' && (
-            <>
-              <div className="inline-block p-4 bg-indigo-100 rounded-full mb-4">
-                <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Verifying Your Email
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">Please wait while we verify your email address...</p>
-            </>
-          )}
-
-          {status === 'success' && (
-            <>
-              <div className="inline-block p-4 bg-green-100 rounded-full mb-4">
-                <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Email Verified!
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Redirecting to login page...</p>
-            </>
-          )}
-
-          {status === 'error' && (
-            <>
-              <div className="inline-block p-4 bg-red-100 rounded-full mb-4">
-                <XCircle className="w-12 h-12 text-red-600 dark:text-red-400" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Verification Failed
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
-              <div className="space-y-3">
-                <Link
-                  href="/login"
-                  className="block w-full bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition"
-                >
-                  Go to Login
-                </Link>
-                <Link
-                  href="/register"
-                  className="block w-full bg-gray-200 text-gray-700 dark:text-gray-300 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-300 transition"
-                >
-                  Create New Account
-                </Link>
-              </div>
-            </>
-          )}
+    <AuthShell cardClassName="text-center">
+      {status === 'loading' && (
+        <div role="status" aria-live="polite">
+          <div className="inline-block p-4 bg-indigo-100 dark:bg-indigo-900/30 rounded-full mb-4">
+            <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            Verifying Your Email
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">Please wait while we verify your email address...</p>
         </div>
-      </div>
-    </div>
+      )}
+
+      {status === 'success' && (
+        <div role="status" aria-live="polite">
+          <div className="inline-block p-4 bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+            <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" aria-hidden="true" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            Email Verified!
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Redirecting to login page...</p>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div role="alert">
+          <div className="inline-block p-4 bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+            <XCircle className="w-12 h-12 text-red-600 dark:text-red-400" aria-hidden="true" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            Verification Failed
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+          <div className="space-y-3">
+            <Link href="/login" className={authPrimaryButtonClass}>
+              Go to Login
+            </Link>
+            <Link href="/register" className={authSecondaryButtonClass}>
+              Create New Account
+            </Link>
+          </div>
+        </div>
+      )}
+    </AuthShell>
   );
 }
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center py-12 px-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
-          <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
-        </div>
+    <AuthShell cardClassName="text-center">
+      <div role="status" aria-live="polite">
+        <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin motion-reduce:animate-none mx-auto mb-4" aria-hidden="true" />
+        <p className="text-gray-600 dark:text-gray-400">Loading...</p>
       </div>
-    </div>
+    </AuthShell>
   );
 }
 
