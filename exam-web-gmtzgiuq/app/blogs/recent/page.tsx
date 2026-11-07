@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { BookOpen, Calendar, Clock, Eye, ArrowLeft, Search, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -53,7 +53,7 @@ function BlogCard({ blog }: { blog: Blog }) {
               </div>
               <div className="flex items-center">
                 <Clock className="w-4 h-4 mr-1" />
-                {calculateReadTime(blog.content)} เธเธฒเธ—เธต
+                {calculateReadTime(blog.content)} นาที
               </div>
             </div>
             <div className="flex items-center">
@@ -63,7 +63,7 @@ function BlogCard({ blog }: { blog: Blog }) {
           </div>
 
           <span className="inline-block mt-4 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 font-medium dark:group-hover:text-indigo-300">
-            เธญเนเธฒเธเน€เธเธดเนเธกเน€เธ•เธดเธก โ’
+            อ่านเพิ่มเติม →
           </span>
         </div>
       </article>
@@ -183,7 +183,7 @@ export default function RecentBlogsPage() {
       });
       setData(result);
     } catch (err) {
-      setError('เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เนเธซเธฅเธ”เธเธ—เธเธงเธฒเธกเนเธ”เน เธเธฃเธธเธ“เธฒเธฅเธญเธเนเธซเธกเนเธญเธตเธเธเธฃเธฑเนเธ');
+      setError('ไม่สามารถโหลดบทความได้ กรุณาลองใหม่อีกครั้ง');
       console.error('Failed to fetch blogs:', err);
     } finally {
       setLoading(false);
@@ -204,16 +204,16 @@ export default function RecentBlogsPage() {
             className="inline-flex items-center text-indigo-200 hover:text-white mb-4 transition"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            เธเธฅเธฑเธเนเธเธซเธเนเธฒเธเธ—เธเธงเธฒเธก
+            กลับไปหน้าบทความ
           </Link>
           <div className="flex items-center mb-4">
             <span className="bg-white/20 text-white p-3 rounded-lg mr-4">
               <BookOpen className="w-8 h-8" />
             </span>
-            <h1 className="text-4xl md:text-5xl font-bold">เธเธ—เธเธงเธฒเธกเธฅเนเธฒเธชเธธเธ”</h1>
+            <h1 className="text-4xl md:text-5xl font-bold">บทความล่าสุด</h1>
           </div>
           <p className="text-xl text-indigo-100 max-w-2xl">
-            เธเธ—เธเธงเธฒเธกเธ—เธฑเนเธเธซเธกเธ”เน€เธฃเธตเธขเธเธเธฒเธเธฅเนเธฒเธชเธธเธ”เนเธเน€เธเนเธฒเธชเธธเธ”
+            บทความทั้งหมดเรียงจากล่าสุดไปเก่าสุด
           </p>
         </div>
       </div>
@@ -225,7 +225,7 @@ export default function RecentBlogsPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="เธเนเธเธซเธฒเธเธ—เธเธงเธฒเธก..."
+              placeholder="ค้นหาบทความ..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
@@ -239,14 +239,14 @@ export default function RecentBlogsPage() {
             {loading ? (
               <span className="inline-flex items-center">
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                เธเธณเธฅเธฑเธเนเธซเธฅเธ”...
+                กำลังโหลด...
               </span>
             ) : (
               <>
-                เนเธชเธ”เธ <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.total || 0}</span> เธเธ—เธเธงเธฒเธก
+                แสดง <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.total || 0}</span> บทความ
                 {debouncedSearch && (
                   <span className="ml-2">
-                    เธชเธณเธซเธฃเธฑเธ "<span className="font-medium">{debouncedSearch}</span>"
+                    สำหรับ "<span className="font-medium">{debouncedSearch}</span>"
                   </span>
                 )}
               </>
@@ -262,7 +262,7 @@ export default function RecentBlogsPage() {
               onClick={fetchBlogs}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
             >
-              เธฅเธญเธเนเธซเธกเนเธญเธตเธเธเธฃเธฑเนเธ
+              ลองใหม่อีกครั้ง
             </button>
           </div>
         )}
@@ -295,8 +295,8 @@ export default function RecentBlogsPage() {
             ) : (
               <div className="text-center py-16">
                 <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">เนเธกเนเธเธเธเธ—เธเธงเธฒเธก</h3>
-                <p className="text-gray-500 dark:text-gray-400">เธฅเธญเธเธเนเธเธซเธฒเธ”เนเธงเธขเธเธณเธญเธทเนเธเธ”เธนเธเธฐเธเธฃเธฑเธ</p>
+                <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">ไม่พบบทความ</h3>
+                <p className="text-gray-500 dark:text-gray-400">ลองค้นหาด้วยคำอื่นดูนะครับ</p>
               </div>
             )}
           </>

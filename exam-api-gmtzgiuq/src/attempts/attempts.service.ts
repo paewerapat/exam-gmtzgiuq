@@ -1,8 +1,14 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { ExamAttempt } from './attempt.entity';
 import {
+  StartAttemptDto,
   SubmitAttemptInput,
   PaginatedAttempts,
   AttemptStats,
@@ -21,35 +27,34 @@ export class AttemptsService {
 
   // ── IN-PROGRESS ────────────────────────────────────────────
 
+  /**
+   * Opening the exam page starts an attempt every time. If the user already
+   * has an in-progress attempt for this exam that was never touched (no
+   * answers, still on the first question), that row is reused instead of
+   * abandoning it and inserting another, so just visiting the page does not
+   * pile up rows. In-progress attempts with answers keep the old behaviour
+   * (abandoned, then a new row is created).
+   *
+   * Starts of the same user run one at a time (row lock on the user inside a
+   * transaction), so two simultaneous requests (React StrictMode, double
+   * click, two tabs) end up with the same single row instead of two.
+   */
   async startInProgress(
     userId: string,
-    data: {
-      examId: string;
-      examTitle: string;
-      category: QuestionCategory;
-      totalQuestions: number;
-      questionIds: string[];
-      startedAt: string;
-      mode?: string;
-    },
+    data: StartAttemptDto,
   ): Promise<ExamAttempt> {
-    // Abandon any existing in-progress attempt for the same exam
-    // Use short lock timeout to avoid hanging if row is locked
-    try {
-      await this.attemptsRepository.query('SET innodb_lock_wait_timeout = 3');
-      await this.attemptsRepository.update(
-        { userId, examId: data.examId, status: 'in_progress' },
-        { status: 'abandoned' },
-      );
-    } catch {
-      // If lock timeout or error, skip abandoning — proceed to create new attempt
-    } finally {
-      await this.attemptsRepository.query('SET innodb_lock_wait_timeout = 50').catch(() => {});
+    // The controller validates the body; this also guards other callers.
+    // Without examId TypeORM would drop the key from `where` and match the
+    // user's in-progress attempts of every exam.
+    if (!userId || typeof data?.examId !== 'string' || !data.examId) {
+      throw new BadRequestException('ต้องระบุข้อสอบ (examId)');
+    }
+    const startedAt = new Date(data.startedAt);
+    if (Number.isNaN(startedAt.getTime())) {
+      throw new BadRequestException('เวลาเริ่มทำข้อสอบ (startedAt) ไม่ถูกต้อง');
     }
 
-    const attempt = this.attemptsRepository.create({
-      userId,
-      examId: data.examId,
+    const fields = {
       examTitle: data.examTitle,
       category: data.category,
       totalQuestions: data.totalQuestions,
@@ -62,12 +67,124 @@ export class AttemptsService {
       unanswered: data.totalQuestions,
       score: 0,
       totalTime: 0,
-      status: 'in_progress',
       mode: data.mode ?? 'practice',
-      startedAt: new Date(data.startedAt),
-    });
+      startedAt,
+    };
 
-    return this.attemptsRepository.save(attempt);
+    const attemptId = await this.attemptsRepository.manager.transaction(
+      async (em) => {
+        const repo = em.getRepository(ExamAttempt);
+        const restoreLockTimeout = await this.shortLockTimeout(em);
+        try {
+          try {
+            await em.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [
+              userId,
+            ]);
+          } catch {
+            // Lock timeout: carry on unserialized (same as before this change)
+          }
+
+          const inProgress = (
+            await repo.find({
+              where: { userId, examId: data.examId, status: 'in_progress' },
+              order: { createdAt: 'ASC', id: 'ASC' },
+              loadEagerRelations: false,
+            })
+          ).filter((a) => a.examId === data.examId);
+
+          const reusable = inProgress.find((a) => this.isUntouched(a));
+          const extraUntouched = inProgress
+            .filter((a) => a !== reusable && this.isUntouched(a))
+            .map((a) => a.id);
+          const touched = inProgress
+            .filter((a) => !this.isUntouched(a))
+            .map((a) => a.id);
+
+          // Extra untouched rows hold no data (left over from earlier
+          // concurrent starts) — remove them rather than adding abandoned rows.
+          if (extraUntouched.length > 0) {
+            await repo.delete({ id: In(extraUntouched) });
+          }
+
+          if (touched.length > 0) {
+            try {
+              await repo.update(
+                { id: In(touched), status: 'in_progress' },
+                { status: 'abandoned' },
+              );
+            } catch {
+              // If lock timeout or error, skip abandoning — proceed to start
+            }
+          }
+
+          if (reusable) {
+            // createdAt is the attempt date shown in history/dashboard and
+            // the sort key of findMyAttempts, so it must be the time of this
+            // start, not of the first visit. save() never writes a
+            // @CreateDateColumn, hence update().
+            await repo.update(reusable.id, {
+              ...fields,
+              createdAt: () => 'CURRENT_TIMESTAMP(6)',
+            });
+            return reusable.id;
+          }
+
+          const saved = await repo.save(
+            repo.create({
+              ...fields,
+              userId,
+              examId: data.examId,
+              status: 'in_progress',
+            }),
+          );
+          return saved.id;
+        } finally {
+          await restoreLockTimeout();
+        }
+      },
+    );
+
+    // Same shape for a new and a reused attempt: no eager user/exam relations
+    return this.attemptsRepository.findOneOrFail({
+      where: { id: attemptId },
+      loadEagerRelations: false,
+    });
+  }
+
+  /**
+   * Lowers innodb_lock_wait_timeout on the transaction's own connection so a
+   * locked row cannot hang the request, and returns a function that puts the
+   * previous value back before the connection goes back to the pool.
+   */
+  private async shortLockTimeout(
+    em: EntityManager,
+  ): Promise<() => Promise<void>> {
+    try {
+      const rows: unknown = await em.query(
+        'SELECT @@SESSION.innodb_lock_wait_timeout AS t',
+      );
+      const previous = Number(
+        Array.isArray(rows) ? (rows[0] as { t?: unknown })?.t : undefined,
+      );
+      await em.query('SET SESSION innodb_lock_wait_timeout = 5');
+      const restoreTo =
+        Number.isInteger(previous) && previous > 0 ? previous : 50;
+      return async () => {
+        await em
+          .query('SET SESSION innodb_lock_wait_timeout = ?', [restoreTo])
+          .catch(() => {});
+      };
+    } catch {
+      return () => Promise.resolve();
+    }
+  }
+
+  /** In progress with no answer given and still on the first question. */
+  private isUntouched(attempt: ExamAttempt): boolean {
+    const answered = Object.values(attempt.answers ?? {}).some(
+      (value) => value !== null && value !== undefined && value !== '',
+    );
+    return !answered && (attempt.currentIndex ?? 0) === 0;
   }
 
   async updateProgress(
@@ -282,21 +399,28 @@ export class AttemptsService {
     };
   }
 
-  async getStats(): Promise<AttemptStats> {
-    const totalAttempts = await this.attemptsRepository.count();
-
-    const avgResult = await this.attemptsRepository
+  // Stats count only submitted attempts. in_progress/abandoned rows have
+  // score 0 and would inflate the count and drag the average down (BUG-12).
+  private completedAttempts() {
+    return this.attemptsRepository
       .createQueryBuilder('attempt')
+      .where('attempt.status = :status', { status: 'completed' });
+  }
+
+  async getStats(): Promise<AttemptStats> {
+    const totalAttempts = await this.attemptsRepository.count({
+      where: { status: 'completed' },
+    });
+
+    const avgResult = await this.completedAttempts()
       .select('AVG(attempt.score)', 'avg')
       .getRawOne();
 
-    const uniqueUsersResult = await this.attemptsRepository
-      .createQueryBuilder('attempt')
+    const uniqueUsersResult = await this.completedAttempts()
       .select('COUNT(DISTINCT attempt.userId)', 'count')
       .getRawOne();
 
-    const byCategoryRaw = await this.attemptsRepository
-      .createQueryBuilder('attempt')
+    const byCategoryRaw = await this.completedAttempts()
       .select('attempt.category', 'category')
       .addSelect('COUNT(*)', 'attempts')
       .addSelect('AVG(attempt.score)', 'averageScore')
@@ -318,9 +442,9 @@ export class AttemptsService {
   }
 
   async getMyStats(userId: string): Promise<UserAttemptStats> {
-    const base = this.attemptsRepository
-      .createQueryBuilder('attempt')
-      .where('attempt.userId = :userId', { userId });
+    const base = this.completedAttempts().andWhere('attempt.userId = :userId', {
+      userId,
+    });
 
     const totalAttempts = await base.clone().getCount();
 
@@ -357,9 +481,9 @@ export class AttemptsService {
   }
 
   async getExamAttemptStats(examId: string): Promise<ExamAttemptStats> {
-    const base = this.attemptsRepository
-      .createQueryBuilder('attempt')
-      .where('attempt.examId = :examId', { examId });
+    const base = this.completedAttempts().andWhere('attempt.examId = :examId', {
+      examId,
+    });
 
     const totalAttempts = await base.clone().getCount();
 

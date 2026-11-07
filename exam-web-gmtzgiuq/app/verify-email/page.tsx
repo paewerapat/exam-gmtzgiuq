@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { gql } from '@apollo/client';
 import { useMutation } from '@apollo/client/react';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
 import Link from 'next/link';
 import { AuthShell, authPrimaryButtonClass, authSecondaryButtonClass } from '@/components/auth/AuthShell';
+import { getAuthErrorMessage } from '@/lib/auth-errors';
 
 const VERIFY_EMAIL_MUTATION = gql`
   mutation VerifyEmail($token: String!) {
@@ -27,11 +28,16 @@ function VerifyEmailContent() {
   const [message, setMessage] = useState('');
 
   const [verifyEmailMutation] = useMutation(VERIFY_EMAIL_MUTATION);
+  // token ที่ตรวจไปแล้วใน instance นี้ — StrictMode (dev) รัน effect ซ้ำแต่ ref คงอยู่ กันยิง verifyEmail ซ้ำ
+  const verifiedTokenRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
+    if (verifiedTokenRef.current === token) return;
+    verifiedTokenRef.current = token;
+
     if (!token) {
       setStatus('error');
-      setMessage('No verification token provided');
+      setMessage('ไม่พบรหัสยืนยันในลิงก์ กรุณาเปิดลิงก์จากอีเมลอีกครั้ง');
       return;
     }
 
@@ -39,7 +45,7 @@ function VerifyEmailContent() {
       try {
         await verifyEmailMutation({ variables: { token } });
         setStatus('success');
-        setMessage('Your email has been successfully verified!');
+        setMessage('ยืนยันอีเมลของคุณเรียบร้อยแล้ว!');
 
         // Redirect to login after 3 seconds
         setTimeout(() => {
@@ -47,8 +53,8 @@ function VerifyEmailContent() {
         }, 3000);
       } catch (error: unknown) {
         setStatus('error');
-        const message = error instanceof Error ? error.message : String(error);
-        setMessage(message || 'Verification failed. The link may have expired.');
+        // error ของ API เป็นอังกฤษ (เช่น "Invalid verification token") → ข้อความไทย
+        setMessage(getAuthErrorMessage(error, 'verifyEmail'));
       }
     };
 
@@ -63,9 +69,9 @@ function VerifyEmailContent() {
             <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin motion-reduce:animate-none" aria-hidden="true" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            Verifying Your Email
+            กำลังยืนยันอีเมล
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">Please wait while we verify your email address...</p>
+          <p className="text-gray-600 dark:text-gray-400">กรุณารอสักครู่ ระบบกำลังตรวจสอบอีเมลของคุณ...</p>
         </div>
       )}
 
@@ -75,10 +81,10 @@ function VerifyEmailContent() {
             <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" aria-hidden="true" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            Email Verified!
+            ยืนยันอีเมลสำเร็จ!
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Redirecting to login page...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">กำลังพาไปหน้าเข้าสู่ระบบ...</p>
         </div>
       )}
 
@@ -88,15 +94,15 @@ function VerifyEmailContent() {
             <XCircle className="w-12 h-12 text-red-600 dark:text-red-400" aria-hidden="true" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            Verification Failed
+            ยืนยันอีเมลไม่สำเร็จ
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
           <div className="space-y-3">
             <Link href="/login" className={authPrimaryButtonClass}>
-              Go to Login
+              ไปหน้าเข้าสู่ระบบ
             </Link>
             <Link href="/register" className={authSecondaryButtonClass}>
-              Create New Account
+              สมัครบัญชีใหม่
             </Link>
           </div>
         </div>
@@ -110,7 +116,7 @@ function LoadingFallback() {
     <AuthShell cardClassName="text-center">
       <div role="status" aria-live="polite">
         <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin motion-reduce:animate-none mx-auto mb-4" aria-hidden="true" />
-        <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        <p className="text-gray-600 dark:text-gray-400">กำลังโหลด...</p>
       </div>
     </AuthShell>
   );

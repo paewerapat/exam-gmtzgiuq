@@ -124,6 +124,9 @@ function ExamPageContent({ examId }: { examId: string }) {
   // Refs to hold mutable values without re-renders
   const attemptIdRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // examId ที่โหลด/เริ่มไปแล้วใน instance นี้ — StrictMode (dev) รัน effect ซ้ำแต่ ref คงอยู่
+  // กันไม่ให้ยิง GET in-progress / POST /attempts/start ซ้ำ
+  const loadedExamIdRef = useRef<string | null>(null);
 
   // ── Auto-save to backend ──────────────────────────────────
   const scheduleBackendSave = useCallback(
@@ -166,6 +169,9 @@ function ExamPageContent({ examId }: { examId: string }) {
 
   // ── Load / Resume ─────────────────────────────────────────
   useEffect(() => {
+    if (loadedExamIdRef.current === examId) return;
+    loadedExamIdRef.current = examId;
+
     async function loadOrCreateSession() {
       // 1. Check localStorage first
       const { session: existingSession, questions: existingQuestions } =

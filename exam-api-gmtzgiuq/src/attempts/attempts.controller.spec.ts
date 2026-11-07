@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AttemptsController } from './attempts.controller';
 import { AttemptsService } from './attempts.service';
 import { ExamAttempt } from './attempt.entity';
+import { StartAttemptDto } from './dto/attempt.dto';
 
 describe('AttemptsController', () => {
   let controller: AttemptsController;
@@ -40,6 +41,24 @@ describe('AttemptsController', () => {
       const handler = Object.getOwnPropertyDescriptor(
         AttemptsController.prototype,
         'findMyAttempt',
+      )?.value as object;
+      const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as unknown[];
+      expect(guards).toContain(JwtAuthGuard);
+    });
+  });
+
+  describe('POST /attempts/start (task 13)', () => {
+    it('validates the body with StartAttemptDto (global ValidationPipe) and requires a JWT', () => {
+      const paramTypes = Reflect.getMetadata(
+        'design:paramtypes',
+        AttemptsController.prototype,
+        'startInProgress',
+      ) as unknown[];
+      expect(paramTypes[0]).toBe(StartAttemptDto);
+
+      const handler = Object.getOwnPropertyDescriptor(
+        AttemptsController.prototype,
+        'startInProgress',
       )?.value as object;
       const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as unknown[];
       expect(guards).toContain(JwtAuthGuard);

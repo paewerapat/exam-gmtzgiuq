@@ -8,6 +8,9 @@ import {
   IsObject,
   IsDateString,
   IsUUID,
+  IsIn,
+  MaxLength,
+  Min,
 } from 'class-validator';
 import { ExamAttempt } from '../attempt.entity';
 
@@ -67,6 +70,38 @@ export class SubmitAttemptInput {
   @IsDateString()
   @IsOptional()
   completedAt?: string;
+}
+
+export const ATTEMPT_MODES = ['practice', 'exam'] as const;
+
+// REST body of POST /attempts/start (web: lib/api/attempts.ts
+// startInProgressAttempt) — validated by the global ValidationPipe
+export class StartAttemptDto {
+  @IsUUID()
+  examId: string;
+
+  @IsString()
+  @MaxLength(255)
+  examTitle: string;
+
+  @IsString()
+  @MaxLength(100)
+  category: string;
+
+  @IsInt()
+  @Min(0)
+  totalQuestions: number;
+
+  @IsArray()
+  @IsString({ each: true })
+  questionIds: string[];
+
+  @IsDateString()
+  startedAt: string;
+
+  @IsOptional()
+  @IsIn(ATTEMPT_MODES)
+  mode?: (typeof ATTEMPT_MODES)[number];
 }
 
 @ObjectType()

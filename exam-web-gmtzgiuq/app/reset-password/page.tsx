@@ -13,6 +13,7 @@ import {
   authLinkClass,
   authPrimaryButtonClass,
 } from '@/components/auth/AuthShell';
+import { AUTH_ERROR_MESSAGES, getAuthErrorMessage } from '@/lib/auth-errors';
 
 const RESET_PASSWORD_MUTATION = gql`
   mutation ResetPassword($input: ResetPasswordInput!) {
@@ -48,7 +49,7 @@ function ResetPasswordContent() {
 
     if (!token) {
       setStatus('error');
-      setMessage('Invalid reset link');
+      setMessage(AUTH_ERROR_MESSAGES.invalidResetToken);
       return;
     }
 
@@ -75,15 +76,15 @@ function ResetPasswordContent() {
         },
       });
       setStatus('success');
-      setMessage('Password reset successful! Redirecting to login...');
+      setMessage('ตั้งรหัสผ่านใหม่สำเร็จ! กำลังพาไปหน้าเข้าสู่ระบบ...');
 
       setTimeout(() => {
         router.push('/login');
       }, 2000);
     } catch (error: unknown) {
       setStatus('error');
-      const message = error instanceof Error ? error.message : String(error);
-      setMessage(message || 'Failed to reset password. The link may have expired.');
+      // error ของ API เป็นอังกฤษ (เช่น "Invalid reset token") → ข้อความไทย
+      setMessage(getAuthErrorMessage(error, 'resetPassword'));
     }
   };
 
@@ -93,12 +94,12 @@ function ResetPasswordContent() {
         <div className="inline-block p-4 bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
           <AlertCircle className="w-12 h-12 text-red-600 dark:text-red-400" aria-hidden="true" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Invalid Reset Link</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          The password reset link is invalid or has expired.
+          ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว กรุณาขอลิงก์ใหม่
         </p>
         <Link href="/forgot-password" className={`${authPrimaryButtonClass} w-auto! px-6`}>
-          Request New Link
+          ขอลิงก์ใหม่
         </Link>
       </AuthShell>
     );
@@ -107,8 +108,8 @@ function ResetPasswordContent() {
   return (
     <AuthShell>
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Reset Password</h2>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">Enter your new password below</p>
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">ตั้งรหัสผ่านใหม่</h2>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">กรอกรหัสผ่านใหม่ที่ต้องการใช้ด้านล่าง</p>
       </div>
 
       {status === 'success' && (
@@ -135,7 +136,7 @@ function ResetPasswordContent() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label htmlFor="newPassword" className={authLabelClass}>
-            New Password
+            รหัสผ่านใหม่
           </label>
           <PasswordInput
             id="newPassword"
@@ -151,7 +152,7 @@ function ResetPasswordContent() {
 
         <div>
           <label htmlFor="confirmPassword" className={authLabelClass}>
-            Confirm New Password
+            ยืนยันรหัสผ่านใหม่
           </label>
           <PasswordInput
             id="confirmPassword"
@@ -174,17 +175,17 @@ function ResetPasswordContent() {
           {status === 'loading' ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-              Resetting...
+              กำลังบันทึก...
             </>
           ) : (
-            'Reset Password'
+            'ตั้งรหัสผ่านใหม่'
           )}
         </button>
       </form>
 
       <div className="mt-6 text-center">
         <Link href="/login" className={authLinkClass}>
-          ← Back to Login
+          ← กลับไปหน้าเข้าสู่ระบบ
         </Link>
       </div>
     </AuthShell>
@@ -196,7 +197,7 @@ function LoadingFallback() {
     <AuthShell cardClassName="text-center">
       <div role="status" aria-live="polite">
         <Loader className="w-12 h-12 text-indigo-600 dark:text-indigo-400 animate-spin motion-reduce:animate-none mx-auto mb-4" aria-hidden="true" />
-        <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        <p className="text-gray-600 dark:text-gray-400">กำลังโหลด...</p>
       </div>
     </AuthShell>
   );

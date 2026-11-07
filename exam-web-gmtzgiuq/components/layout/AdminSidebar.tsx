@@ -24,7 +24,12 @@ const menuItems = [
   { href: '/admin/feedback', label: 'Feedback', icon: MessageSquare },
 ];
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  /** เรียกเมื่อกดลิงก์ (ใช้ปิด drawer บนมือถือ) */
+  onNavigate?: () => void;
+}
+
+export default function AdminSidebar({ onNavigate }: AdminSidebarProps = {}) {
   const pathname = usePathname();
 
   return (
@@ -42,6 +47,7 @@ export default function AdminSidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onNavigate}
                 className={`flex items-center px-4 py-3 rounded-lg transition ${
                   isActive
                     ? 'bg-indigo-600 text-white'
@@ -59,6 +65,7 @@ export default function AdminSidebar() {
         <div className="pt-4 border-t border-gray-700 mt-4">
           <Link
             href="/dashboard"
+            onClick={onNavigate}
             className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition"
           >
             <LayoutGrid className="w-5 h-5" />

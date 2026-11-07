@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client, LoginTicket, TokenPayload } from 'google-auth-library';
@@ -18,9 +22,15 @@ describe('AuthService', () => {
       | 'setResetPasswordToken'
       | 'findOrCreateGoogleUser'
       | 'validatePassword'
+      | 'create'
+      | 'updateProfile'
+      | 'setEmailVerificationToken'
     >
   >;
-  let mail: { sendPasswordResetEmail: jest.Mock };
+  let mail: {
+    sendPasswordResetEmail: jest.Mock;
+    sendVerificationEmail: jest.Mock;
+  };
 
   beforeEach(async () => {
     users = {
@@ -28,8 +38,14 @@ describe('AuthService', () => {
       setResetPasswordToken: jest.fn(),
       findOrCreateGoogleUser: jest.fn(),
       validatePassword: jest.fn(),
+      create: jest.fn(),
+      updateProfile: jest.fn(),
+      setEmailVerificationToken: jest.fn(),
     };
-    mail = { sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined) };
+    mail = {
+      sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+      sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -196,6 +212,62 @@ describe('AuthService', () => {
       await expect(service.googleLogin('cred')).rejects.toThrow(
         'ไม่สามารถเข้าสู่ระบบด้วย Google ได้',
       );
+    });
+  });
+
+  describe('register (BUG-16)', () => {
+    const created = () =>
+      Object.assign(new User(), {
+        id: 'u-new',
+        email: 'new@example.com',
+        role: UserRole.USER,
+      });
+
+    it('creates the account without first/last name and skips updateProfile', async () => {
+      const user = created();
+      users.create.mockResolvedValue(user);
+
+      await expect(
+        service.register({ email: 'new@example.com', password: 'secret1' }),
+      ).resolves.toEqual({ accessToken: 'jwt', user });
+
+      expect(users.create).toHaveBeenCalledWith('new@example.com', 'secret1');
+      expect(users.updateProfile).not.toHaveBeenCalled();
+      expect(users.setEmailVerificationToken).toHaveBeenCalledWith(
+        'u-new',
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+      );
+      expect(mail.sendVerificationEmail).toHaveBeenCalledWith(
+        'new@example.com',
+        expect.any(String),
+      );
+    });
+
+    it('saves the names when they are given', async () => {
+      users.create.mockResolvedValue(created());
+
+      await service.register({
+        email: 'new@example.com',
+        password: 'secret1',
+        firstName: 'สมชาย',
+        lastName: 'ใจดี',
+      });
+
+      expect(users.updateProfile).toHaveBeenCalledWith('u-new', {
+        firstName: 'สมชาย',
+        lastName: 'ใจดี',
+      });
+    });
+
+    it('passes the Thai duplicate-email error through unchanged', async () => {
+      users.create.mockRejectedValue(
+        new ConflictException('อีเมลนี้ถูกใช้งานแล้ว'),
+      );
+
+      await expect(
+        service.register({ email: 'dup@example.com', password: 'secret1' }),
+      ).rejects.toThrow(new ConflictException('อีเมลนี้ถูกใช้งานแล้ว'));
+      expect(users.setEmailVerificationToken).not.toHaveBeenCalled();
     });
   });
 });

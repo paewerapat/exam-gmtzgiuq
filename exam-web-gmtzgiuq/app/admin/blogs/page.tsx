@@ -96,7 +96,9 @@ export default function AdminBlogsPage() {
             <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400" />
           </div>
         ) : (
-          <table className="w-full">
+          // จอแคบ: ตาราง scroll แนวนอนในกรอบนี้ ไม่ดันทั้งหน้า
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] lg:min-w-0">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -182,6 +184,7 @@ export default function AdminBlogsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {!loading && blogs.length === 0 && (

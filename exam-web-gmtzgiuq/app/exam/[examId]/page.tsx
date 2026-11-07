@@ -256,6 +256,9 @@ function RealExamPageContent({ examId }: { examId: string }) {
   const backLink = getExamBackLink(examId, isMock);
   const attemptIdRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // (examId, retryKey) ที่โหลด/เริ่มไปแล้วใน instance นี้ — StrictMode (dev) รัน effect ซ้ำแต่ ref คงอยู่
+  // กันไม่ให้ยิง GET in-progress / POST /attempts/start ซ้ำ; ปุ่มลองใหม่ (retryKey) ยังโหลดใหม่ได้
+  const loadedKeyRef = useRef<string | null>(null);
 
   // Auto-save to backend
   const scheduleBackendSave = useCallback((session: ExamSession) => {
@@ -294,6 +297,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
   }
 
   useEffect(() => {
+    const loadKey = `${examId}:${retryKey}`;
+    if (loadedKeyRef.current === loadKey) return;
+    loadedKeyRef.current = loadKey;
+
     async function loadOrCreateSession() {
       setLoading(true);
       setError(null);

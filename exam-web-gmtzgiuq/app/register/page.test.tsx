@@ -59,4 +59,31 @@ describe('RegisterPage — ฟอร์ม a11y', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('อีเมลนี้ถูกใช้แล้ว');
     await waitFor(() => expect(register).toHaveBeenCalledWith('a@b.c', 'secret1', undefined, undefined));
   });
+
+  it('BUG-16: API ตอบ "Bad Request Exception" → ข้อความไทย ไม่โชว์ข้อความดิบ', async () => {
+    register.mockRejectedValue(
+      Object.assign(new Error('Bad Request Exception'), {
+        errors: [
+          {
+            message: 'Bad Request Exception',
+            extensions: { code: 'BAD_REQUEST', originalError: { message: ['email must be an email'] } },
+          },
+        ],
+      }),
+    );
+    render(<RegisterPage />);
+    fill('secret1', 'secret1');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('รูปแบบอีเมลไม่ถูกต้อง');
+    expect(alert).not.toHaveTextContent(/Bad Request/);
+  });
+
+  it('อีเมลซ้ำ (ข้อความอังกฤษ) → บอกให้เข้าสู่ระบบหรือใช้อีเมลอื่น', async () => {
+    register.mockRejectedValue(new Error('Email already exists'));
+    render(<RegisterPage />);
+    fill('secret1', 'secret1');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('อีเมลนี้ถูกใช้สมัครแล้ว กรุณาเข้าสู่ระบบ หรือใช้อีเมลอื่นสมัคร');
+    expect(alert).not.toHaveTextContent(/already/i);
+  });
 });

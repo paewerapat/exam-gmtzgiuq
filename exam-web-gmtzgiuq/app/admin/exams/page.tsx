@@ -128,7 +128,7 @@ export default function AdminExamsPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4">
         <FadeIn>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">จัดการชุดข้อสอบ</h1>
               <p className="text-gray-500 dark:text-gray-400 mt-1">
@@ -153,9 +153,9 @@ export default function AdminExamsPage() {
             </div>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex flex-col lg:flex-row gap-6">
             {/* Sidebar - Category filter */}
-            <div className="w-56 flex-shrink-0">
+            <div className="w-full lg:w-56 flex-shrink-0">
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3">
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 px-3 mb-2">หมวดหมู่</h3>
                 <nav className="space-y-1">
@@ -208,7 +208,7 @@ export default function AdminExamsPage() {
             </div>
 
             {/* Main content */}
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               {/* Search */}
               <div className="mb-4 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -234,7 +234,9 @@ export default function AdminExamsPage() {
                   </div>
                 ) : (
                   <>
-                    <table className="w-full">
+                    {/* จอแคบ: ตาราง scroll แนวนอนในกรอบนี้ ไม่ดันทั้งหน้า */}
+                    <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] lg:min-w-0">
                       <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                         <tr>
                           <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ชื่อชุดข้อสอบ</th>
@@ -315,6 +317,7 @@ export default function AdminExamsPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
 
                     {/* Pagination */}
                     {data.totalPages > 1 && (

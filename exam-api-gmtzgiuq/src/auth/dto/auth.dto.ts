@@ -1,5 +1,12 @@
 import { InputType, Field, ObjectType } from '@nestjs/graphql';
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { User } from '../../users/user.entity';
 
 @InputType()
@@ -13,12 +20,17 @@ export class RegisterInput {
   @MinLength(6)
   password: string;
 
+  // Optional on the register form (BUG-16); users.firstName/lastName are varchar(100)
   @Field({ nullable: true })
+  @IsOptional()
   @IsString()
+  @MaxLength(100)
   firstName?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
   @IsString()
+  @MaxLength(100)
   lastName?: string;
 }
 

@@ -10,7 +10,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { AttemptsService } from './attempts.service';
-import { SubmitAttemptInput } from './dto/attempt.dto';
+import { StartAttemptDto, SubmitAttemptInput } from './dto/attempt.dto';
 import { QuestionCategory } from '../questions/question.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
@@ -22,19 +22,7 @@ export class AttemptsController {
   // User - Start in-progress attempt
   @Post('start')
   @UseGuards(JwtAuthGuard)
-  async startInProgress(
-    @Body()
-    body: {
-      examId: string;
-      examTitle: string;
-      category: QuestionCategory;
-      totalQuestions: number;
-      questionIds: string[];
-      startedAt: string;
-      mode?: string;
-    },
-    @Request() req,
-  ) {
+  async startInProgress(@Body() body: StartAttemptDto, @Request() req) {
     return this.attemptsService.startInProgress(req.user.id, body);
   }
 
@@ -186,7 +174,13 @@ export class AttemptsController {
     @Query('limit') limit: number = 10,
     @Query('category') category?: QuestionCategory,
   ) {
-    return this.attemptsService.findAll(+page, +limit, userId, undefined, category);
+    return this.attemptsService.findAll(
+      +page,
+      +limit,
+      userId,
+      undefined,
+      category,
+    );
   }
 
   // Admin - Get single attempt

@@ -7,6 +7,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, User, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { getAuthErrorMessage } from '@/lib/auth-errors';
 import {
   AuthShell,
   AuthPageLoading,
@@ -71,7 +72,8 @@ export default function RegisterPage() {
       );
       toast.success('สมัครสมาชิกสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี');
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'ไม่สามารถสร้างบัญชีได้';
+      // แปลง error ของ API (เช่น "Bad Request Exception", อีเมลซ้ำ) เป็นข้อความไทยที่บอกวิธีแก้
+      const errorMessage = getAuthErrorMessage(err, 'register');
       toast.error(errorMessage);
       setFormError(errorMessage);
     } finally {

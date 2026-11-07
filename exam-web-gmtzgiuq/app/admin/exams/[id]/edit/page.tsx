@@ -938,7 +938,7 @@ export default function EditExamPage({ params }: PageProps) {
                                   value={choice.text}
                                   onChange={(e) => updateChoice(q.tempId, cIndex, 'text', e.target.value)}
                                   placeholder={`ตัวเลือก ${String.fromCharCode(65 + cIndex)}`}
-                                  className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                                  className={`flex-1 min-w-0 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
                                     choice.isCorrect ? 'border-green-300 bg-green-50 dark:bg-green-900/30 dark:border-green-700' : 'border-gray-300 dark:border-gray-600'
                                   }`}
                                 />
