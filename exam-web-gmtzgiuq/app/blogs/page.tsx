@@ -263,7 +263,7 @@ export default function BlogsPage() {
 
         {/* Notes Section */}
         <BlogSection
-          title="Notes"
+          title="โน้ตสรุป"
           icon={FileText}
           blogs={notesData?.items || []}
           viewAllLink="/blogs/notes"
@@ -273,7 +273,7 @@ export default function BlogsPage() {
 
         {/* Essays Section */}
         <BlogSection
-          title="Essays"
+          title="บทความเชิงลึก"
           icon={PenTool}
           blogs={essaysData?.items || []}
           viewAllLink="/blogs/essays"

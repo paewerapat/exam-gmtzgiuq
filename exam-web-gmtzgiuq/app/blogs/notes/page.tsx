@@ -197,7 +197,7 @@ export default function NotesBlogsPage() {
             <span className="bg-white/20 text-white p-3 rounded-lg mr-4">
               <FileText className="w-8 h-8" />
             </span>
-            <h1 className="text-4xl md:text-5xl font-bold">Notes</h1>
+            <h1 className="text-4xl md:text-5xl font-bold">โน้ตสรุป</h1>
           </div>
           <p className="text-xl text-emerald-100 max-w-2xl">
             บันทึกสั้นๆ เคล็ดลับและเทคนิคที่มีประโยชน์
@@ -283,7 +283,7 @@ export default function NotesBlogsPage() {
               <div className="text-center py-16">
                 <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                  {debouncedSearch ? 'ไม่พบบทความ' : 'ยังไม่มี Notes'}
+                  {debouncedSearch ? 'ไม่พบบทความ' : 'ยังไม่มีโน้ตสรุป'}
                 </h3>
                 <p className="text-gray-500 dark:text-gray-400">
                   {debouncedSearch ? 'ลองค้นหาด้วยคำอื่นดูนะครับ' : 'กลับมาดูใหม่ภายหลังนะครับ'}

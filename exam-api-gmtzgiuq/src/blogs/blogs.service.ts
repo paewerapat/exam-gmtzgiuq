@@ -122,9 +122,19 @@ export class BlogsService {
     return blog;
   }
 
-  async findBySlug(slug: string): Promise<Blog> {
+  /**
+   * Blog page by slug. Only published blogs unless `includeDrafts` is set
+   * (SEC-9) — a draft is reported as not found, the same as a missing slug.
+   * `includeDrafts` is for admins previewing a draft from the admin pages.
+   */
+  async findBySlug(
+    slug: string,
+    options: { includeDrafts?: boolean } = {},
+  ): Promise<Blog> {
     const blog = await this.blogsRepository.findOne({
-      where: { slug },
+      where: options.includeDrafts
+        ? { slug }
+        : { slug, status: BlogStatus.PUBLISHED },
       relations: ['author'],
     });
 
@@ -132,8 +142,10 @@ export class BlogsService {
       throw new NotFoundException('Blog not found');
     }
 
-    // Increment view count
-    await this.blogsRepository.increment({ id: blog.id }, 'viewCount', 1);
+    // Count reader views only; an admin previewing a draft is not one
+    if (blog.status === BlogStatus.PUBLISHED) {
+      await this.blogsRepository.increment({ id: blog.id }, 'viewCount', 1);
+    }
 
     return blog;
   }

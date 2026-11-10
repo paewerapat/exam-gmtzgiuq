@@ -75,6 +75,10 @@ const session = (patch: Partial<ExamSession> = {}): ExamSession => ({
   ...patch,
 });
 
+// findBy* รอได้นานขึ้นตอนเครื่องโหลดหนัก (ค่า default 1000ms ทำให้ flaky) — test timeout ต้องมากกว่า
+const FIND = { timeout: 5000 };
+const TEST_TIMEOUT = 15000;
+
 const pages = [
   ['/exam/[examId] (จับเวลา/Mock)', RealExamPage],
   ['/practice/exam/[examId]', PracticeExamPage],
@@ -100,27 +104,27 @@ describe.each(pages)('%s — StrictMode เริ่ม/โหลดครั้
 
   it('เปิดครั้งแรก → POST /attempts/start ครั้งเดียว และเห็นข้อสอบ', async () => {
     renderStrict(Page);
-    expect(await screen.findByText('ข้อปัจจุบัน 1')).toBeInTheDocument();
+    expect(await screen.findByText('ข้อปัจจุบัน 1', {}, FIND)).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 50));
     expect(startInProgressAttempt).toHaveBeenCalledTimes(1);
     expect(getMyInProgressForExam).toHaveBeenCalledTimes(1);
     expect(getPublicExam).toHaveBeenCalledTimes(1);
-  });
+  }, TEST_TIMEOUT);
 
   it('มี session ค้างใน localStorage → ทำต่อจากข้อเดิม ไม่เรียก start', async () => {
     if (Page === RealExamPage) saveRealExamSession('e1', session(), exam.questions as never);
     else saveExamSession(session(), exam.questions as never);
     renderStrict(Page);
-    expect(await screen.findByText('ข้อปัจจุบัน 2')).toBeInTheDocument();
+    expect(await screen.findByText('ข้อปัจจุบัน 2', {}, FIND)).toBeInTheDocument();
     expect(startInProgressAttempt).not.toHaveBeenCalled();
-  });
+  }, TEST_TIMEOUT);
 
   it('backend มี attempt ค้าง (ข้อ 3) → dialog ทำต่อ → กดแล้วไปข้อ 3 ไม่เรียก start', async () => {
     (getMyInProgressForExam as jest.Mock).mockResolvedValue(attempt({ currentIndex: 2, answers: { q1: '1', q2: '1' } }));
     renderStrict(Page);
-    fireEvent.click(await screen.findByRole('button', { name: /ทำต่อ/ }));
-    expect(await screen.findByText('ข้อปัจจุบัน 3')).toBeInTheDocument();
-    await waitFor(() => expect(getMyInProgressForExam).toHaveBeenCalledTimes(1));
+    fireEvent.click(await screen.findByRole('button', { name: /ทำต่อ/ }, FIND));
+    expect(await screen.findByText('ข้อปัจจุบัน 3', {}, FIND)).toBeInTheDocument();
+    await waitFor(() => expect(getMyInProgressForExam).toHaveBeenCalledTimes(1), FIND);
     expect(startInProgressAttempt).not.toHaveBeenCalled();
-  });
+  }, TEST_TIMEOUT);
 });

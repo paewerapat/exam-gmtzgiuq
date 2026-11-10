@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   NotFoundException,
   ValidationPipe,
 } from '@nestjs/common';
@@ -8,7 +10,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindOperator } from 'typeorm';
 import { AttemptsService } from './attempts.service';
 import { ExamAttempt } from './attempt.entity';
-import { StartAttemptDto } from './dto/attempt.dto';
+import { Exam } from '../exams/exam.entity';
+import { StartAttemptDto, SubmitAttemptInput } from './dto/attempt.dto';
 
 describe('AttemptsService', () => {
   let service: AttemptsService;
@@ -38,6 +41,7 @@ describe('AttemptsService', () => {
           provide: getRepositoryToken(ExamAttempt),
           useValue: { findOne },
         },
+        { provide: getRepositoryToken(Exam), useValue: {} },
       ],
     }).compile();
 
@@ -128,6 +132,10 @@ class FakeAttemptTable {
   }
 
   repo = {
+    findOne: jest.fn(({ where }: { where: Record<string, unknown> }) => {
+      const row = this.rows.find((r) => this.matches(r, where));
+      return Promise.resolve(row ? { ...row } : null);
+    }),
     find: jest.fn(
       ({
         where,
@@ -195,6 +203,7 @@ describe('AttemptsService.startInProgress (task 13)', () => {
   let service: AttemptsService;
   let table: FakeAttemptTable;
   let transaction: jest.Mock;
+  let examExists: jest.Mock;
 
   const startData: StartAttemptDto = {
     examId: 'exam-1',
@@ -218,6 +227,7 @@ describe('AttemptsService.startInProgress (task 13)', () => {
     transaction = jest.fn((cb: (em: unknown) => Promise<unknown>) =>
       cb(table.em),
     );
+    examExists = jest.fn().mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -226,10 +236,31 @@ describe('AttemptsService.startInProgress (task 13)', () => {
           provide: getRepositoryToken(ExamAttempt),
           useValue: { ...table.repo, manager: { transaction } },
         },
+        {
+          provide: getRepositoryToken(Exam),
+          useValue: { exists: examExists },
+        },
       ],
     }).compile();
 
     service = module.get(AttemptsService);
+  });
+
+  // task 14 B2: the foreign key used to turn this into a 500
+  it('404 for an exam that does not exist, before starting the transaction', async () => {
+    examExists.mockResolvedValue(false);
+
+    await expect(
+      service.startInProgress('user-a', startData),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(examExists).toHaveBeenCalledWith({
+      where: { id: 'exam-1' },
+      loadEagerRelations: false,
+    });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(table.repo.save).not.toHaveBeenCalled();
+    expect(table.rows).toHaveLength(0);
   });
 
   it('creates a new attempt when there is no in-progress one', async () => {
@@ -337,6 +368,7 @@ describe('AttemptsService.startInProgress (task 13)', () => {
     expect(new Set(ids).size).toBe(1);
     expect(table.rows).toHaveLength(1);
     expect(table.rows[0].status).toBe('in_progress');
+    expect(table.repo.delete).not.toHaveBeenCalled();
   });
 
   it('treats empty-string answers as not answered', async () => {
@@ -365,7 +397,25 @@ describe('AttemptsService.startInProgress (task 13)', () => {
     },
   );
 
-  it('keeps the oldest untouched row, deletes extra untouched ones and abandons started ones', async () => {
+  // task 14 B1: extra untouched rows are abandoned, no longer deleted, so a
+  // tab that still holds one can submit it instead of getting 404.
+  it('two untouched rows: keeps the oldest (createdAt now) and abandons the other without deleting it', async () => {
+    const keep = table.insert({});
+    const extra = table.insert({});
+    const keepCreatedAt = keep.createdAt;
+
+    const result = await service.startInProgress('user-a', startData);
+
+    expect(result.id).toBe(keep.id);
+    expect(result.createdAt.getTime()).toBeGreaterThan(keepCreatedAt.getTime());
+    expect(table.rows).toHaveLength(2);
+    expect(table.rows.find((r) => r.id === extra.id)?.status).toBe('abandoned');
+    expect(inProgressRows().map((r) => r.id)).toEqual([keep.id]);
+    expect(table.repo.delete).not.toHaveBeenCalled();
+    expect(table.repo.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps the oldest untouched row and abandons extra untouched and started ones', async () => {
     const started = table.insert({ answers: { q1: 'b' } });
     const keep = table.insert({});
     const extra = table.insert({});
@@ -373,11 +423,27 @@ describe('AttemptsService.startInProgress (task 13)', () => {
     const result = await service.startInProgress('user-a', startData);
 
     expect(result.id).toBe(keep.id);
-    expect(table.rows.find((r) => r.id === extra.id)).toBeUndefined();
+    expect(table.rows).toHaveLength(3);
+    expect(table.rows.find((r) => r.id === extra.id)?.status).toBe('abandoned');
     expect(table.rows.find((r) => r.id === started.id)?.status).toBe(
       'abandoned',
     );
     expect(inProgressRows().map((r) => r.id)).toEqual([keep.id]);
+    expect(table.repo.delete).not.toHaveBeenCalled();
+    // abandoning only ever touches rows that are still in progress
+    expect(table.repo.update).toHaveBeenCalledWith(
+      { id: expect.any(FindOperator) as unknown, status: 'in_progress' },
+      { status: 'abandoned' },
+    );
+  });
+
+  it('one untouched row: reused, no abandoned row added', async () => {
+    table.insert({});
+
+    await service.startInProgress('user-a', startData);
+
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows.filter((r) => r.status === 'abandoned')).toHaveLength(0);
   });
 
   it('still starts when abandoning fails (lock timeout)', async () => {
@@ -429,6 +495,125 @@ describe('AttemptsService.startInProgress (task 13)', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(transaction).not.toHaveBeenCalled();
+    expect(examExists).not.toHaveBeenCalled();
+  });
+});
+
+describe('AttemptsService.completeAttempt (task 14 B3, BUG-21)', () => {
+  let service: AttemptsService;
+  let table: FakeAttemptTable;
+
+  const submit: SubmitAttemptInput = {
+    examId: 'exam-1',
+    examTitle: 'ชุดเก่า',
+    category: 'physics',
+    totalQuestions: 2,
+    correctAnswers: 1,
+    incorrectAnswers: 1,
+    unanswered: 0,
+    score: 50,
+    totalTime: 40,
+    timePerQuestion: { q1: 20, q2: 20 },
+    answers: { q1: 'a', q2: 'b' },
+    questionIds: ['q1', 'q2'],
+    startedAt: '2026-11-07T10:00:00.000Z',
+    completedAt: '2026-11-07T10:05:00.000Z',
+  };
+
+  beforeEach(async () => {
+    table = new FakeAttemptTable();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AttemptsService,
+        { provide: getRepositoryToken(ExamAttempt), useValue: table.repo },
+        { provide: getRepositoryToken(Exam), useValue: {} },
+      ],
+    }).compile();
+
+    service = module.get(AttemptsService);
+  });
+
+  it('completes an in-progress attempt with the submitted result', async () => {
+    const attempt = table.insert({});
+
+    const result = await service.completeAttempt(attempt.id, 'user-a', submit);
+
+    expect(result).toMatchObject({
+      id: attempt.id,
+      status: 'completed',
+      score: 50,
+      correctAnswers: 1,
+      currentIndex: 1,
+      completedAt: new Date('2026-11-07T10:05:00.000Z'),
+    });
+  });
+
+  it('still completes an abandoned attempt (an older tab whose attempt a newer start abandoned)', async () => {
+    const attempt = table.insert({ status: 'abandoned' });
+
+    const result = await service.completeAttempt(attempt.id, 'user-a', submit);
+
+    expect(result).toMatchObject({ status: 'completed', score: 50 });
+  });
+
+  it('409 for an attempt that is already completed, and keeps the first result', async () => {
+    const attempt = table.insert({
+      status: 'completed',
+      score: 80,
+      correctAnswers: 2,
+    });
+    const before = { ...attempt };
+
+    await expect(
+      service.completeAttempt(attempt.id, 'user-a', { ...submit, score: 0 }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(table.repo.update).not.toHaveBeenCalled();
+    expect(table.rows.find((r) => r.id === attempt.id)).toEqual(before);
+  });
+
+  it('second submit of the same attempt gets 409 and does not change the score', async () => {
+    const attempt = table.insert({});
+
+    await service.completeAttempt(attempt.id, 'user-a', submit);
+    await expect(
+      service.completeAttempt(attempt.id, 'user-a', { ...submit, score: 100 }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(table.rows.find((r) => r.id === attempt.id)?.score).toBe(50);
+  });
+
+  it('409 when another submit completes the attempt between the read and the write', async () => {
+    const attempt = table.insert({ status: 'completed', score: 80 });
+    // The read still sees the attempt in progress
+    table.repo.findOne.mockResolvedValueOnce({
+      ...attempt,
+      status: 'in_progress',
+    });
+
+    await expect(
+      service.completeAttempt(attempt.id, 'user-a', submit),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    // the write is conditional on the status, so nothing was overwritten
+    expect(table.repo.update).toHaveBeenCalledWith(
+      { id: attempt.id, status: expect.any(FindOperator) as unknown },
+      expect.objectContaining({ status: 'completed' }),
+    );
+    expect(table.rows.find((r) => r.id === attempt.id)?.score).toBe(80);
+  });
+
+  it("403 for another user's attempt and 404 for a missing one (unchanged)", async () => {
+    const attempt = table.insert({});
+
+    await expect(
+      service.completeAttempt(attempt.id, 'user-b', submit),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.completeAttempt('missing', 'user-a', submit),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(table.repo.update).not.toHaveBeenCalled();
   });
 });
 
@@ -548,6 +733,7 @@ describe('AttemptsService stats count only completed attempts (BUG-12)', () => {
       providers: [
         AttemptsService,
         { provide: getRepositoryToken(ExamAttempt), useValue: repo },
+        { provide: getRepositoryToken(Exam), useValue: {} },
       ],
     }).compile();
 

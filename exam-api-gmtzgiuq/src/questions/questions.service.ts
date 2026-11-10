@@ -131,6 +131,20 @@ export class QuestionsService {
     return question;
   }
 
+  /** Public single question: a draft is reported as not found (SEC-9). */
+  async findPublishedOne(id: string): Promise<Question> {
+    const question = await this.questionsRepository.findOne({
+      where: { id, status: QuestionStatus.PUBLISHED },
+      relations: ['author'],
+    });
+
+    if (!question) {
+      throw new NotFoundException('Question not found');
+    }
+
+    return question;
+  }
+
   async update(
     id: string,
     updateQuestionInput: UpdateQuestionInput,

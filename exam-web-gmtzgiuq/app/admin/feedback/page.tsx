@@ -39,10 +39,10 @@ export default function AdminFeedbackPage() {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
               <MessageSquare className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
-              Feedback จากผู้ใช้
+              ความคิดเห็นจากผู้ใช้
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
-              {data ? `ทั้งหมด ${data.total} รายการ` : 'ความคิดเห็นที่ผู้ใช้ส่งเข้ามาผ่านปุ่ม Feedback'}
+              {data ? `ทั้งหมด ${data.total} รายการ` : 'ความคิดเห็นที่ผู้ใช้ส่งเข้ามาผ่านปุ่ม “ส่งความคิดเห็น”'}
             </p>
           </div>
 

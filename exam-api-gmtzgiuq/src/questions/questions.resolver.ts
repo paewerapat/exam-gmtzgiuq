@@ -45,10 +45,11 @@ export class QuestionsResolver {
     );
   }
 
-  // Public - Get single question
+  // Public - Get single published question (draft → NotFound, SEC-9).
+  // Admins use adminQuestion(id).
   @Query(() => Question)
   async question(@Args('id') id: string): Promise<Question> {
-    return this.questionsService.findOne(id);
+    return this.questionsService.findPublishedOne(id);
   }
 
   // Admin - Get all questions (including drafts)

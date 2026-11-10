@@ -197,7 +197,7 @@ export default function EssaysBlogsPage() {
             <span className="bg-white/20 text-white p-3 rounded-lg mr-4">
               <PenTool className="w-8 h-8" />
             </span>
-            <h1 className="text-4xl md:text-5xl font-bold">Essays</h1>
+            <h1 className="text-4xl md:text-5xl font-bold">บทความเชิงลึก</h1>
           </div>
           <p className="text-xl text-amber-100 max-w-2xl">
             บทความเชิงลึกและการวิเคราะห์
@@ -283,7 +283,7 @@ export default function EssaysBlogsPage() {
               <div className="text-center py-16">
                 <PenTool className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                  {debouncedSearch ? 'ไม่พบบทความ' : 'ยังไม่มี Essays'}
+                  {debouncedSearch ? 'ไม่พบบทความ' : 'ยังไม่มีบทความเชิงลึก'}
                 </h3>
                 <p className="text-gray-500 dark:text-gray-400">
                   {debouncedSearch ? 'ลองค้นหาด้วยคำอื่นดูนะครับ' : 'กลับมาดูใหม่ภายหลังนะครับ'}

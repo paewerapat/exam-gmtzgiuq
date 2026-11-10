@@ -73,12 +73,12 @@ export async function getBlogs(params: GetBlogsParams = {}): Promise<PaginatedBl
 }
 
 // Get single blog by slug
+// API คืนบทความ draft เฉพาะคำขอที่มี token แอดมิน (SEC-9) จึงแนบ token ถ้ามี — ไม่มี token ก็ยังเรียกแบบ public ได้
+// (token หมดอายุ/ไม่ถูกต้อง API ไม่ปฏิเสธ เพราะใช้ OptionalJwtAuthGuard)
 export async function getBlogBySlug(slug: string): Promise<Blog> {
   const response = await fetch(`${API_URL}/blogs/slug/${slug}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     cache: 'no-store',
   });
 
@@ -192,16 +192,21 @@ export async function deleteBlog(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete blog');
 }
 
-// Category display info
+// Category display info — ชื่อหมวดที่ผู้ใช้เห็น (ค่า category ใน DB/URL ยังเป็น notes / essays)
 export const categoryInfo = {
   notes: {
-    name: 'Notes',
+    name: 'โน้ตสรุป',
     description: 'บันทึกสั้นๆ เคล็ดลับและเทคนิคที่มีประโยชน์',
     color: 'emerald',
   },
   essays: {
-    name: 'Essays',
+    name: 'บทความเชิงลึก',
     description: 'บทความเชิงลึกและการวิเคราะห์',
     color: 'amber',
   },
 } as const;
+
+/** ชื่อหมวดบทความภาษาไทย (ค่าที่ไม่รู้จักคืนค่าเดิม) */
+export function getBlogCategoryLabel(category: string): string {
+  return categoryInfo[category as BlogCategory]?.name ?? category;
+}

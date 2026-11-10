@@ -121,7 +121,8 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
+      {/* จอแคบ: ปุ่มลงไปอยู่ใต้หัวข้อ ไม่บีบหัวข้อ */}
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link
             href="/admin/blogs"
@@ -175,7 +176,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Slug (URL)
+                    ชื่อลิงก์ (slug)
                   </label>
                   <input
                     type="text"
@@ -222,7 +223,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Meta Title
+                    หัวข้อสำหรับ SEO (Meta Title)
                   </label>
                   <input
                     type="text"
@@ -235,7 +236,7 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Meta Description
+                    คำอธิบายสำหรับ SEO (Meta Description)
                   </label>
                   <textarea
                     rows={3}
@@ -264,8 +265,8 @@ export default function EditBlogClient({ blogId }: EditBlogClientProps) {
                     onChange={(e) => setFormData({ ...formData, category: e.target.value as BlogCategory })}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
-                    <option value="notes">Notes — บันทึกสั้นๆ เคล็ดลับ</option>
-                    <option value="essays">Essays — บทความเชิงลึก</option>
+                    <option value="notes">โน้ตสรุป — บันทึกสั้นๆ เคล็ดลับ</option>
+                    <option value="essays">บทความเชิงลึก — อธิบายละเอียดและวิเคราะห์</option>
                   </select>
                 </div>
 

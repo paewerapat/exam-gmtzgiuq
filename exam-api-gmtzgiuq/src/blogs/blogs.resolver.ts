@@ -27,10 +27,11 @@ export class BlogsResolver {
     return this.blogsService.findPublished(page, limit);
   }
 
-  // Public - Get single blog by slug
+  // Public - Get single published blog by slug (draft → NotFound, SEC-9).
+  // Admins use adminBlog(id).
   @Query(() => Blog)
   async blogBySlug(@Args('slug') slug: string): Promise<Blog> {
-    return this.blogsService.findBySlug(slug);
+    return this.blogsService.findBySlug(slug, { includeDrafts: false });
   }
 
   // Admin - Get all blogs (including drafts)

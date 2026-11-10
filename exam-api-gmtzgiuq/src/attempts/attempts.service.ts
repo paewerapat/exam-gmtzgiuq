@@ -3,10 +3,12 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { ExamAttempt } from './attempt.entity';
+import { Exam } from '../exams/exam.entity';
 import {
   StartAttemptDto,
   SubmitAttemptInput,
@@ -18,11 +20,15 @@ import {
 import { User } from '../users/user.entity';
 import { QuestionCategory } from '../questions/question.entity';
 
+const ATTEMPT_ALREADY_COMPLETED = 'ส่งข้อสอบชุดนี้ไปแล้ว ไม่สามารถส่งซ้ำได้';
+
 @Injectable()
 export class AttemptsService {
   constructor(
     @InjectRepository(ExamAttempt)
     private attemptsRepository: Repository<ExamAttempt>,
+    @InjectRepository(Exam)
+    private examsRepository: Repository<Exam>,
   ) {}
 
   // ── IN-PROGRESS ────────────────────────────────────────────
@@ -33,7 +39,9 @@ export class AttemptsService {
    * answers, still on the first question), that row is reused instead of
    * abandoning it and inserting another, so just visiting the page does not
    * pile up rows. In-progress attempts with answers keep the old behaviour
-   * (abandoned, then a new row is created).
+   * (abandoned, then a new row is created). Extra untouched rows (left over
+   * from earlier concurrent starts) are abandoned too, never deleted: a tab
+   * may still hold one and must be able to submit it.
    *
    * Starts of the same user run one at a time (row lock on the user inside a
    * transaction), so two simultaneous requests (React StrictMode, double
@@ -52,6 +60,15 @@ export class AttemptsService {
     const startedAt = new Date(data.startedAt);
     if (Number.isNaN(startedAt.getTime())) {
       throw new BadRequestException('เวลาเริ่มทำข้อสอบ (startedAt) ไม่ถูกต้อง');
+    }
+
+    // An unknown examId would otherwise fail on the foreign key with a 500
+    const examExists = await this.examsRepository.exists({
+      where: { id: data.examId },
+      loadEagerRelations: false,
+    });
+    if (!examExists) {
+      throw new NotFoundException('ไม่พบข้อสอบนี้');
     }
 
     const fields = {
@@ -92,24 +109,19 @@ export class AttemptsService {
             })
           ).filter((a) => a.examId === data.examId);
 
+          // Every in-progress row except the reused one is abandoned: rows
+          // with answers, and extra untouched rows left over from earlier
+          // concurrent starts (not deleted — a tab that still holds one would
+          // get 404 when it submits).
           const reusable = inProgress.find((a) => this.isUntouched(a));
-          const extraUntouched = inProgress
-            .filter((a) => a !== reusable && this.isUntouched(a))
-            .map((a) => a.id);
-          const touched = inProgress
-            .filter((a) => !this.isUntouched(a))
+          const toAbandon = inProgress
+            .filter((a) => a !== reusable)
             .map((a) => a.id);
 
-          // Extra untouched rows hold no data (left over from earlier
-          // concurrent starts) — remove them rather than adding abandoned rows.
-          if (extraUntouched.length > 0) {
-            await repo.delete({ id: In(extraUntouched) });
-          }
-
-          if (touched.length > 0) {
+          if (toAbandon.length > 0) {
             try {
               await repo.update(
-                { id: In(touched), status: 'in_progress' },
+                { id: In(toAbandon), status: 'in_progress' },
                 { status: 'abandoned' },
               );
             } catch {
@@ -217,20 +229,36 @@ export class AttemptsService {
     const attempt = await this.attemptsRepository.findOne({ where: { id } });
     if (!attempt) throw new NotFoundException('Attempt not found');
     if (attempt.userId !== userId) throw new ForbiddenException();
+    // A submitted result is final (BUG-21: a second tab or a retried request
+    // must not overwrite it). Abandoned attempts can still be submitted — an
+    // older tab's attempt may have been abandoned by a newer start.
+    if (attempt.status === 'completed') {
+      throw new ConflictException(ATTEMPT_ALREADY_COMPLETED);
+    }
 
-    await this.attemptsRepository.update(id, {
-      correctAnswers: input.correctAnswers,
-      incorrectAnswers: input.incorrectAnswers,
-      unanswered: input.unanswered,
-      score: input.score,
-      totalTime: input.totalTime,
-      timePerQuestion: input.timePerQuestion,
-      answers: input.answers,
-      questionIds: input.questionIds,
-      currentIndex: input.totalQuestions - 1,
-      status: 'completed',
-      completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
-    });
+    // The status condition makes the check atomic: of two simultaneous
+    // submits only one matches the row.
+    const result = await this.attemptsRepository.update(
+      { id, status: In(['in_progress', 'abandoned']) },
+      {
+        correctAnswers: input.correctAnswers,
+        incorrectAnswers: input.incorrectAnswers,
+        unanswered: input.unanswered,
+        score: input.score,
+        totalTime: input.totalTime,
+        timePerQuestion: input.timePerQuestion,
+        answers: input.answers,
+        questionIds: input.questionIds,
+        currentIndex: input.totalQuestions - 1,
+        status: 'completed',
+        completedAt: input.completedAt
+          ? new Date(input.completedAt)
+          : new Date(),
+      },
+    );
+    if (!result.affected) {
+      throw new ConflictException(ATTEMPT_ALREADY_COMPLETED);
+    }
 
     return this.findOne(id);
   }

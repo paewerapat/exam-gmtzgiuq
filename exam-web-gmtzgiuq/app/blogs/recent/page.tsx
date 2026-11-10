@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BookOpen, Calendar, Clock, Eye, ArrowLeft, Search, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { getBlogs, formatDate, calculateReadTime, Blog, PaginatedBlogs } from '@/lib/api/blogs';
+import { getBlogs, formatDate, calculateReadTime, getBlogCategoryLabel, Blog, PaginatedBlogs } from '@/lib/api/blogs';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -36,7 +36,7 @@ function BlogCard({ blog }: { blog: Blog }) {
               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
               : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
           }`}>
-            {blog.category === 'notes' ? 'Notes' : 'Essays'}
+            {getBlogCategoryLabel(blog.category)}
           </span>
 
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition line-clamp-2 dark:group-hover:text-indigo-300">

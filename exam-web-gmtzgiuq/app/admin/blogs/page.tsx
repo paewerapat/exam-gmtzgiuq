@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, Edit, Trash2, Eye, Search, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { getAdminBlogs, deleteBlog, type Blog } from '@/lib/api/blogs';
+import { getAdminBlogs, deleteBlog, getBlogCategoryLabel, type Blog } from '@/lib/api/blogs';
 
 export default function AdminBlogsPage() {
   const [blogs, setBlogs] = useState<Blog[]>([]);
@@ -50,9 +50,9 @@ export default function AdminBlogsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Blogs</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">บทความ</h1>
           <p className="text-gray-600 dark:text-gray-400">จัดการบทความ ({total} บทความ)</p>
         </div>
         <Link
@@ -60,7 +60,7 @@ export default function AdminBlogsPage() {
           className="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
         >
           <Plus className="w-5 h-5 mr-2" />
-          New Blog
+          เขียนบทความ
         </Link>
       </div>
 
@@ -102,22 +102,22 @@ export default function AdminBlogsPage() {
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Title
+                  ชื่อบทความ
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Category
+                  หมวดหมู่
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
+                  สถานะ
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Views
+                  ยอดเข้าชม
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Date
+                  วันที่สร้าง
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
+                  จัดการ
                 </th>
               </tr>
             </thead>
@@ -136,7 +136,7 @@ export default function AdminBlogsPage() {
                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
                         : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
                     }`}>
-                      {blog.category}
+                      {getBlogCategoryLabel(blog.category)}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -160,21 +160,24 @@ export default function AdminBlogsPage() {
                         href={`/blogs/${blog.slug}`}
                         target="_blank"
                         className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded dark:hover:text-indigo-300 dark:hover:bg-gray-700"
-                        title="View"
+                        title="ดูบทความ"
+                        aria-label={`ดูบทความ ${blog.title}`}
                       >
                         <Eye className="w-4 h-4" />
                       </Link>
                       <Link
                         href={`/admin/blogs/${blog.id}`}
                         className="p-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded dark:hover:text-indigo-300 dark:hover:bg-gray-700"
-                        title="Edit"
+                        title="แก้ไข"
+                        aria-label={`แก้ไข ${blog.title}`}
                       >
                         <Edit className="w-4 h-4" />
                       </Link>
                       <button
                         onClick={() => handleDelete(blog.id, blog.title)}
                         className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:bg-gray-100 rounded dark:hover:text-red-300 dark:hover:bg-gray-700"
-                        title="Delete"
+                        title="ลบ"
+                        aria-label={`ลบ ${blog.title}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

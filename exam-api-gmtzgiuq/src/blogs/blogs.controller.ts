@@ -19,6 +19,8 @@ import {
 import { Blog, BlogStatus, BlogCategory } from './blog.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
+import { User, UserRole } from '../users/user.entity';
 
 @Controller('blogs')
 export class BlogsController {
@@ -35,10 +37,18 @@ export class BlogsController {
     return this.blogsService.findPublished(+page, +limit, category, search);
   }
 
-  // Public - Get single blog by slug
+  // Public - Get single published blog by slug (draft → 404, SEC-9).
+  // An admin's token also opens drafts, for the preview links of the admin
+  // blog pages.
   @Get('slug/:slug')
-  async findBySlug(@Param('slug') slug: string): Promise<Blog> {
-    return this.blogsService.findBySlug(slug);
+  @UseGuards(OptionalJwtAuthGuard)
+  async findBySlug(
+    @Param('slug') slug: string,
+    @Request() req: { user?: Pick<User, 'role'> | null },
+  ): Promise<Blog> {
+    return this.blogsService.findBySlug(slug, {
+      includeDrafts: req.user?.role === UserRole.ADMIN,
+    });
   }
 
   // Admin - Get all blogs

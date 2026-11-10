@@ -71,7 +71,7 @@ export default function AdminDashboard() {
   return (
     <FadeIn>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">แดชบอร์ด</h1>
         <p className="text-gray-600 dark:text-gray-400">ภาพรวมระบบข้อสอบ</p>
       </div>
 
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
 
         {/* Quick Actions */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Quick Actions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">ทางลัด</h2>
           <div className="space-y-3">
             <Link
               href="/admin/exams/new"
@@ -226,7 +226,7 @@ export default function AdminDashboard() {
                 {recentAttempts.items.map((attempt) => (
                   <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{attempt.user?.name || 'Unknown'}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{attempt.user?.name || 'ไม่ทราบชื่อ'}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">{attempt.user?.email}</div>
                     </td>
                     <td className="px-4 py-3">

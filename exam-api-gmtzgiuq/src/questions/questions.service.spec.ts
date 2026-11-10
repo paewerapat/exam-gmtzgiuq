@@ -1,7 +1,9 @@
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
 import { QuestionsService } from './questions.service';
+import { QuestionsResolver } from './questions.resolver';
 import { Question, QuestionStatus } from './question.entity';
 import { UploadService } from '../upload/upload.service';
 import { CreateQuestionInput, UpdateQuestionInput } from './dto/question.dto';
@@ -411,5 +413,65 @@ describe('QuestionsService — images (task 07)', () => {
         isMock: false,
       });
     });
+  });
+});
+
+describe('Public single question — GraphQL question(id) (SEC-9)', () => {
+  let service: QuestionsService;
+  let resolver: QuestionsResolver;
+  let findOne: jest.Mock;
+
+  // Mimics the DB: findOne matches every key in `where`.
+  const rows = [
+    { id: 'q-pub', status: QuestionStatus.PUBLISHED },
+    { id: 'q-draft', status: QuestionStatus.DRAFT },
+  ] as Question[];
+
+  beforeEach(async () => {
+    findOne = jest.fn(({ where }: { where: Partial<Question> }) =>
+      Promise.resolve(
+        rows.find((r) =>
+          Object.entries(where).every(([k, v]) => r[k as keyof Question] === v),
+        ) ?? null,
+      ),
+    );
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        QuestionsService,
+        QuestionsResolver,
+        { provide: getRepositoryToken(Question), useValue: { findOne } },
+        { provide: getRepositoryToken(Exam), useValue: {} },
+        { provide: UploadService, useValue: {} },
+      ],
+    }).compile();
+
+    service = module.get(QuestionsService);
+    resolver = module.get(QuestionsResolver);
+  });
+
+  it('findPublishedOne returns a published question', async () => {
+    await expect(service.findPublishedOne('q-pub')).resolves.toEqual(rows[0]);
+    expect(findOne).toHaveBeenCalledWith({
+      where: { id: 'q-pub', status: QuestionStatus.PUBLISHED },
+      relations: ['author'],
+    });
+  });
+
+  it('findPublishedOne reports a draft or a missing id as not found', async () => {
+    await expect(service.findPublishedOne('q-draft')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(service.findPublishedOne('nope')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('question(id) is published only; adminQuestion(id) still returns drafts', async () => {
+    await expect(resolver.question('q-draft')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(resolver.question('q-pub')).resolves.toEqual(rows[0]);
+    await expect(resolver.adminQuestion('q-draft')).resolves.toEqual(rows[1]);
   });
 });

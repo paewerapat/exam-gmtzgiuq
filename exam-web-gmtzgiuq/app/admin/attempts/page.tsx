@@ -216,7 +216,7 @@ export default function AdminAttemptsPage() {
                         <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-3">
                             <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {attempt.user?.name || 'Unknown'}
+                              {attempt.user?.name || 'ไม่ทราบชื่อ'}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                               {attempt.user?.email}
