@@ -19,6 +19,8 @@ import { User } from '../users/user.entity';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ExamAccessType, ExamLevel } from './exam-mock';
 import { UPLOAD_REFERENCE_SQL } from '../questions/question-images';
+import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ExamAccess } from '../exam-access/exam-access.entity';
 
 const LOCAL = 'http://localhost:3001/uploads';
 
@@ -75,8 +77,11 @@ describe('ExamsService', () => {
   let deleteByUrl: jest.SpyInstance;
   // Upload reference query (deleteUnusedImages); default: no other usage
   let query: jest.Mock;
+  // exam_access rows of the viewer (task 15); default: none
+  let accessFind: jest.Mock;
 
   beforeEach(async () => {
+    accessFind = jest.fn().mockResolvedValue([]);
     query = jest.fn().mockResolvedValue([{ refs: 0 }]);
     manager = {
       create: jest.fn((_entity: unknown, data: unknown) => data),
@@ -110,6 +115,12 @@ describe('ExamsService', () => {
           },
         },
         { provide: UploadService, useValue: uploadService },
+        // Real access rules on a mocked exam_access table (task 15)
+        ExamAccessService,
+        {
+          provide: getRepositoryToken(ExamAccess),
+          useValue: { find: accessFind },
+        },
       ],
     }).compile();
 
@@ -763,7 +774,12 @@ describe('ExamsService', () => {
         // passages is select: false, so it is loaded explicitly
         expect(examsRepo.findOne.mock.calls).toContainEqual([
           expect.objectContaining({
-            select: { id: true, passages: true, detailBlocks: true },
+            select: {
+              id: true,
+              passages: true,
+              detailBlocks: true,
+              codeInstructions: true,
+            },
             where: { id: 'exam-1' },
           }),
         ]);
@@ -1629,6 +1645,8 @@ describe('ExamsService', () => {
               price: 150,
               level: 'hard',
               accessType: 'purchase',
+              // guest (task 15)
+              access: { status: 'locked', expiresAt: null },
             },
           ],
           total: 13,
@@ -1670,6 +1688,8 @@ describe('ExamsService', () => {
           price: 99.5,
           description: 'คำอธิบาย',
           detailBlocks: [textBlock('a'), imageBlock('/uploads/x.png')],
+          access: { status: 'locked', expiresAt: null },
+          codeInstructions: null,
         });
         expect(exam).not.toHaveProperty('questions');
         expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();

@@ -5,32 +5,32 @@ import Link from 'next/link';
 import {
   AlertCircle,
   ArrowLeft,
-  BookOpen,
+  ChevronLeft,
   Clock,
   FileQuestion,
   Gauge,
   KeyRound,
   ListOrdered,
   Loader2,
-  PlayCircle,
   RotateCcw,
-  ShoppingCart,
-  Tag,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { useAuth } from '@/contexts/AuthContext';
 import { getMockExam, type MockExamDetail as MockExamDetailData } from '@/lib/api/exams';
 import { getMyInProgressAttempts } from '@/lib/api/attempts';
+import type { RedeemUnlockCodeResult } from '@/lib/api/unlockCodes';
 import {
+  canStartMock,
   formatMockContext,
-  getMockPrimaryAction,
   getMockPriceLabel,
   LEVEL_LABELS,
-  mockCategoryLabel,
+  type MockExamAccess,
 } from '@/lib/mock-exam';
-import MockExamBanner from './MockExamBanner';
-import MockAccessBadge from './MockAccessBadge';
+import { formatAccessUntil } from '@/lib/unlock-codes';
 import DetailBlocksView from './DetailBlocksView';
+import MockDetailHero from './MockDetailHero';
+import MockAccessPanel from './MockAccessPanel';
+import CodeInstructionsView from './CodeInstructionsView';
 
 type LoadState = 'loading' | 'ready' | 'notfound' | 'error';
 
@@ -40,14 +40,23 @@ function isAbortError(err: unknown) {
 
 const BACK_HREF = '/dashboard/mock-exams';
 
-/** หน้ารายละเอียด Mock Exam (/dashboard/mock-exams/[id]) */
+/** แถว "การเข้าถึง" ในกล่องรายละเอียด */
+function accessSummary(exam: MockExamDetailData, access: MockExamAccess): string {
+  if (exam.accessType === 'free') return 'ทำได้ตลอด ไม่ต้องใช้โค้ด';
+  if (access.status === 'unlocked') return formatAccessUntil(access.expiresAt);
+  if (exam.accessType === 'code') return access.status === 'expired' ? 'สิทธิ์หมดอายุ · ใช้โค้ด Campaign' : 'ใช้โค้ด Campaign';
+  return getMockPriceLabel(exam) ?? 'ต้องซื้อ';
+}
+
+/** หน้ารายละเอียด Mock Exam (/dashboard/mock-exams/[id]) — โครงดีไซน์ task 15 (ภาพ 5–7) */
 export default function MockExamDetail({ id }: { id: string }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
   const [reloadKey, setReloadKey] = useState(0);
-  // ผลของคำขอล่าสุด ผูกกับ key — key ไม่ตรง (กดลองใหม่) = กำลังโหลด
-  const requestKey = `${id}|${reloadKey}`;
+  // ผลของคำขอล่าสุด ผูกกับ key — key ไม่ตรง (กดลองใหม่ / login-logout) = กำลังโหลด
+  // access ขึ้นกับบัญชี จึงโหลดใหม่เมื่อผู้ใช้เปลี่ยน
+  const requestKey = `${id}|${userId ?? ''}|${reloadKey}`;
   const [result, setResult] = useState<{
     key: string;
     state: Exclude<LoadState, 'loading'>;
@@ -55,7 +64,16 @@ export default function MockExamDetail({ id }: { id: string }) {
   } | null>(null);
   const state: LoadState = result?.key === requestKey ? result.state : 'loading';
   const exam = state === 'ready' ? (result?.exam ?? null) : null;
-  // attempt โหมด exam ที่ค้างของชุดนี้ (เฉพาะเมื่อ login และชุดฟรี) null = ยังไม่ได้เช็ก
+
+  // สิทธิ์หลังกรอกโค้ดสำเร็จในหน้านี้ (อัปเดตทันทีไม่ต้องโหลดใหม่)
+  const [redeemed, setRedeemed] = useState<{ key: string; access: MockExamAccess } | null>(null);
+  const access: MockExamAccess | null = exam
+    ? redeemed?.key === requestKey
+      ? redeemed.access
+      : exam.access
+    : null;
+
+  // attempt โหมด exam ที่ค้างของชุดนี้ (เฉพาะเมื่อ login และเริ่มทำได้) null = ยังไม่ได้เช็ก
   const [inProgress, setInProgress] = useState<{ key: string; has: boolean } | null>(null);
 
   useEffect(() => {
@@ -73,8 +91,8 @@ export default function MockExamDetail({ id }: { id: string }) {
     return () => controller.abort();
   }, [id, requestKey]);
 
-  const isFree = exam?.accessType === 'free';
-  const progressKey = userId && isFree ? `${userId}:${id}` : null;
+  const canStart = !!exam && canStartMock(exam, access);
+  const progressKey = userId && canStart ? `${userId}:${id}` : null;
 
   useEffect(() => {
     if (!progressKey) return;
@@ -102,7 +120,7 @@ export default function MockExamDetail({ id }: { id: string }) {
     );
   }
 
-  if (state === 'notfound' || state === 'error' || !exam) {
+  if (state === 'notfound' || state === 'error' || !exam || !access) {
     const notFound = state !== 'error';
     return (
       <FadeIn>
@@ -142,13 +160,14 @@ export default function MockExamDetail({ id }: { id: string }) {
     );
   }
 
-  const categoryLabel = mockCategoryLabel(exam);
-  const context = formatMockContext(exam);
   const checkingProgress = !!progressKey && inProgress?.key !== progressKey;
-  const action = getMockPrimaryAction(exam, {
-    hasInProgress: !!progressKey && inProgress?.key === progressKey && inProgress.has,
-  });
-  const priceLabel = getMockPriceLabel(exam);
+  const hasInProgress = !!progressKey && inProgress?.key === progressKey && inProgress.has;
+  const justUnlocked = redeemed?.key === requestKey;
+  const instructions = exam.accessType === 'code' ? exam.codeInstructions : null;
+
+  function handleRedeemed(res: RedeemUnlockCodeResult) {
+    setRedeemed({ key: requestKey, access: { status: 'unlocked', expiresAt: res.expiresAt || null } });
+  }
 
   const infoRows = [
     { icon: ListOrdered, label: 'จำนวนข้อ', value: `${exam.questionCount.toLocaleString('th-TH')} ข้อ` },
@@ -158,119 +177,83 @@ export default function MockExamDetail({ id }: { id: string }) {
       value: exam.durationMinutes ? `${exam.durationMinutes.toLocaleString('th-TH')} นาที` : 'ไม่จับเวลา',
     },
     { icon: Gauge, label: 'ระดับ', value: exam.level ? LEVEL_LABELS[exam.level] : 'ไม่ระบุ' },
-    {
-      icon: Tag,
-      label: 'ราคา',
-      value: priceLabel ?? (exam.accessType === 'code' ? 'ใช้โค้ด Campaign' : '-'),
-    },
+    { icon: KeyRound, label: 'การเข้าถึง', value: accessSummary(exam, access) },
   ];
 
   return (
     <FadeIn>
-      <nav aria-label="breadcrumb" className="text-sm text-gray-400 mb-4 flex items-center gap-1 min-w-0">
-        <Link href={BACK_HREF} className="hover:text-indigo-600 dark:hover:text-indigo-400 flex-shrink-0">
-          Mock Exam
-        </Link>
-        <span className="flex-shrink-0">/</span>
-        <span className="text-gray-600 dark:text-gray-400 font-medium truncate">{exam.title}</span>
-      </nav>
+      <Link
+        href={BACK_HREF}
+        className="inline-flex items-center gap-1 mb-4 min-h-11 sm:min-h-0 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+      >
+        <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+        กลับไป Mock Exam
+      </Link>
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-        <MockExamBanner
-          title={exam.title}
-          category={exam.category}
-          categoryLabel={categoryLabel}
-          bannerImage={exam.bannerImage}
-          className="rounded-xl"
-        />
+      <MockDetailHero
+        title={exam.title}
+        context={formatMockContext(exam)}
+        accessType={exam.accessType}
+        price={exam.price}
+        questionCount={exam.questionCount}
+        durationMinutes={exam.durationMinutes}
+        access={access}
+      />
 
-        <div className="flex flex-col min-w-0">
-          <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 min-w-0">
-            <BookOpen className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{context}</span>
-          </p>
-          <h1 className="mt-1 text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 leading-snug break-words">
-            {exam.title}
-          </h1>
-          <div className="mt-2">
-            <MockAccessBadge exam={exam} />
-          </div>
+      {/* มือถือ: กล่องเริ่มทำ/กรอกโค้ดอยู่ใต้แถบหัวทันที / จอกว้าง: คอลัมน์ขวา */}
+      <div className="mt-6 flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <aside aria-label="การเข้าถึงชุดข้อสอบ" className="min-w-0 lg:col-start-2 lg:row-start-1 lg:sticky lg:top-6">
+          <MockAccessPanel
+            exam={exam}
+            access={access}
+            isGuest={!userId}
+            hasInProgress={hasInProgress}
+            checkingProgress={checkingProgress}
+            focusStart={justUnlocked}
+            onRedeemed={handleRedeemed}
+          />
+        </aside>
 
-          <dl className="mt-5 grid grid-cols-2 gap-3">
-            {infoRows.map(({ icon: Icon, label, value }) => (
-              <div
-                key={label}
-                className="rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 px-3 py-2.5 min-w-0"
-              >
-                <dt className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                  <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                  {label}
-                </dt>
-                <dd className="mt-0.5 text-sm font-semibold text-gray-900 dark:text-gray-100 break-words">{value}</dd>
-              </div>
-            ))}
-          </dl>
+        <div className="min-w-0 flex flex-col gap-6 lg:col-start-1 lg:row-start-1">
+          {instructions && <CodeInstructionsView instructions={instructions} />}
 
-          <div className="mt-6 lg:mt-auto lg:pt-6">
-            {action.kind === 'start' || action.kind === 'resume' ? (
-              checkingProgress ? (
-                <span
-                  role="status"
-                  className="flex sm:inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-full bg-rose-600/70 text-white text-sm font-semibold"
-                >
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  กำลังตรวจสอบ...
-                </span>
-              ) : (
-                <Link
-                  href={action.href}
-                  className="flex sm:inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-sm transition"
-                >
-                  <PlayCircle className="w-5 h-5" />
-                  {action.label}
-                </Link>
-              )
+          <section
+            aria-labelledby="mock-detail-heading"
+            className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 sm:p-6"
+          >
+            <h2 id="mock-detail-heading" className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">
+              รายละเอียดข้อสอบ
+            </h2>
+            {exam.detailBlocks.length > 0 ? (
+              <DetailBlocksView blocks={exam.detailBlocks} title={exam.title} />
+            ) : exam.description?.trim() ? (
+              // description เดิมเป็นข้อความธรรมดา (ไม่ผ่าน HTML) แสดงตามการขึ้นบรรทัด
+              <p className="whitespace-pre-wrap text-sm sm:text-base leading-relaxed text-gray-700 dark:text-gray-300 break-words">
+                {exam.description}
+              </p>
             ) : (
-              <>
-                <button
-                  type="button"
-                  disabled
-                  aria-describedby="mock-action-note"
-                  className="flex sm:inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-semibold cursor-not-allowed"
+              <p className="text-sm text-gray-500 dark:text-gray-400">ยังไม่มีรายละเอียดสำหรับชุดนี้</p>
+            )}
+
+            <dl className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {infoRows.map(({ icon: Icon, label, value }) => (
+                <div
+                  key={label}
+                  className="rounded-xl bg-indigo-50/60 dark:bg-gray-900/40 border border-indigo-100/60 dark:border-gray-700 px-4 py-3 min-w-0"
                 >
-                  {action.kind === 'unlock' ? <KeyRound className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5" />}
-                  {action.label}
-                </button>
-                <p id="mock-action-note" className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  {action.note}
-                </p>
-              </>
-            )}
-            {action.kind === 'resume' && !checkingProgress && (
-              <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">คุณมีการทำชุดนี้ค้างอยู่ กดเพื่อทำต่อ</p>
-            )}
-          </div>
+                  <dt className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                    <Icon className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                    {label}
+                  </dt>
+                  <dd className="mt-0.5 text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 break-words">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
         </div>
       </div>
-
-      <section
-        aria-labelledby="mock-detail-heading"
-        className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-6"
-      >
-        <h2 id="mock-detail-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          รายละเอียดชุดข้อสอบ
-        </h2>
-        {exam.detailBlocks.length > 0 ? (
-          <DetailBlocksView blocks={exam.detailBlocks} title={exam.title} />
-        ) : exam.description?.trim() ? (
-          // description เดิมเป็นข้อความธรรมดา (ไม่ผ่าน HTML) แสดงตามการขึ้นบรรทัด
-          <p className="whitespace-pre-wrap text-sm sm:text-base leading-relaxed text-gray-700 dark:text-gray-300 break-words">
-            {exam.description}
-          </p>
-        ) : (
-          <p className="text-sm text-gray-400">ยังไม่มีรายละเอียดสำหรับชุดนี้</p>
-        )}
-      </section>
     </FadeIn>
   );
 }

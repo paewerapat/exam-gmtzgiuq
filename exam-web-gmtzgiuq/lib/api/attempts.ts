@@ -1,6 +1,7 @@
 // Attempts API Service
 import type { QuestionCategory } from './questions';
 import { fetchWithAuth } from './authFetch';
+import { toApiError } from './apiError';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -133,15 +134,8 @@ export async function submitAttempt(input: SubmitAttemptInput): Promise<ExamAtte
     body: JSON.stringify(input),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    const message = errorData?.message
-      ? Array.isArray(errorData.message)
-        ? errorData.message.join(', ')
-        : errorData.message
-      : `HTTP ${response.status}`;
-    throw new Error(message);
-  }
+  // message เดิม (array รวมด้วย ", ") + status/errorCode (EXAM_LOCKED ของ task 15)
+  if (!response.ok) throw await toApiError(response, `HTTP ${response.status}`);
 
   return response.json();
 }
@@ -296,7 +290,8 @@ export async function startInProgressAttempt(
       signal: ctrl.signal,
     });
     clearTimeout(t);
-    if (!response.ok) throw new Error('Failed to start attempt');
+    // ชุดล็อก + ไม่มีสิทธิ์ → ApiError 403 EXAM_LOCKED (task 15)
+    if (!response.ok) throw await toApiError(response, 'Failed to start attempt');
     return response.json();
   } catch (err) {
     clearTimeout(t);
@@ -314,7 +309,7 @@ export async function updateAttemptProgress(
     body: JSON.stringify(input),
   });
 
-  if (!response.ok) throw new Error('Failed to update attempt progress');
+  if (!response.ok) throw await toApiError(response, 'Failed to update attempt progress');
 }
 
 // User - Complete an in-progress attempt
@@ -327,7 +322,7 @@ export async function completeAttempt(
     body: JSON.stringify(input),
   });
 
-  if (!response.ok) throw new Error('Failed to complete attempt');
+  if (!response.ok) throw await toApiError(response, 'Failed to complete attempt');
   return response.json();
 }
 

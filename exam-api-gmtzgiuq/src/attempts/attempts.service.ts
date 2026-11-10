@@ -19,6 +19,8 @@ import {
 } from './dto/attempt.dto';
 import { User } from '../users/user.entity';
 import { QuestionCategory } from '../questions/question.entity';
+import { ExamAccessService } from '../exam-access/exam-access.service';
+import type { AccessViewer } from '../exam-access/exam-access';
 
 const ATTEMPT_ALREADY_COMPLETED = 'ส่งข้อสอบชุดนี้ไปแล้ว ไม่สามารถส่งซ้ำได้';
 
@@ -29,6 +31,7 @@ export class AttemptsService {
     private attemptsRepository: Repository<ExamAttempt>,
     @InjectRepository(Exam)
     private examsRepository: Repository<Exam>,
+    private examAccessService: ExamAccessService,
   ) {}
 
   // ── IN-PROGRESS ────────────────────────────────────────────
@@ -46,10 +49,15 @@ export class AttemptsService {
    * Starts of the same user run one at a time (row lock on the user inside a
    * transaction), so two simultaneous requests (React StrictMode, double
    * click, two tabs) end up with the same single row instead of two.
+   *
+   * A locked Mock Exam without access → 403 EXAM_LOCKED (task 15).
+   * `viewer` is the logged-in user (role decides admin); not passed = a
+   * regular user with id `userId`.
    */
   async startInProgress(
     userId: string,
     data: StartAttemptDto,
+    viewer?: AccessViewer,
   ): Promise<ExamAttempt> {
     // The controller validates the body; this also guards other callers.
     // Without examId TypeORM would drop the key from `where` and match the
@@ -70,6 +78,10 @@ export class AttemptsService {
     if (!examExists) {
       throw new NotFoundException('ไม่พบข้อสอบนี้');
     }
+    await this.examAccessService.assertCanAccessExamId(
+      viewer ?? { id: userId },
+      data.examId,
+    );
 
     const fields = {
       examTitle: data.examTitle,
@@ -199,6 +211,7 @@ export class AttemptsService {
     return !answered && (attempt.currentIndex ?? 0) === 0;
   }
 
+  /** Autosave. Locked exam whose access ended → 403 EXAM_LOCKED (task 15). */
   async updateProgress(
     id: string,
     userId: string,
@@ -207,11 +220,16 @@ export class AttemptsService {
       answers: Record<string, string>;
       timePerQuestion: Record<string, number>;
     },
+    viewer?: AccessViewer,
   ): Promise<void> {
     const attempt = await this.attemptsRepository.findOne({ where: { id } });
     if (!attempt) throw new NotFoundException('Attempt not found');
     if (attempt.userId !== userId) throw new ForbiddenException();
     if (attempt.status !== 'in_progress') return; // ignore if already done
+    await this.examAccessService.assertCanAccessExamId(
+      viewer ?? { id: userId },
+      attempt.examId,
+    );
 
     await this.attemptsRepository.update(id, {
       currentIndex: data.currentIndex,
@@ -221,10 +239,12 @@ export class AttemptsService {
     });
   }
 
+  /** Submit. Locked exam whose access ended → 403 EXAM_LOCKED (task 15). */
   async completeAttempt(
     id: string,
     userId: string,
     input: SubmitAttemptInput,
+    viewer?: AccessViewer,
   ): Promise<ExamAttempt> {
     const attempt = await this.attemptsRepository.findOne({ where: { id } });
     if (!attempt) throw new NotFoundException('Attempt not found');
@@ -235,6 +255,10 @@ export class AttemptsService {
     if (attempt.status === 'completed') {
       throw new ConflictException(ATTEMPT_ALREADY_COMPLETED);
     }
+    await this.examAccessService.assertCanAccessExamId(
+      viewer ?? { id: userId },
+      attempt.examId,
+    );
 
     // The status condition makes the check atomic: of two simultaneous
     // submits only one matches the row.
@@ -281,7 +305,10 @@ export class AttemptsService {
 
   // ── COMPLETED ──────────────────────────────────────────────
 
+  /** Legacy direct submit. Locked exam without access → 403 (task 15). */
   async submit(input: SubmitAttemptInput, user: User): Promise<ExamAttempt> {
+    await this.examAccessService.assertCanAccessExamId(user, input.examId);
+
     const attempt = this.attemptsRepository.create({
       userId: user.id,
       examId: input.examId,

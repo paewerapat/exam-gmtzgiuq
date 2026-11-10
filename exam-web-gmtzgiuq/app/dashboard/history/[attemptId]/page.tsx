@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Loader2, CheckCircle, XCircle, MinusCircle,
-  Clock, Trophy, Target, BookOpen,
+  Clock, Trophy, Target, BookOpen, Lock,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { getMyAttempt, type ExamAttempt } from '@/lib/api/attempts';
 import { getPublicExam, type Exam } from '@/lib/api/exams';
+import { isExamLockedError } from '@/lib/api/apiError';
+import { UNLOCK_TEXT } from '@/lib/unlock-codes';
 import { categoryDisplayNames, type QuestionCategory } from '@/lib/api/questions';
 import {
   formatTimeReadable,
@@ -431,6 +433,8 @@ export default function AttemptDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'review' | 'chapter'>('review');
+  // ชุด Mock ที่สิทธิ์หมดแล้ว (API ตอบ 403 EXAM_LOCKED) — ยังแสดงคะแนนสรุปจาก attempt แต่ไม่แสดงโจทย์/เฉลย
+  const [examLocked, setExamLocked] = useState(false);
 
   useEffect(() => {
     params.then((p) => setAttemptId(p.attemptId));
@@ -446,7 +450,10 @@ export default function AttemptDetailPage({ params }: PageProps) {
           try {
             const examData = await getPublicExam(attemptData.examId);
             setExam(examData);
-          } catch { /* exam might be deleted */ }
+          } catch (err) {
+            // exam might be deleted / ชุดล็อก (สิทธิ์หมด) → แสดงข้อความแทนเฉลย
+            if (isExamLockedError(err)) setExamLocked(true);
+          }
         }
       } catch {
         setError('ไม่พบข้อมูลการสอบ');
@@ -542,6 +549,27 @@ export default function AttemptDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {examLocked ? (
+        <div
+          role="status"
+          className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-8 text-center"
+        >
+          <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-7 h-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          </div>
+          <p className="font-semibold text-gray-800 dark:text-gray-200">{UNLOCK_TEXT.historyLocked}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">คะแนนสรุปด้านบนยังดูได้ตามปกติ</p>
+          {attempt.examId && (
+            <Link
+              href={`/dashboard/mock-exams/${attempt.examId}`}
+              className="mt-5 inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800"
+            >
+              ไปหน้ารายละเอียดชุดข้อสอบ
+            </Link>
+          )}
+        </div>
+      ) : (
+      <>
       {/* Tabs */}
       <div className="flex gap-2 mb-5">
         <button
@@ -571,6 +599,8 @@ export default function AttemptDetailPage({ params }: PageProps) {
         ? <QuestionReview attempt={attempt} exam={exam} />
         : <ScoreByChapter attempt={attempt} exam={exam} />
       }
+      </>
+      )}
     </FadeIn>
   );
 }

@@ -58,16 +58,22 @@ describe('getMockAccessBadge', () => {
     expect(getMockAccessBadge({ accessType: 'weird' }).label).toBe('ฟรี');
   });
 
-  it('สิทธิ์ของบัญชี (งานที่ 2): unlocked → Unlocked สำหรับชุดโค้ด/ซื้อ', () => {
-    expect(getMockAccessBadge({ accessType: 'code' }, { unlocked: true })).toEqual({ label: 'Unlocked', tone: 'unlocked' });
-    expect(getMockAccessBadge({ accessType: 'purchase', price: 150 }, { unlocked: true }).label).toBe('Unlocked');
-    expect(getMockAccessBadge({ accessType: 'code' }, { unlocked: false }).label).toBe('Campaign');
-    expect(getMockAccessBadge({ accessType: 'free' }, { unlocked: true }).label).toBe('ฟรี');
+  it('สิทธิ์ของบัญชี (task 15): unlocked → Unlocked, locked/expired → ป้ายเดิม, ชุดฟรี → ฟรีเสมอ', () => {
+    expect(getMockAccessBadge({ accessType: 'code' }, { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z' })).toEqual({ label: 'Unlocked', tone: 'unlocked' });
+    expect(getMockAccessBadge({ accessType: 'purchase', price: 150 }, { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z' }).label).toBe('Unlocked');
+    expect(getMockAccessBadge({ accessType: 'code' }, { status: 'locked', expiresAt: null }).label).toBe('Campaign');
+    expect(getMockAccessBadge({ accessType: 'code' }, { status: 'expired', expiresAt: '2026-01-01T00:00:00.000Z' }).label).toBe(
+      'Campaign',
+    );
+    expect(getMockAccessBadge({ accessType: 'purchase', price: 150 }, { status: 'expired', expiresAt: null }).label).toBe(
+      '150 บาท',
+    );
+    expect(getMockAccessBadge({ accessType: 'free' }, { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z' }).label).toBe('ฟรี');
   });
 
   it('ไม่มีคำว่า ปลดล็อก', () => {
     const labels = [
-      getMockAccessBadge({ accessType: 'code' }, { unlocked: true }).label,
+      getMockAccessBadge({ accessType: 'code' }, { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z' }).label,
       getMockPrimaryAction({ id: 'x', accessType: 'code' }).label,
       (getMockPrimaryAction({ id: 'x', accessType: 'code' }) as { note: string }).note,
     ];
@@ -87,7 +93,7 @@ describe('getMockPrimaryAction', () => {
   it('ชุดฟรี → เริ่มทำ / ทำต่อ ไปหน้าทำข้อสอบจับเวลา', () => {
     expect(getMockPrimaryAction({ id: 'e1', accessType: 'free' })).toEqual({
       kind: 'start',
-      label: 'เริ่มทำ',
+      label: 'เริ่มทำข้อสอบ',
       href: '/exam/e1',
     });
     expect(getMockPrimaryAction({ id: 'e1', accessType: 'free' }, { hasInProgress: true })).toEqual({
@@ -105,8 +111,14 @@ describe('getMockPrimaryAction', () => {
     expect(buy).toMatchObject({ kind: 'buy', label: 'ซื้อ', note: 'เปิดให้ซื้อเร็ว ๆ นี้' });
   });
 
-  it('มีสิทธิ์แล้ว (งานที่ 2) → เริ่มทำได้', () => {
-    expect(getMockPrimaryAction({ id: 'e1', accessType: 'code' }, { access: { unlocked: true } }).kind).toBe('start');
+  it('มีสิทธิ์ที่ยังไม่หมด (task 15) → เริ่มทำได้ / สิทธิ์หมด → กรอกโค้ดใหม่', () => {
+    expect(getMockPrimaryAction({ id: 'e1', accessType: 'code' }, { access: { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z' } }).kind).toBe('start');
+    expect(getMockPrimaryAction({ id: 'e1', accessType: 'purchase' }, { access: { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z' }, hasInProgress: true }).kind).toBe(
+      'resume',
+    );
+    expect(
+      getMockPrimaryAction({ id: 'e1', accessType: 'code' }, { access: { status: 'expired', expiresAt: null } }).kind,
+    ).toBe('unlock');
   });
 });
 
@@ -206,6 +218,7 @@ describe('ฟอร์มแอดมิน', () => {
       accessDays: null,
       level: null,
       detailBlocks: [],
+      codeInstructions: null,
     });
   });
 
@@ -217,6 +230,8 @@ describe('ฟอร์มแอดมิน', () => {
       accessDays: '30',
       level: 'hard',
       blocks: [createDetailBlock('text', 'x'), createDetailBlock('image', '/uploads/a.png')],
+      codeSteps: [],
+      codeNote: '',
     });
     expect(input).toEqual({
       isMock: false,
@@ -228,6 +243,7 @@ describe('ฟอร์มแอดมิน', () => {
         { type: 'text', text: 'x' },
         { type: 'image', url: '/uploads/a.png' },
       ],
+      codeInstructions: null,
     });
   });
 
@@ -257,6 +273,8 @@ describe('ฟอร์มแอดมิน', () => {
         createDetailBlock('image', 'javascript:alert(1)'),
         createDetailBlock('text', 'เก็บ'),
       ],
+      codeSteps: [],
+      codeNote: '',
     });
     expect(input).toEqual({
       isMock: false,
@@ -265,6 +283,7 @@ describe('ฟอร์มแอดมิน', () => {
       accessDays: null,
       level: null,
       detailBlocks: [{ type: 'text', text: 'เก็บ' }],
+      codeInstructions: null,
     });
   });
 
@@ -294,6 +313,7 @@ describe('ฟอร์มแอดมิน', () => {
         { type: 'image', url: '/uploads/a.png' },
         { type: 'text', text: 'บรรทัด 1\nบรรทัด 2' },
       ],
+      codeInstructions: null,
     });
     expect(toMockExamInput(mockForm()).price).toBeNull();
     expect(toMockExamInput(mockForm()).level).toBeNull();

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import ImageUpload from '@/components/upload/ImageUpload';
 import DetailBlocksView from '@/components/mock-exam/DetailBlocksView';
+import CodeInstructionsEditor from './CodeInstructionsEditor';
 import { moveItem } from '@/lib/question-images';
 import {
   ACCESS_TYPE_LABELS,
@@ -219,6 +220,11 @@ export default function MockExamSettings({
               </select>
             </div>
           </div>
+
+          {/* วิธีรับโค้ด (task 15) — เฉพาะชุดที่ต้องใช้โค้ด (ชนิดอื่นค่าที่กรอกไว้ยังถูกเก็บ) */}
+          {value.accessType === 'code' && (
+            <CodeInstructionsEditor value={value} onChange={onChange} disabled={disabled} />
+          )}
 
           {/* คำอธิบายชุดข้อสอบแบบ block */}
           <div className="border-t border-gray-100 dark:border-gray-700 pt-4">

@@ -9,7 +9,7 @@ const TONE_CLASS: Record<MockBadgeTone, string> = {
 
 interface MockAccessBadgeProps {
   exam: Parameters<typeof getMockAccessBadge>[0];
-  /** สิทธิ์ของบัญชี (งานที่ 2 จะส่งมา) */
+  /** สิทธิ์ของบัญชี (`access` จาก API — task 15) */
   access?: MockExamAccess | null;
   className?: string;
 }

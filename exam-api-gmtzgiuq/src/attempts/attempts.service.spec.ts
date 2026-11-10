@@ -12,6 +12,13 @@ import { AttemptsService } from './attempts.service';
 import { ExamAttempt } from './attempt.entity';
 import { Exam } from '../exams/exam.entity';
 import { StartAttemptDto, SubmitAttemptInput } from './dto/attempt.dto';
+import { ExamAccessService } from '../exam-access/exam-access.service';
+
+/** Access check that lets everything through (lock tests: end of file). */
+const openAccess = () => ({
+  provide: ExamAccessService,
+  useValue: { assertCanAccessExamId: jest.fn().mockResolvedValue(undefined) },
+});
 
 describe('AttemptsService', () => {
   let service: AttemptsService;
@@ -42,6 +49,7 @@ describe('AttemptsService', () => {
           useValue: { findOne },
         },
         { provide: getRepositoryToken(Exam), useValue: {} },
+        openAccess(),
       ],
     }).compile();
 
@@ -240,6 +248,7 @@ describe('AttemptsService.startInProgress (task 13)', () => {
           provide: getRepositoryToken(Exam),
           useValue: { exists: examExists },
         },
+        openAccess(),
       ],
     }).compile();
 
@@ -528,6 +537,7 @@ describe('AttemptsService.completeAttempt (task 14 B3, BUG-21)', () => {
         AttemptsService,
         { provide: getRepositoryToken(ExamAttempt), useValue: table.repo },
         { provide: getRepositoryToken(Exam), useValue: {} },
+        openAccess(),
       ],
     }).compile();
 
@@ -734,6 +744,7 @@ describe('AttemptsService stats count only completed attempts (BUG-12)', () => {
         AttemptsService,
         { provide: getRepositoryToken(ExamAttempt), useValue: repo },
         { provide: getRepositoryToken(Exam), useValue: {} },
+        openAccess(),
       ],
     }).compile();
 

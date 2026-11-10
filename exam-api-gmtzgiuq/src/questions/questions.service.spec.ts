@@ -31,6 +31,7 @@ describe('QuestionsService — images (task 07)', () => {
     qb = {};
     for (const m of [
       'innerJoin',
+      'leftJoin',
       'leftJoinAndSelect',
       'where',
       'andWhere',

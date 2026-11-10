@@ -13,6 +13,10 @@ import {
   calculateExamResult,
 } from '@/lib/exam-utils';
 import { getPublicExam } from '@/lib/api/exams';
+import { toast } from 'react-toastify';
+import { isExamLockedError } from '@/lib/api/apiError';
+import { UNLOCK_TEXT } from '@/lib/unlock-codes';
+import ExamLockedScreen from '@/components/exam/ExamLockedScreen';
 import {
   submitAttempt,
   startInProgressAttempt,
@@ -127,6 +131,18 @@ function ExamPageContent({ examId }: { examId: string }) {
   // examId ที่โหลด/เริ่มไปแล้วใน instance นี้ — StrictMode (dev) รัน effect ซ้ำแต่ ref คงอยู่
   // กันไม่ให้ยิง GET in-progress / POST /attempts/start ซ้ำ
   const loadedExamIdRef = useRef<string | null>(null);
+  // ชุด Mock ที่ล็อก (403 EXAM_LOCKED) → แจ้งแล้วพาไปหน้ารายละเอียด Mock (task 15)
+  const [locked, setLocked] = useState(false);
+  const detailHref = `/dashboard/mock-exams/${examId}`;
+
+  function handleLocked() {
+    if (locked) return;
+    setLocked(true);
+    setLoading(false);
+    setResumeDialog(null);
+    toast.info(UNLOCK_TEXT.examLocked);
+    router.replace(detailHref);
+  }
 
   // ── Auto-save to backend ──────────────────────────────────
   const scheduleBackendSave = useCallback(
@@ -221,6 +237,10 @@ function ExamPageContent({ examId }: { examId: string }) {
         // 5. Start fresh
         await startFreshExam(exam, backendAttempt);
       } catch (err) {
+        if (isExamLockedError(err)) {
+          handleLocked();
+          return;
+        }
         console.error('Failed to load exam:', err);
         setError('ไม่สามารถโหลดข้อสอบได้');
         setLoading(false);
@@ -265,7 +285,10 @@ function ExamPageContent({ examId }: { examId: string }) {
           startedAt,
         });
         attemptId = attempt.id;
-      } catch {/* ignore - continue without backend tracking */}
+      } catch (err) {
+        // ไม่มีสิทธิ์ (403 EXAM_LOCKED) → ส่งต่อให้ผู้เรียกพาไปหน้ารายละเอียด / error อื่นทำต่อโดยไม่ติดตาม
+        if (isExamLockedError(err)) throw err;
+      }
     }
 
     await initFromSessionAndAttempt(session, exam.questions, attemptId);
@@ -300,6 +323,10 @@ function ExamPageContent({ examId }: { examId: string }) {
       saveExamSession(session, exam.questions);
       await initFromSessionAndAttempt(session, exam.questions, backendAttempt.id);
     } catch (err) {
+      if (isExamLockedError(err)) {
+        handleLocked();
+        return;
+      }
       console.error('Failed to resume:', err);
       setError('ไม่สามารถโหลดข้อสอบได้');
       setLoading(false);
@@ -318,6 +345,10 @@ function ExamPageContent({ examId }: { examId: string }) {
       const exam = await getPublicExam(examId);
       await startFreshExam(exam);
     } catch (err) {
+      if (isExamLockedError(err)) {
+        handleLocked();
+        return;
+      }
       console.error('Failed to load exam:', err);
       setError('ไม่สามารถโหลดข้อสอบได้');
       setLoading(false);
@@ -371,6 +402,10 @@ function ExamPageContent({ examId }: { examId: string }) {
   };
 
   // ── Render ────────────────────────────────────────────────
+  if (locked) {
+    return <ExamLockedScreen kind="load" detailHref={detailHref} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">

@@ -12,6 +12,7 @@ import {
   XCircle,
   MinusCircle,
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { ExamProvider, useExam } from '@/contexts/ExamContext';
 import ExamContainer from '@/components/exam/ExamContainer';
 import {
@@ -38,6 +39,9 @@ import type { ExamSession } from '@/types/exam';
 import type { QuestionCategory } from '@/lib/api/questions';
 import { trackEvent } from '@/lib/api/analytics';
 import { getExamBackLink } from '@/lib/mock-exam';
+import { isExamLockedError } from '@/lib/api/apiError';
+import { UNLOCK_TEXT } from '@/lib/unlock-codes';
+import ExamLockedScreen, { type LockedState } from '@/components/exam/ExamLockedScreen';
 
 const BACKEND_ATTEMPT_KEY = 'real_exam_backend_attempt_id';
 
@@ -259,6 +263,33 @@ function RealExamPageContent({ examId }: { examId: string }) {
   // (examId, retryKey) ที่โหลด/เริ่มไปแล้วใน instance นี้ — StrictMode (dev) รัน effect ซ้ำแต่ ref คงอยู่
   // กันไม่ให้ยิง GET in-progress / POST /attempts/start ซ้ำ; ปุ่มลองใหม่ (retryKey) ยังโหลดใหม่ได้
   const loadedKeyRef = useRef<string | null>(null);
+  // ชุด Mock ที่ล็อก (API ตอบ 403 EXAM_LOCKED) — หน้ารายละเอียดชุดอยู่ที่ /dashboard/mock-exams/<id>
+  const [locked, setLocked] = useState<LockedState | null>(null);
+  const lockedRef = useRef(false);
+  const detailHref = `/dashboard/mock-exams/${examId}`;
+
+  const handleLocked = useCallback(
+    (kind: LockedState) => {
+      if (lockedRef.current) return;
+      lockedRef.current = true;
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      setLoading(false);
+      setResumeDialog(null);
+      setLocked(kind);
+      if (kind === 'load') {
+        toast.info(UNLOCK_TEXT.examLocked);
+        router.replace(detailHref);
+      } else {
+        toast.error(UNLOCK_TEXT.lockedDuringExam);
+      }
+    },
+    [detailHref, router],
+  );
+  // autosave อ้างผ่าน ref: scheduleBackendSave ต้องคงที่ (ถ้าเปลี่ยนทุก render effect ด้านล่างจะล้าง timer ทุกครั้ง)
+  const handleLockedRef = useRef(handleLocked);
+  useEffect(() => {
+    handleLockedRef.current = handleLocked;
+  }, [handleLocked]);
 
   // Auto-save to backend
   const scheduleBackendSave = useCallback((session: ExamSession) => {
@@ -269,7 +300,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
         currentIndex: session.currentIndex,
         answers: session.answers,
         timePerQuestion: session.timePerQuestion,
-      }).catch(() => {});
+      }).catch((err) => {
+        // สิทธิ์หมดระหว่างทำ → หยุดและแจ้ง (error อื่นยังเงียบเหมือนเดิม — autosave รอบถัดไปลองใหม่)
+        if (isExamLockedError(err)) handleLockedRef.current('during');
+      });
     }, 2000);
   }, []);
 
@@ -369,6 +403,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
         await startFreshExam(exam, backendAttempt);
       } catch (err: any) {
         clearTimeout(examTimeout);
+        if (isExamLockedError(err)) {
+          handleLocked('load');
+          return;
+        }
         const isTimeout = err?.name === 'AbortError';
         console.error('Failed to load exam:', err);
         setError(isTimeout ? 'การเชื่อมต่อหมดเวลา กรุณาลองใหม่' : 'ไม่สามารถโหลดข้อสอบได้');
@@ -422,7 +460,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
           mode: 'exam',
         });
         attemptId = attempt.id;
-      } catch { /* silent */ }
+      } catch (err) {
+        // ไม่มีสิทธิ์ (403 EXAM_LOCKED) → ส่งต่อให้ผู้เรียกพาไปหน้ารายละเอียด / error อื่นเงียบเหมือนเดิม
+        if (isExamLockedError(err)) throw err;
+      }
     }
 
     await initFromSessionAndAttempt(session, exam.questions, attemptId);
@@ -455,6 +496,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
       saveRealExamSession(examId, session, exam.questions);
       await initFromSessionAndAttempt(session, exam.questions, backendAttempt.id);
     } catch (err) {
+      if (isExamLockedError(err)) {
+        handleLocked('load');
+        return;
+      }
       console.error('Failed to resume:', err);
       setError('ไม่สามารถโหลดข้อสอบได้');
       setLoading(false);
@@ -474,6 +519,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
       setIsMock(exam.isMock === true);
       await startFreshExam(exam);
     } catch (err) {
+      if (isExamLockedError(err)) {
+        handleLocked('load');
+        return;
+      }
       console.error('Failed to load exam:', err);
       setError('ไม่สามารถโหลดข้อสอบได้');
       setLoading(false);
@@ -536,6 +585,14 @@ function RealExamPageContent({ examId }: { examId: string }) {
         await submitAttempt(payload);
       }
     } catch (err) {
+      if (isExamLockedError(err)) {
+        // สิทธิ์หมดก่อนส่ง: API ไม่บันทึกผล → คืน session เป็น "กำลังทำ" (คำตอบไม่หาย ถ้าได้สิทธิ์ใหม่กลับมาส่งได้)
+        // แล้วแจ้งชัด ๆ แทนการไปหน้าผลสอบเหมือนส่งสำเร็จ
+        saveRealExamSession(examId, savedSession, savedQuestions);
+        if (storedAttemptId) saveBackendAttemptId(examId, storedAttemptId);
+        handleLocked('during');
+        return;
+      }
       console.error('Failed to submit attempt:', err);
     }
 
@@ -551,6 +608,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
   }
 
   // ── Render ────────────────────────────────────────────────────
+  if (locked) {
+    return <ExamLockedScreen kind={locked} detailHref={detailHref} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">

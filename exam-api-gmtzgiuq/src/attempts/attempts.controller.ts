@@ -14,6 +14,10 @@ import { StartAttemptDto, SubmitAttemptInput } from './dto/attempt.dto';
 import { QuestionCategory } from '../questions/question.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { User } from '../users/user.entity';
+
+// req of a route behind JwtAuthGuard: the logged-in user (role from the DB)
+type AuthedRequest = { user: User };
 
 @Controller('attempts')
 export class AttemptsController {
@@ -22,8 +26,11 @@ export class AttemptsController {
   // User - Start in-progress attempt
   @Post('start')
   @UseGuards(JwtAuthGuard)
-  async startInProgress(@Body() body: StartAttemptDto, @Request() req) {
-    return this.attemptsService.startInProgress(req.user.id, body);
+  async startInProgress(
+    @Body() body: StartAttemptDto,
+    @Request() req: AuthedRequest,
+  ) {
+    return this.attemptsService.startInProgress(req.user.id, body, req.user);
   }
 
   // User - Update in-progress attempt
@@ -37,9 +44,9 @@ export class AttemptsController {
       answers: Record<string, string>;
       timePerQuestion: Record<string, number>;
     },
-    @Request() req,
+    @Request() req: AuthedRequest,
   ) {
-    await this.attemptsService.updateProgress(id, req.user.id, body);
+    await this.attemptsService.updateProgress(id, req.user.id, body, req.user);
     return { ok: true };
   }
 
@@ -49,9 +56,14 @@ export class AttemptsController {
   async completeAttempt(
     @Param('id') id: string,
     @Body() input: SubmitAttemptInput,
-    @Request() req,
+    @Request() req: AuthedRequest,
   ) {
-    return this.attemptsService.completeAttempt(id, req.user.id, input);
+    return this.attemptsService.completeAttempt(
+      id,
+      req.user.id,
+      input,
+      req.user,
+    );
   }
 
   // User - Get in-progress attempts

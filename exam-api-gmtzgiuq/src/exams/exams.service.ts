@@ -43,8 +43,12 @@ import {
   normalizeStoredDetailBlocks,
   prepareDetailBlocks,
   MockExamRow,
+  normalizeStoredCodeInstructions,
+  prepareCodeInstructions,
   toMockExamItem,
 } from './exam-mock';
+import { ExamAccessService } from '../exam-access/exam-access.service';
+import type { AccessViewer } from '../exam-access/exam-access';
 
 /**
  * `releaseDate` of POST/PUT (already an ISO 8601 date, see the DTO) as a Date,
@@ -69,6 +73,7 @@ export class ExamsService {
     private questionsRepository: Repository<Question>,
     private dataSource: DataSource,
     private uploadService: UploadService,
+    private examAccessService: ExamAccessService,
   ) {}
 
   async create(input: CreateExamInput, author: User): Promise<Exam> {
@@ -97,6 +102,7 @@ export class ExamsService {
         accessDays: input.accessDays ?? null,
         level: input.level ?? null,
         detailBlocks: prepareDetailBlocks(input.detailBlocks),
+        codeInstructions: prepareCodeInstructions(input.codeInstructions),
         author,
         authorId: author.id,
       });
@@ -212,7 +218,15 @@ export class ExamsService {
     return this.withPassages(exam, true);
   }
 
-  async findPublishedOne(id: string): Promise<Exam> {
+  /**
+   * Published exam with its questions and answers (GET /exams/:id). A locked
+   * Mock Exam (code/purchase) → 403 EXAM_LOCKED unless the viewer is an
+   * admin or has access that has not expired (task 15); guests too.
+   */
+  async findPublishedOne(
+    id: string,
+    viewer: AccessViewer | null = null,
+  ): Promise<Exam> {
     const exam = await this.examsRepository.findOne({
       where: { id, status: QuestionStatus.PUBLISHED },
       relations: ['author', 'questions'],
@@ -223,25 +237,35 @@ export class ExamsService {
       throw new NotFoundException('Exam not found');
     }
 
+    await this.examAccessService.assertCanAccess(viewer, exam);
+
     return this.withPassages(exam);
   }
 
   /**
    * Load `passages` (a select: false column) for a single exam and expose it
-   * as an array (null/malformed → []). With `detailBlocks` (admin), also
-   * load the Mock Exam description blocks the same way.
+   * as an array (null/malformed → []). With `adminFields` (admin findOne),
+   * also load the Mock Exam description blocks and "วิธีรับโค้ด" the same way.
    */
-  private async withPassages(exam: Exam, detailBlocks = false): Promise<Exam> {
+  private async withPassages(exam: Exam, adminFields = false): Promise<Exam> {
     const row = await this.examsRepository.findOne({
-      select: detailBlocks
-        ? { id: true, passages: true, detailBlocks: true }
+      select: adminFields
+        ? {
+            id: true,
+            passages: true,
+            detailBlocks: true,
+            codeInstructions: true,
+          }
         : { id: true, passages: true },
       where: { id: exam.id },
       loadEagerRelations: false,
     });
     exam.passages = normalizeStoredPassages(row?.passages);
-    if (detailBlocks) {
+    if (adminFields) {
       exam.detailBlocks = normalizeStoredDetailBlocks(row?.detailBlocks);
+      exam.codeInstructions = normalizeStoredCodeInstructions(
+        row?.codeInstructions,
+      );
     }
     return exam;
   }
@@ -259,6 +283,8 @@ export class ExamsService {
     const detailBlocks = replaceDetailBlocks
       ? prepareDetailBlocks(input.detailBlocks)
       : null;
+    // Sent = replaced (null clears); not sent = unchanged
+    const replaceCodeInstructions = input.codeInstructions !== undefined;
     const currentQuestionUrls = exam.questions.flatMap((q) =>
       collectQuestionImageUrls(q),
     );
@@ -351,6 +377,11 @@ export class ExamsService {
         ...(releaseDate ? { releaseDate } : {}),
         ...(passages ? { passages } : {}),
         ...(replaceDetailBlocks ? { detailBlocks } : {}),
+        ...(replaceCodeInstructions
+          ? {
+              codeInstructions: prepareCodeInstructions(input.codeInstructions),
+            }
+          : {}),
       });
     });
 
@@ -439,6 +470,7 @@ export class ExamsService {
     page = 1,
     limit = 12,
     category?: string,
+    viewer: AccessViewer | null = null,
   ): Promise<PaginatedMockExams> {
     const safePage = Math.max(1, Math.floor(page) || 1);
     const safeLimit = Math.min(100, Math.max(1, Math.floor(limit) || 12));
@@ -454,8 +486,18 @@ export class ExamsService {
       this.mockExamQuery(category).getCount(),
     ]);
 
+    // Access of the viewer to every card, one query (task 15)
+    const items = rows.map(toMockExamItem);
+    const access = await this.examAccessService.getAccessMany(
+      viewer,
+      items.map((item) => ({ ...item, isMock: true })),
+    );
+
     return {
-      items: rows.map(toMockExamItem),
+      items: items.map((item) => ({
+        ...item,
+        access: access.get(item.id) ?? { status: 'locked', expiresAt: null },
+      })),
       total,
       page: safePage,
       limit: safeLimit,
@@ -506,26 +548,43 @@ export class ExamsService {
 
   /**
    * One published Mock Exam for its detail page (GET /exams/mock/:id): the
-   * card fields + description + detail blocks, never the questions.
-   * Not a mock exam, not published or not found → 404.
+   * card fields + description + detail blocks + "วิธีรับโค้ด" + the viewer's
+   * access, never the questions. Not a mock exam, not published or not
+   * found → 404.
    */
-  async findMockOne(id: string): Promise<MockExamDetail> {
+  async findMockOne(
+    id: string,
+    viewer: AccessViewer | null = null,
+  ): Promise<MockExamDetail> {
     const row = await this.mockExamQuery()
       .addSelect('exam.description', 'description')
       .addSelect('exam.detailBlocks', 'detailBlocks')
+      .addSelect('exam.codeInstructions', 'codeInstructions')
       .andWhere('exam.id = :id', { id })
       .getRawOne<
-        MockExamRow & { description: string | null; detailBlocks: unknown }
+        MockExamRow & {
+          description: string | null;
+          detailBlocks: unknown;
+          codeInstructions: unknown;
+        }
       >();
 
     if (!row) {
       throw new NotFoundException('ไม่พบชุดข้อสอบ');
     }
 
+    const item = toMockExamItem(row);
+    const access = await this.examAccessService.getAccess(viewer, {
+      ...item,
+      isMock: true,
+    });
+
     return {
-      ...toMockExamItem(row),
+      ...item,
+      access,
       description: row.description ?? null,
       detailBlocks: normalizeStoredDetailBlocks(row.detailBlocks),
+      codeInstructions: normalizeStoredCodeInstructions(row.codeInstructions),
     };
   }
 

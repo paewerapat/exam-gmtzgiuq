@@ -15,6 +15,9 @@ import { CreateExamInput, UpdateExamInput } from './dto/exam.dto';
 import { QuestionCategory, QuestionStatus } from '../questions/question.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { User } from '../users/user.entity';
 
 @Controller('exams')
 export class ExamsController {
@@ -32,14 +35,22 @@ export class ExamsController {
   }
 
   // Public - Mock Exam pages (task 11). MUST be before :id.
-  // Card fields only: no questions or answers.
+  // Card fields only: no questions or answers. With a token, `access` is the
+  // logged-in user's (task 15); without one, locked exams are `locked`.
   @Get('mock')
+  @UseGuards(OptionalJwtAuthGuard)
   async findMockExams(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 12,
     @Query('category') category?: string,
+    @CurrentUser() user?: User | null,
   ) {
-    return this.examsService.findMockExams(+page, +limit, category);
+    return this.examsService.findMockExams(
+      +page,
+      +limit,
+      category,
+      user ?? null,
+    );
   }
 
   // Public - categories that have published Mock Exams (dropdown)
@@ -50,8 +61,12 @@ export class ExamsController {
 
   // Public - Mock Exam detail page (no questions); not mock/published → 404
   @Get('mock/:id')
-  async findMockOne(@Param('id') id: string) {
-    return this.examsService.findMockOne(id);
+  @UseGuards(OptionalJwtAuthGuard)
+  async findMockOne(
+    @Param('id') id: string,
+    @CurrentUser() user?: User | null,
+  ) {
+    return this.examsService.findMockOne(id, user ?? null);
   }
 
   // Admin routes MUST be before :id to avoid route conflict
@@ -114,9 +129,15 @@ export class ExamsController {
     return this.examsService.findByTopic(topicId, +page, +limit);
   }
 
-  // Public - Get single published exam with questions (MUST be after admin routes)
+  // Public - Get single published exam with questions (MUST be after admin
+  // routes). A locked Mock Exam needs a token with access → else 403
+  // EXAM_LOCKED (task 15).
   @Get(':id')
-  async findPublishedOne(@Param('id') id: string) {
-    return this.examsService.findPublishedOne(id);
+  @UseGuards(OptionalJwtAuthGuard)
+  async findPublishedOne(
+    @Param('id') id: string,
+    @CurrentUser() user?: User | null,
+  ) {
+    return this.examsService.findPublishedOne(id, user ?? null);
   }
 }

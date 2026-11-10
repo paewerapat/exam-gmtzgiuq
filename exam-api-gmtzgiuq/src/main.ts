@@ -15,7 +15,10 @@ async function bootstrap() {
   app.use('/uploads', uploadSecurityHeaders);
 
   // Serve uploaded images statically at /uploads/*
-  app.use('/uploads', require('express').static(require('path').join(process.cwd(), 'uploads')));
+  app.use(
+    '/uploads',
+    require('express').static(require('path').join(process.cwd(), 'uploads')),
+  );
 
   // Enable CORS
   const allowedOrigins = [
@@ -31,6 +34,9 @@ async function bootstrap() {
       }
     },
     credentials: true,
+    // Lets the web read the file name of downloads
+    // (GET /unlock-codes/admin/batches/:id/codes.csv, task 15)
+    exposedHeaders: ['Content-Disposition'],
   });
 
   // Enable validation pipe globally

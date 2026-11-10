@@ -94,6 +94,7 @@ type Exam {
   author: User!
   bannerImage: String
   category: String!
+  codeInstructions: ExamCodeInstructions
   createdAt: DateTime!
   description: String
   detailBlocks: [ExamDetailBlock!]
@@ -142,6 +143,18 @@ type ExamAttempt {
 type ExamCategoryCount {
   category: String!
   count: Int!
+}
+
+type ExamCodeInstructionStep {
+  description: String
+  linkLabel: String
+  linkUrl: String
+  title: String!
+}
+
+type ExamCodeInstructions {
+  note: String
+  steps: [ExamCodeInstructionStep!]!
 }
 
 type ExamDetailBlock {

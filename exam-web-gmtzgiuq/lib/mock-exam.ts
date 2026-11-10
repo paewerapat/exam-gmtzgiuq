@@ -1,11 +1,27 @@
 // ชุด Mock Exam (task 11): ชนิดข้อมูล การแปลงค่าจาก API ป้ายสถานะ ปุ่มหลัก และฟอร์มแอดมิน
+// + สิทธิ์ของบัญชี (`access`) และ "วิธีรับโค้ด" (`codeInstructions`) ของ task 15
 // ไฟล์นี้ไม่ import อะไรจาก lib/api เพื่อให้ lib/api/exams ใช้ตัวแปลงค่าได้โดยไม่วนกัน
+import { UNLOCK_WORD, UNLOCKED_WORD } from './unlock-codes';
 
 export type MockAccessType = 'free' | 'code' | 'purchase';
 export type ExamLevel = 'easy' | 'medium' | 'hard';
 
 /** คำอธิบายชุดข้อสอบแบบ block เรียงตามที่แอดมินจัด */
 export type DetailBlock = { type: 'text'; text: string } | { type: 'image'; url: string };
+
+/** ขั้นตอนหนึ่งใน "วิธีรับโค้ด" (task 15) */
+export interface CodeInstructionStep {
+  title: string;
+  description?: string;
+  linkLabel?: string;
+  linkUrl?: string;
+}
+
+/** "วิธีรับโค้ด" ที่แอดมินตั้งต่อชุด (ใช้กับชุด accessType = code) */
+export interface CodeInstructions {
+  steps: CodeInstructionStep[];
+  note?: string;
+}
 
 /** field ของ Mock Exam ที่ส่งใน POST/PUT /exams/admin (ฟอร์มแอดมินส่งครบทุกครั้ง) */
 export interface MockExamInput {
@@ -15,6 +31,8 @@ export interface MockExamInput {
   accessDays: number | null;
   level: ExamLevel | null;
   detailBlocks: DetailBlock[];
+  /** null = ไม่มีขั้นตอนและหมายเหตุ */
+  codeInstructions: CodeInstructions | null;
 }
 
 // ตรงกับ validation ของ API (task 11)
@@ -23,6 +41,13 @@ export const MAX_DETAIL_TEXT = 20000;
 export const MAX_DETAIL_URL = 500;
 export const MAX_PRICE = 100000;
 export const MAX_ACCESS_DAYS = 3650;
+// "วิธีรับโค้ด" (สัญญา task 15)
+export const MAX_CODE_STEPS = 10;
+export const MAX_STEP_TITLE = 100;
+export const MAX_STEP_DESCRIPTION = 300;
+export const MAX_STEP_LINK_LABEL = 40;
+export const MAX_STEP_LINK_URL = 500;
+export const MAX_CODE_NOTE = 300;
 
 export const MOCK_ACCESS_TYPES: MockAccessType[] = ['free', 'code', 'purchase'];
 export const ACCESS_TYPE_LABELS: Record<MockAccessType, string> = {
@@ -93,6 +118,81 @@ export function normalizeDetailBlocks(value: unknown): DetailBlock[] {
   return out;
 }
 
+/** ลิงก์ในขั้นตอน "วิธีรับโค้ด": http(s) เท่านั้น (กัน javascript: ฯลฯ) */
+export function isAllowedStepLinkUrl(url: string): boolean {
+  return /^https?:\/\/[^\s]+$/i.test(url.trim());
+}
+
+const optionalText = (v: unknown): string | undefined =>
+  typeof v === 'string' && v.trim() !== '' ? v : undefined;
+
+/** codeInstructions จาก API (null/ผิดรูป → null) — ขั้นตอนไม่มีหัวข้อทิ้ง, ลิงก์ที่ไม่ใช่ http(s) ไม่แสดง */
+export function normalizeCodeInstructions(value: unknown): CodeInstructions | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as { steps?: unknown; note?: unknown };
+  const steps: CodeInstructionStep[] = [];
+  if (Array.isArray(raw.steps)) {
+    for (const item of raw.steps) {
+      if (!item || typeof item !== 'object') continue;
+      const st = item as Record<string, unknown>;
+      const title = optionalText(st.title);
+      if (!title) continue;
+      const step: CodeInstructionStep = { title };
+      const description = optionalText(st.description);
+      if (description) step.description = description;
+      const linkUrl = optionalText(st.linkUrl);
+      if (linkUrl && isAllowedStepLinkUrl(linkUrl)) {
+        step.linkUrl = linkUrl.trim();
+        const linkLabel = optionalText(st.linkLabel);
+        if (linkLabel) step.linkLabel = linkLabel;
+      }
+      steps.push(step);
+    }
+  }
+  const note = optionalText(raw.note);
+  if (steps.length === 0 && !note) return null;
+  return note ? { steps, note } : { steps };
+}
+
+// ── สิทธิ์ของบัญชี (task 15) ───────────────────────────────
+
+/**
+ * สถานะสิทธิ์จาก API: free = ชุดฟรี, locked = ไม่ฟรีและไม่เคยมีสิทธิ์ (รวม guest),
+ * unlocked = มีสิทธิ์ที่ยังไม่หมด, expired = เคยมีแต่หมดแล้ว
+ */
+export type MockAccessStatus = 'free' | 'locked' | 'unlocked' | 'expired';
+export const MOCK_ACCESS_STATUSES: MockAccessStatus[] = ['free', 'locked', 'unlocked', 'expired'];
+
+/** สิทธิ์ของบัญชีกับชุดนี้ (`access` ใน GET /exams/mock, /exams/mock/:id) */
+export interface MockExamAccess {
+  status: MockAccessStatus;
+  /** วันหมดสิทธิ์ ISO (เฉพาะ unlocked/expired) */
+  expiresAt: string | null;
+}
+
+/**
+ * `access` จาก API → ชนิดที่ใช้ได้ ไม่มี/ผิดรูป (API ก่อน task 15) → ตาม accessType:
+ * ชุดฟรี = free เสมอ, ชุดไม่ฟรี = ตามที่ API ส่ง (ไม่รู้จัก → locked)
+ */
+export function normalizeMockAccess(value: unknown, accessType: MockAccessType): MockExamAccess {
+  if (accessType === 'free') return { status: 'free', expiresAt: null };
+  const raw = value && typeof value === 'object' ? (value as { status?: unknown; expiresAt?: unknown }) : {};
+  const status = MOCK_ACCESS_STATUSES.includes(raw.status as MockAccessStatus)
+    ? (raw.status as MockAccessStatus)
+    : 'locked';
+  const expiresAt = typeof raw.expiresAt === 'string' && raw.expiresAt !== '' ? raw.expiresAt : null;
+  // ชุดไม่ฟรีที่ API บอก free (ไม่ควรเกิด) → ถือว่ายังล็อก
+  return { status: status === 'free' ? 'locked' : status, expiresAt };
+}
+
+/** เริ่มทำ/ทำต่อได้ไหม: ชุดฟรี หรือมีสิทธิ์ที่ยังไม่หมด */
+export function canStartMock(
+  exam: { accessType?: MockAccessType | string | null },
+  access?: MockExamAccess | null,
+): boolean {
+  return normalizeAccessType(exam.accessType) === 'free' || access?.status === 'unlocked';
+}
+
 // ── ข้อความแสดงผล ─────────────────────────────────────────
 
 /** ชื่อสนามสอบที่แสดง: categoryName จาก API (ชื่อในตาราง categories) ไม่มี → slug (exam.category) */
@@ -118,14 +218,6 @@ export function formatMockMeta(questionCount: number, durationMinutes: number | 
 
 // ── ป้ายสถานะ ─────────────────────────────────────────────
 
-/**
- * สิทธิ์ของบัญชีกับชุดนี้ — งานนี้ยังไม่มี (ส่ง undefined) งานที่ 2 (โค้ด Unlock) จะส่ง `{ unlocked: true }`
- * เมื่อบัญชีมีสิทธิ์แล้ว
- */
-export interface MockExamAccess {
-  unlocked?: boolean;
-}
-
 export type MockBadgeTone = 'free' | 'campaign' | 'price' | 'unlocked';
 
 export interface MockAccessBadgeInfo {
@@ -138,11 +230,14 @@ interface MockAccessLike {
   price?: number | string | null;
 }
 
-/** ป้ายบนการ์ด/หน้ารายละเอียด: ฟรี / Campaign / "<ราคา> บาท" / Unlocked (มีสิทธิ์แล้ว) */
+/**
+ * ป้ายบนการ์ด/หน้ารายละเอียด: ฟรี / Unlocked (มีสิทธิ์ที่ยังไม่หมด) / Campaign (ชุดโค้ดที่ล็อกหรือสิทธิ์หมด)
+ * / "<ราคา> บาท" (ชุดซื้อที่ยังไม่มีสิทธิ์)
+ */
 export function getMockAccessBadge(exam: MockAccessLike, access?: MockExamAccess | null): MockAccessBadgeInfo {
   const accessType = normalizeAccessType(exam.accessType);
   if (accessType === 'free') return { label: 'ฟรี', tone: 'free' };
-  if (access?.unlocked) return { label: 'Unlocked', tone: 'unlocked' };
+  if (access?.status === 'unlocked') return { label: UNLOCKED_WORD, tone: 'unlocked' };
   if (accessType === 'code') return { label: 'Campaign', tone: 'campaign' };
   const price = parsePrice(exam.price);
   return { label: price != null && price > 0 ? `${formatPrice(price)} บาท` : 'ต้องซื้อ', tone: 'price' };
@@ -166,20 +261,22 @@ export type MockPrimaryAction =
   | { kind: 'buy'; label: string; note: string };
 
 /**
- * ชุดฟรี (หรือบัญชีมีสิทธิ์แล้ว) → "เริ่มทำ" / "ทำต่อ" (มี attempt โหมด exam ค้าง) ไปหน้าทำข้อสอบจับเวลา `/exam/<id>`
- * ชุดโค้ด → "Unlock" ชุดซื้อ → "ซื้อ" (งานนี้ยังกดไม่ได้)
+ * ชุดฟรี (หรือบัญชีมีสิทธิ์ที่ยังไม่หมด) → "เริ่มทำข้อสอบ" / "ทำต่อ" (มี attempt โหมด exam ค้าง)
+ * ไปหน้าทำข้อสอบจับเวลา `/exam/<id>` · ชุดโค้ด → กรอกโค้ด · ชุดซื้อ → "ซื้อ" (ยังกดไม่ได้ — งานที่ 3)
  */
 export function getMockPrimaryAction(
   exam: { id: string; accessType?: MockAccessType | string | null },
   opts: { hasInProgress?: boolean; access?: MockExamAccess | null } = {},
 ): MockPrimaryAction {
   const accessType = normalizeAccessType(exam.accessType);
-  if (accessType === 'free' || opts.access?.unlocked) {
+  if (canStartMock(exam, opts.access)) {
     const href = `/exam/${exam.id}`;
-    return opts.hasInProgress ? { kind: 'resume', label: 'ทำต่อ', href } : { kind: 'start', label: 'เริ่มทำ', href };
+    return opts.hasInProgress
+      ? { kind: 'resume', label: 'ทำต่อ', href }
+      : { kind: 'start', label: 'เริ่มทำข้อสอบ', href };
   }
   if (accessType === 'code') {
-    return { kind: 'unlock', label: 'Unlock', note: 'กรอกโค้ดเพื่อ Unlock — เปิดให้ใช้เร็ว ๆ นี้' };
+    return { kind: 'unlock', label: UNLOCK_WORD, note: `กรอกโค้ดเพื่อ ${UNLOCK_WORD} ชุดนี้` };
   }
   return { kind: 'buy', label: 'ซื้อ', note: 'เปิดให้ซื้อเร็ว ๆ นี้' };
 }
@@ -194,6 +291,16 @@ export interface DetailBlockForm {
   url: string;
 }
 
+/** ขั้นตอน "วิธีรับโค้ด" ในฟอร์มแอดมิน */
+export interface CodeStepForm {
+  /** key ใน React (ไม่ส่ง API) */
+  key: string;
+  title: string;
+  description: string;
+  linkLabel: string;
+  linkUrl: string;
+}
+
 export interface MockExamForm {
   isMock: boolean;
   accessType: MockAccessType;
@@ -202,6 +309,9 @@ export interface MockExamForm {
   accessDays: string;
   level: ExamLevel | '';
   blocks: DetailBlockForm[];
+  /** "วิธีรับโค้ด" (แก้ได้เมื่อ accessType = code) */
+  codeSteps: CodeStepForm[];
+  codeNote: string;
 }
 
 let blockSeq = 0;
@@ -214,8 +324,29 @@ export function createDetailBlock(type: 'text' | 'image', value = ''): DetailBlo
   return { key: nextBlockKey(), type, text: type === 'text' ? value : '', url: type === 'image' ? value : '' };
 }
 
+let stepSeq = 0;
+export function createCodeStep(value: Partial<CodeInstructionStep> = {}): CodeStepForm {
+  stepSeq += 1;
+  return {
+    key: `step_${Date.now().toString(36)}_${stepSeq}`,
+    title: value.title ?? '',
+    description: value.description ?? '',
+    linkLabel: value.linkLabel ?? '',
+    linkUrl: value.linkUrl ?? '',
+  };
+}
+
 export function createMockExamForm(): MockExamForm {
-  return { isMock: false, accessType: 'free', price: '', accessDays: '', level: '', blocks: [] };
+  return {
+    isMock: false,
+    accessType: 'free',
+    price: '',
+    accessDays: '',
+    level: '',
+    blocks: [],
+    codeSteps: [],
+    codeNote: '',
+  };
 }
 
 interface MockExamFieldsLike {
@@ -225,6 +356,7 @@ interface MockExamFieldsLike {
   accessDays?: number | null;
   level?: ExamLevel | string | null;
   detailBlocks?: unknown;
+  codeInstructions?: unknown;
 }
 
 /** ค่าจาก GET /exams/admin/:id → ฟอร์ม (API เก่าที่ยังไม่มี field → ค่าเริ่มต้น) */
@@ -239,7 +371,31 @@ export function mockFormFromExam(exam: MockExamFieldsLike): MockExamForm {
     blocks: normalizeDetailBlocks(exam.detailBlocks).map((b) =>
       b.type === 'text' ? createDetailBlock('text', b.text) : createDetailBlock('image', b.url),
     ),
+    ...codeFormFromInstructions(exam.codeInstructions),
   };
+}
+
+/**
+ * codeInstructions จาก API → ช่องในฟอร์ม (อ่านแบบไม่ทิ้งข้อมูล: ขั้นตอนที่ API คืนมาแสดงครบให้แอดมินแก้
+ * แม้ลิงก์จะผิดรูป — ตรวจตอนบันทึก)
+ */
+function codeFormFromInstructions(value: unknown): Pick<MockExamForm, 'codeSteps' | 'codeNote'> {
+  if (!value || typeof value !== 'object') return { codeSteps: [], codeNote: '' };
+  const raw = value as { steps?: unknown; note?: unknown };
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+  const codeSteps = Array.isArray(raw.steps)
+    ? raw.steps
+        .filter((st): st is Record<string, unknown> => !!st && typeof st === 'object')
+        .map((st) =>
+          createCodeStep({
+            title: str(st.title),
+            description: str(st.description),
+            linkLabel: str(st.linkLabel),
+            linkUrl: str(st.linkUrl),
+          }),
+        )
+    : [];
+  return { codeSteps, codeNote: str(raw.note) };
 }
 
 const PRICE_PATTERN = /^\d+(\.\d{1,2})?$/;
@@ -280,6 +436,70 @@ function blockError(b: DetailBlockForm): string | null {
   return null;
 }
 
+/** ตรวจขั้นตอน "วิธีรับโค้ด" ขั้นเดียว (ไม่รวมคำนำหน้า "ขั้นที่ N") */
+export function codeStepError(st: CodeStepForm): string | null {
+  const title = st.title.trim();
+  if (!title) return 'กรุณาใส่หัวข้อหรือลบขั้นตอนนี้';
+  if (title.length > MAX_STEP_TITLE) return `หัวข้อยาวได้ไม่เกิน ${MAX_STEP_TITLE} ตัวอักษร`;
+  if (st.description.trim().length > MAX_STEP_DESCRIPTION) {
+    return `คำอธิบายยาวได้ไม่เกิน ${MAX_STEP_DESCRIPTION} ตัวอักษร`;
+  }
+  const label = st.linkLabel.trim();
+  const url = st.linkUrl.trim();
+  if (label.length > MAX_STEP_LINK_LABEL) return `ข้อความปุ่มยาวได้ไม่เกิน ${MAX_STEP_LINK_LABEL} ตัวอักษร`;
+  if (label && !url) return 'ใส่ลิงก์ของปุ่ม หรือลบข้อความปุ่ม';
+  if (url) {
+    if (url.length > MAX_STEP_LINK_URL) return `ลิงก์ยาวได้ไม่เกิน ${MAX_STEP_LINK_URL} ตัวอักษร`;
+    if (!isAllowedStepLinkUrl(url)) return 'ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://';
+  }
+  return null;
+}
+
+/** ตรวจ "วิธีรับโค้ด" ทั้งชุด (ผ่าน → null) */
+export function validateCodeInstructionsForm(form: Pick<MockExamForm, 'codeSteps' | 'codeNote'>): string | null {
+  if (form.codeSteps.length > MAX_CODE_STEPS) return `วิธีรับโค้ด: มีได้ไม่เกิน ${MAX_CODE_STEPS} ขั้นตอน`;
+  for (let i = 0; i < form.codeSteps.length; i++) {
+    const err = codeStepError(form.codeSteps[i]);
+    if (err) return `วิธีรับโค้ด ขั้นที่ ${i + 1}: ${err}`;
+  }
+  if (form.codeNote.trim().length > MAX_CODE_NOTE) {
+    return `วิธีรับโค้ด: หมายเหตุยาวได้ไม่เกิน ${MAX_CODE_NOTE} ตัวอักษร`;
+  }
+  return null;
+}
+
+/** ขั้นตอนในฟอร์ม → ค่าที่ส่ง API (ช่องว่างไม่ส่ง) */
+export function toCodeInstructionStep(st: CodeStepForm): CodeInstructionStep {
+  const step: CodeInstructionStep = { title: st.title.trim() };
+  const description = st.description.trim();
+  const linkUrl = st.linkUrl.trim();
+  const linkLabel = st.linkLabel.trim();
+  if (description) step.description = description;
+  if (linkUrl) {
+    step.linkUrl = linkUrl;
+    if (linkLabel) step.linkLabel = linkLabel;
+  }
+  return step;
+}
+
+/**
+ * ฟอร์ม → codeInstructions ที่ส่ง API (ไม่มีขั้นตอนและหมายเหตุ → null)
+ * `strict` = ตรวจแล้ว (ชุดโค้ด) ส่งตามที่กรอก / ไม่ strict = ไม่ได้ตรวจ ส่งเฉพาะขั้นตอนที่ถูกต้อง (ค่ายังถูกเก็บไว้)
+ */
+export function toCodeInstructions(
+  form: Pick<MockExamForm, 'codeSteps' | 'codeNote'>,
+  strict = true,
+): CodeInstructions | null {
+  const stepsForm = strict
+    ? form.codeSteps
+    : form.codeSteps.filter((st) => !codeStepError(st)).slice(0, MAX_CODE_STEPS);
+  const steps = stepsForm.map(toCodeInstructionStep);
+  const rawNote = form.codeNote.trim();
+  const note = strict || rawNote.length <= MAX_CODE_NOTE ? rawNote : '';
+  if (steps.length === 0 && !note) return null;
+  return note ? { steps, note } : { steps };
+}
+
 /** ตรวจฟอร์มก่อนบันทึก คืนข้อความ error ภาษาไทย (ผ่าน → null) ไม่ใช่ Mock → ไม่ตรวจ */
 export function validateMockForm(form: MockExamForm): string | null {
   if (!form.isMock) return null;
@@ -299,6 +519,8 @@ export function validateMockForm(form: MockExamForm): string | null {
     const err = blockError(form.blocks[i]);
     if (err) return `คำอธิบายชุดข้อสอบ ช่องที่ ${i + 1}: ${err}`;
   }
+  // "วิธีรับโค้ด" ตรวจเฉพาะชุดโค้ด (ชุดอื่นเก็บค่าที่กรอกไว้แบบไม่ตรวจ)
+  if (form.accessType === 'code') return validateCodeInstructionsForm(form);
   return null;
 }
 
@@ -323,6 +545,7 @@ export function toMockExamInput(form: MockExamForm): MockExamInput {
       accessDays: days === '' ? null : Number(days),
       level: form.level || null,
       detailBlocks: form.blocks.map(toDetailBlock),
+      codeInstructions: toCodeInstructions(form, form.accessType === 'code'),
     };
   }
   const safePrice = price !== '' && !priceError(price) ? Number(price) : null;
@@ -337,6 +560,7 @@ export function toMockExamInput(form: MockExamForm): MockExamInput {
       .filter((b) => !blockError(b))
       .slice(0, MAX_DETAIL_BLOCKS)
       .map(toDetailBlock),
+    codeInstructions: toCodeInstructions(form, false),
   };
 }
 
@@ -347,7 +571,9 @@ export function mockFormHasSettings(form: MockExamForm): boolean {
     form.price.trim() !== '' ||
     form.accessDays.trim() !== '' ||
     form.level !== '' ||
-    form.blocks.length > 0
+    form.blocks.length > 0 ||
+    form.codeSteps.length > 0 ||
+    form.codeNote.trim() !== ''
   );
 }
 

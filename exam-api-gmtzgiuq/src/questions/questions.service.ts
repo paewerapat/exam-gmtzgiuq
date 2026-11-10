@@ -24,6 +24,16 @@ import {
 } from './question-images';
 import { Exam } from '../exams/exam.entity';
 import { ExamPassage, normalizeStoredPassages } from '../exams/exam-passage';
+import { LOCKED_ACCESS_TYPES, isLockedExam } from '../exam-access/exam-access';
+
+/** Largest page of the public question list (GET /questions, GraphQL). */
+export const PUBLIC_QUESTIONS_MAX_LIMIT = 100;
+
+/** A whole number ≥ 1, else the fallback (NaN, 0, negative). */
+function clampPositiveInt(value: unknown, fallback: number): number {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) && n >= 1 ? n : fallback;
+}
 
 @Injectable()
 export class QuestionsService {
@@ -57,13 +67,33 @@ export class QuestionsService {
     category?: QuestionCategory,
     difficulty?: QuestionDifficulty,
     search?: string,
+    options: { excludeLocked?: boolean; maxLimit?: number } = {},
   ): Promise<PaginatedQuestions> {
+    // page/limit ≤ 0, fractions or NaN (REST "abc") used to reach SQL as a
+    // negative/NaN OFFSET/LIMIT → 500. Now: page ≥ 1, 1 ≤ limit ≤ maxLimit.
+    page = clampPositiveInt(page, 1);
+    limit = Math.min(
+      clampPositiveInt(limit, 10),
+      options.maxLimit ?? Number.MAX_SAFE_INTEGER,
+    );
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.questionsRepository
       .createQueryBuilder('question')
       .leftJoinAndSelect('question.author', 'author')
       .orderBy('question.createdAt', 'DESC');
+
+    // Public lists never include questions of a locked Mock Exam
+    // (code/purchase), whoever asks: those are taken from the exam page only
+    // (task 15). Questions without an exam stay.
+    if (options.excludeLocked) {
+      queryBuilder
+        .leftJoin('question.exam', 'lockExam')
+        .andWhere(
+          '(lockExam.id IS NULL OR lockExam.isMock = :lockIsMock OR lockExam.accessType NOT IN (:...lockedTypes))',
+          { lockIsMock: false, lockedTypes: [...LOCKED_ACCESS_TYPES] },
+        );
+    }
 
     if (status) {
       queryBuilder.andWhere('question.status = :status', { status });
@@ -113,6 +143,7 @@ export class QuestionsService {
       category,
       difficulty,
       search,
+      { excludeLocked: true, maxLimit: PUBLIC_QUESTIONS_MAX_LIMIT },
     );
     result.items = await this.attachPassages(result.items);
     return result;
@@ -131,7 +162,10 @@ export class QuestionsService {
     return question;
   }
 
-  /** Public single question: a draft is reported as not found (SEC-9). */
+  /**
+   * Public single question: a draft (SEC-9) or a question of a locked Mock
+   * Exam (task 15) is reported as not found.
+   */
   async findPublishedOne(id: string): Promise<Question> {
     const question = await this.questionsRepository.findOne({
       where: { id, status: QuestionStatus.PUBLISHED },
@@ -140,6 +174,17 @@ export class QuestionsService {
 
     if (!question) {
       throw new NotFoundException('Question not found');
+    }
+
+    if (question.examId) {
+      const exam = await this.examsRepository.findOne({
+        select: { id: true, isMock: true, accessType: true },
+        where: { id: question.examId },
+        loadEagerRelations: false,
+      });
+      if (exam && isLockedExam(exam)) {
+        throw new NotFoundException('Question not found');
+      }
     }
 
     return question;

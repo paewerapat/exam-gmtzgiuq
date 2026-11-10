@@ -19,6 +19,7 @@ import {
 import { ExamPassage } from './exam-passage';
 import {
   ExamAccessType,
+  ExamCodeInstructions,
   ExamDetailBlock,
   ExamLevel,
   priceTransformer,
@@ -137,6 +138,13 @@ export class Exam {
   @Field(() => [ExamDetailBlock], { nullable: true })
   @Column({ type: 'json', nullable: true, select: false })
   detailBlocks?: ExamDetailBlock[] | null;
+
+  // "วิธีรับโค้ด" steps + note for code Mock Exams (task 15,
+  // sql/20261110-01-unlock-codes.sql). select: false like detailBlocks;
+  // the admin findOne and the mock detail load it explicitly.
+  @Field(() => ExamCodeInstructions, { nullable: true })
+  @Column({ type: 'json', nullable: true, select: false })
+  codeInstructions?: ExamCodeInstructions | null;
 
   @Field()
   @CreateDateColumn()

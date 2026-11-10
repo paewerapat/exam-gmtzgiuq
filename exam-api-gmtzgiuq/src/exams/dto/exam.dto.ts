@@ -10,6 +10,7 @@ import {
   IsIn,
   IsInt,
   IsNumber,
+  IsObject,
   Max,
   Min,
   ValidateNested,
@@ -38,12 +39,19 @@ import {
   PASSAGE_ID_PATTERN,
 } from '../exam-passage';
 import {
+  CODE_STEP_LINK_URL_PATTERN,
   DETAIL_BLOCK_TYPES,
   DETAIL_IMAGE_URL_PATTERN,
   ExamAccessType,
   type ExamDetailBlockType,
   ExamLevel,
   MAX_ACCESS_DAYS,
+  MAX_CODE_NOTE_LENGTH,
+  MAX_CODE_STEP_DESCRIPTION_LENGTH,
+  MAX_CODE_STEP_LINK_LABEL_LENGTH,
+  MAX_CODE_STEP_LINK_URL_LENGTH,
+  MAX_CODE_STEP_TITLE_LENGTH,
+  MAX_CODE_STEPS,
   MAX_DETAIL_BLOCKS,
   MAX_DETAIL_TEXT_LENGTH,
   MAX_DETAIL_URL_LENGTH,
@@ -161,6 +169,72 @@ export class ExamDetailBlockInput {
   url?: string | null;
 }
 
+// One step of "วิธีรับโค้ด" (task 15): title + optional description/link
+@InputType()
+export class ExamCodeInstructionStepInput {
+  @Field(() => String)
+  @IsString({ message: 'หัวข้อขั้นตอนต้องเป็นข้อความ' })
+  @Matches(/\S/, { message: 'กรุณาใส่หัวข้อของทุกขั้นตอน' })
+  @MaxLength(MAX_CODE_STEP_TITLE_LENGTH, {
+    message: `หัวข้อขั้นตอนยาวได้ไม่เกิน ${MAX_CODE_STEP_TITLE_LENGTH} ตัวอักษร`,
+  })
+  title: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'คำอธิบายขั้นตอนต้องเป็นข้อความ' })
+  @MaxLength(MAX_CODE_STEP_DESCRIPTION_LENGTH, {
+    message: `คำอธิบายขั้นตอนยาวได้ไม่เกิน ${MAX_CODE_STEP_DESCRIPTION_LENGTH} ตัวอักษร`,
+  })
+  description?: string | null;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'ข้อความปุ่มลิงก์ต้องเป็นข้อความ' })
+  @MaxLength(MAX_CODE_STEP_LINK_LABEL_LENGTH, {
+    message: `ข้อความปุ่มลิงก์ยาวได้ไม่เกิน ${MAX_CODE_STEP_LINK_LABEL_LENGTH} ตัวอักษร`,
+  })
+  linkLabel?: string | null;
+
+  // Empty string = no link
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'ลิงก์ต้องเป็นข้อความ' })
+  @MaxLength(MAX_CODE_STEP_LINK_URL_LENGTH, {
+    message: `ลิงก์ยาวได้ไม่เกิน ${MAX_CODE_STEP_LINK_URL_LENGTH} ตัวอักษร`,
+  })
+  @ValidateIf(
+    (step: ExamCodeInstructionStepInput) =>
+      typeof step.linkUrl !== 'string' || step.linkUrl.trim() !== '',
+  )
+  @Matches(CODE_STEP_LINK_URL_PATTERN, {
+    message: 'ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://',
+  })
+  linkUrl?: string | null;
+}
+
+// "วิธีรับโค้ด" of a code Mock Exam (task 15)
+@InputType()
+export class ExamCodeInstructionsInput {
+  @Field(() => [ExamCodeInstructionStepInput], { nullable: true })
+  @IsOptional()
+  @IsArray({ message: 'ขั้นตอนวิธีรับโค้ดต้องเป็นรายการ' })
+  @ArrayMaxSize(MAX_CODE_STEPS, {
+    message: `วิธีรับโค้ดมีได้ไม่เกิน ${MAX_CODE_STEPS} ขั้นตอน`,
+  })
+  @ValidateNested({ each: true })
+  @Type(() => ExamCodeInstructionStepInput)
+  steps?: ExamCodeInstructionStepInput[] | null;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'หมายเหตุต้องเป็นข้อความ' })
+  @MaxLength(MAX_CODE_NOTE_LENGTH, {
+    message: `หมายเหตุยาวได้ไม่เกิน ${MAX_CODE_NOTE_LENGTH} ตัวอักษร`,
+  })
+  note?: string | null;
+}
+
 /**
  * Mock Exam fields of POST and PUT (task 11). All optional: not sent = false
  * / free / null on create, unchanged on update. "purchase needs a price
@@ -212,6 +286,15 @@ export class MockExamFieldsInput {
   @ValidateNested({ each: true })
   @Type(() => ExamDetailBlockInput)
   detailBlocks?: ExamDetailBlockInput[] | null;
+
+  // "วิธีรับโค้ด" (task 15). Sent = replaced (null or no steps/note = none);
+  // not sent = null on create, unchanged on update
+  @Field(() => ExamCodeInstructionsInput, { nullable: true })
+  @IsOptional()
+  @IsObject({ message: 'วิธีรับโค้ดต้องเป็น object' })
+  @ValidateNested()
+  @Type(() => ExamCodeInstructionsInput)
+  codeInstructions?: ExamCodeInstructionsInput | null;
 }
 
 // Choice input for exam questions

@@ -10,19 +10,32 @@ import type {
 } from './questions';
 import { withResolvedPassages } from '@/lib/exam-passages';
 import { fetchWithAuth } from './authFetch';
+import { toApiError } from './apiError';
 import {
   normalizeAccessType,
+  normalizeCodeInstructions,
   normalizeDetailBlocks,
   normalizeLevel,
+  normalizeMockAccess,
   parsePrice,
+  type CodeInstructions,
   type DetailBlock,
   type ExamLevel,
   type MockAccessType,
+  type MockExamAccess,
   type MockExamInput,
 } from '@/lib/mock-exam';
 
 export type { ExamPassage } from './questions';
-export type { DetailBlock, ExamLevel, MockAccessType } from '@/lib/mock-exam';
+export type {
+  CodeInstructions,
+  CodeInstructionStep,
+  DetailBlock,
+  ExamLevel,
+  MockAccessStatus,
+  MockAccessType,
+  MockExamAccess,
+} from '@/lib/mock-exam';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -51,6 +64,8 @@ export interface Exam {
   level?: ExamLevel | null;
   /** มีเฉพาะ GET /exams/admin/:id (select: false) */
   detailBlocks?: DetailBlock[] | null;
+  /** "วิธีรับโค้ด" (task 15) — มีใน GET /exams/admin/:id */
+  codeInstructions?: CodeInstructions | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,6 +135,7 @@ export interface CreateExamInput {
   accessDays?: MockExamInput['accessDays'];
   level?: MockExamInput['level'];
   detailBlocks?: MockExamInput['detailBlocks'];
+  codeInstructions?: MockExamInput['codeInstructions'];
 }
 
 export interface UpdateExamInput {
@@ -142,6 +158,7 @@ export interface UpdateExamInput {
   accessDays?: MockExamInput['accessDays'];
   level?: MockExamInput['level'];
   detailBlocks?: MockExamInput['detailBlocks'];
+  codeInstructions?: MockExamInput['codeInstructions'];
 }
 
 export interface GetExamsParams {
@@ -189,17 +206,17 @@ export async function getPublicExams(
   return response.json();
 }
 
-// Public - Get single published exam with questions
+// Public (OptionalJwt) - Get single published exam with questions
+// ส่ง token ด้วยเสมอ: ชุด Mock ที่ล็อก (code/purchase) API ตรวจสิทธิ์ของบัญชี — ไม่มีสิทธิ์ → ApiError 403 EXAM_LOCKED
 export async function getPublicExam(id: string, signal?: AbortSignal): Promise<Exam> {
-  const response = await fetch(`${API_URL}/exams/${id}`, {
+  const response = await fetchWithAuth(`${API_URL}/exams/${id}`, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
     signal,
   });
 
   if (!response.ok) {
-    throw new Error('Exam not found');
+    throw await toApiError(response, 'Exam not found');
   }
 
   // เติม question.passage จาก exam.passages ให้หน้าทำข้อสอบ/ผลลัพธ์ใช้ได้โดยไม่ต้องถือ exam ไว้
@@ -359,6 +376,8 @@ export interface MockExamSummary {
   /** API คืน number | null (ยังผ่าน parsePrice เผื่อ decimal มาเป็น string) */
   price: number | null;
   releaseDate: string;
+  /** สิทธิ์ของบัญชีที่ส่ง token มา (guest → locked สำหรับชุดไม่ฟรี) — task 15 */
+  access: MockExamAccess;
 }
 
 /** หน้ารายละเอียด (GET /exams/mock/:id) */
@@ -366,6 +385,8 @@ export interface MockExamDetail extends MockExamSummary {
   description: string | null;
   /** null จาก API → [] */
   detailBlocks: DetailBlock[];
+  /** "วิธีรับโค้ด" ที่แอดมินตั้ง (null = ไม่มี) — task 15 */
+  codeInstructions: CodeInstructions | null;
 }
 
 export interface PaginatedMockExams {
@@ -401,6 +422,7 @@ const toNumberOrNull = (v: unknown): number | null => {
 
 /** แปลง item จาก API ให้ชนิดตรง (price string → number, enum ที่ไม่รู้จัก → ค่าเริ่มต้น) */
 export function normalizeMockExamSummary(raw: RawRecord): MockExamSummary {
+  const accessType = normalizeAccessType(raw.accessType);
   return {
     id: String(raw.id ?? ''),
     title: typeof raw.title === 'string' ? raw.title : '',
@@ -412,9 +434,10 @@ export function normalizeMockExamSummary(raw: RawRecord): MockExamSummary {
     questionCount: toNumberOrNull(raw.questionCount) ?? 0,
     durationMinutes: toNumberOrNull(raw.durationMinutes),
     level: normalizeLevel(raw.level),
-    accessType: normalizeAccessType(raw.accessType),
+    accessType,
     price: parsePrice(raw.price),
     releaseDate: typeof raw.releaseDate === 'string' ? raw.releaseDate : '',
+    access: normalizeMockAccess(raw.access, accessType),
   };
 }
 
@@ -423,6 +446,7 @@ export function normalizeMockExamDetail(raw: RawRecord): MockExamDetail {
     ...normalizeMockExamSummary(raw),
     description: toStringOrNull(raw.description),
     detailBlocks: normalizeDetailBlocks(raw.detailBlocks),
+    codeInstructions: normalizeCodeInstructions(raw.codeInstructions),
   };
 }
 
@@ -478,4 +502,50 @@ export async function getMockExam(id: string, signal?: AbortSignal): Promise<Moc
   if (response.status === 404) return null;
   if (!response.ok) throw new Error('Failed to fetch mock exam');
   return normalizeMockExamDetail((await response.json()) as RawRecord);
+}
+
+// ── โค้ด Unlock (task 15) ─────────────────────────────────────
+
+/** ตัวเลือก "ชุดที่ Unlock" ในฟอร์มสร้างแคมเปญ: ชุด Mock ที่ไม่ฟรี (รวมแบบร่าง) */
+export interface LockableMockExamOption {
+  id: string;
+  title: string;
+  accessType: Exclude<MockAccessType, 'free'>;
+  price: number | null;
+  status: QuestionStatus;
+}
+
+const ADMIN_OPTIONS_PAGE_SIZE = 100;
+const ADMIN_OPTIONS_MAX_PAGES = 20;
+
+/**
+ * Admin - ชุด Mock ที่ไม่ฟรีทั้งหมด (สำหรับผูกกับแคมเปญโค้ด)
+ * API ยังไม่มีตัวกรอง isMock จึงไล่ GET /exams/admin/all ทีละ 100 ชุดแล้วกรองฝั่งเว็บ (สูงสุด 2,000 ชุด)
+ */
+export async function getLockableMockExams(signal?: AbortSignal): Promise<LockableMockExamOption[]> {
+  const out: LockableMockExamOption[] = [];
+  for (let page = 1; page <= ADMIN_OPTIONS_MAX_PAGES; page++) {
+    const query = new URLSearchParams({ page: String(page), limit: String(ADMIN_OPTIONS_PAGE_SIZE) });
+    const response = await fetchWithAuth(`${API_URL}/exams/admin/all?${query.toString()}`, {
+      cache: 'no-store',
+      signal,
+    });
+    if (!response.ok) throw await toApiError(response, 'Failed to fetch exams');
+    const data = (await response.json()) as RawRecord;
+    const items = Array.isArray(data.items) ? (data.items as RawRecord[]) : [];
+    for (const raw of items) {
+      const accessType = normalizeAccessType(raw.accessType);
+      if (raw.isMock !== true || accessType === 'free') continue;
+      out.push({
+        id: String(raw.id ?? ''),
+        title: typeof raw.title === 'string' ? raw.title : '',
+        accessType,
+        price: parsePrice(raw.price),
+        status: raw.status === 'published' ? 'published' : 'draft',
+      });
+    }
+    const totalPages = toNumberOrNull(data.totalPages) ?? 1;
+    if (page >= totalPages || items.length === 0) break;
+  }
+  return out;
 }

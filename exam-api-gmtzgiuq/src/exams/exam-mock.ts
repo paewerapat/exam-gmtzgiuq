@@ -118,6 +118,124 @@ export function collectDetailBlockImageUrls(blocks: unknown): string[] {
   );
 }
 
+// "วิธีรับโค้ด" on the detail page of a code Mock Exam (task 15)
+export const MAX_CODE_STEPS = 10;
+export const MAX_CODE_STEP_TITLE_LENGTH = 100;
+export const MAX_CODE_STEP_DESCRIPTION_LENGTH = 300;
+export const MAX_CODE_STEP_LINK_LABEL_LENGTH = 40;
+export const MAX_CODE_STEP_LINK_URL_LENGTH = 500;
+export const MAX_CODE_NOTE_LENGTH = 300;
+/** Link of a code step: http(s) only (no javascript:, data:, relative). */
+export const CODE_STEP_LINK_URL_PATTERN = /^https?:\/\/[^\s]+$/i;
+
+/** One step of "วิธีรับโค้ด": title + optional description and link. */
+@ObjectType()
+export class ExamCodeInstructionStep {
+  @Field(() => String)
+  title: string;
+
+  @Field(() => String, { nullable: true })
+  description?: string;
+
+  @Field(() => String, { nullable: true })
+  linkLabel?: string;
+
+  @Field(() => String, { nullable: true })
+  linkUrl?: string;
+}
+
+/** `exams.codeInstructions`: steps in order + an optional note. */
+@ObjectType()
+export class ExamCodeInstructions {
+  @Field(() => [ExamCodeInstructionStep])
+  steps: ExamCodeInstructionStep[];
+
+  @Field(() => String, { nullable: true })
+  note?: string;
+}
+
+interface CodeInstructionsInput {
+  steps?:
+    | {
+        title?: string | null;
+        description?: string | null;
+        linkLabel?: string | null;
+        linkUrl?: string | null;
+      }[]
+    | null;
+  note?: string | null;
+}
+
+/** Trimmed non-empty string within `max` characters, else undefined. */
+function cleanText(value: unknown, max: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  return text !== '' && text.length <= max ? text : undefined;
+}
+
+/**
+ * Shared by the read and write paths: keep steps with a title, only the
+ * known fields, http(s) links only; no steps and no note → null.
+ */
+function buildCodeInstructions(
+  value: CodeInstructionsInput | null | undefined,
+): ExamCodeInstructions | null {
+  if (!value || typeof value !== 'object') return null;
+  const steps: ExamCodeInstructionStep[] = [];
+  const list: unknown[] = Array.isArray(value.steps) ? value.steps : [];
+  for (const item of list.slice(0, MAX_CODE_STEPS)) {
+    if (!item || typeof item !== 'object') continue;
+    const s = item as Record<string, unknown>;
+    const title = cleanText(s.title, MAX_CODE_STEP_TITLE_LENGTH);
+    if (!title) continue;
+    const step: ExamCodeInstructionStep = { title };
+    const description = cleanText(
+      s.description,
+      MAX_CODE_STEP_DESCRIPTION_LENGTH,
+    );
+    if (description) step.description = description;
+    const linkLabel = cleanText(s.linkLabel, MAX_CODE_STEP_LINK_LABEL_LENGTH);
+    if (linkLabel) step.linkLabel = linkLabel;
+    const linkUrl = cleanText(s.linkUrl, MAX_CODE_STEP_LINK_URL_LENGTH);
+    if (linkUrl && CODE_STEP_LINK_URL_PATTERN.test(linkUrl)) {
+      step.linkUrl = linkUrl;
+    }
+    steps.push(step);
+  }
+  const note = cleanText(value.note, MAX_CODE_NOTE_LENGTH);
+  if (steps.length === 0 && !note) return null;
+  return note ? { steps, note } : { steps };
+}
+
+/**
+ * Read `exams.codeInstructions` tolerantly (null/malformed → null, a JSON
+ * string from MariaDB raw queries is parsed, invalid steps are skipped).
+ */
+export function normalizeStoredCodeInstructions(
+  value: unknown,
+): ExamCodeInstructions | null {
+  let data = value;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  return buildCodeInstructions(data as CodeInstructionsInput);
+}
+
+/**
+ * The value to store from POST/PUT (already validated by the DTO): trimmed,
+ * blank optional fields dropped; nothing left → null.
+ */
+export function prepareCodeInstructions(
+  value: CodeInstructionsInput | null | undefined,
+): ExamCodeInstructions | null {
+  return buildCodeInstructions(value);
+}
+
 /**
  * Cross-field rule of POST/PUT, checked on the values the exam will have
  * after saving (PUT: not sent = current value): an exam that must be
@@ -208,14 +326,32 @@ export function toMockExamItem(row: MockExamRow): MockExamItem {
   };
 }
 
+/**
+ * Access of the viewer to a Mock Exam (task 15), on every item of
+ * `GET /exams/mock*`: `free` = accessType free; `locked` = never had access
+ * (guests too); `unlocked` = has access that has not expired (expiresAt null
+ * = no end); `expired` = had access, all of it ended (expiresAt = last end).
+ */
+export type MockExamAccessStatus = 'free' | 'locked' | 'unlocked' | 'expired';
+
+export interface MockExamAccess {
+  status: MockExamAccessStatus;
+  expiresAt: string | null;
+}
+
+export interface MockExamListItem extends MockExamItem {
+  access: MockExamAccess;
+}
+
 /** `GET /exams/mock/:id`: the card fields + description + detail blocks. */
-export interface MockExamDetail extends MockExamItem {
+export interface MockExamDetail extends MockExamListItem {
   description: string | null;
   detailBlocks: ExamDetailBlock[];
+  codeInstructions: ExamCodeInstructions | null;
 }
 
 export interface PaginatedMockExams {
-  items: MockExamItem[];
+  items: MockExamListItem[];
   total: number;
   page: number;
   limit: number;

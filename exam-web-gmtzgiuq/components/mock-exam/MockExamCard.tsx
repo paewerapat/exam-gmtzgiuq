@@ -7,7 +7,7 @@ import MockAccessBadge from './MockAccessBadge';
 
 interface MockExamCardProps {
   exam: MockExamSummary;
-  /** สิทธิ์ของบัญชี (งานที่ 2) */
+  /** สิทธิ์ของบัญชี (ไม่ส่ง = ใช้ exam.access จาก API) */
   access?: MockExamAccess | null;
 }
 
@@ -37,7 +37,7 @@ export default function MockExamCard({ exam, access }: MockExamCardProps) {
             <Clock className="w-3.5 h-3.5 flex-shrink-0" />
             <span className="truncate">{formatMockMeta(exam.questionCount, exam.durationMinutes)}</span>
           </span>
-          <MockAccessBadge exam={exam} access={access} />
+          <MockAccessBadge exam={exam} access={access ?? exam.access} />
         </div>
       </div>
     </Link>

@@ -27,6 +27,7 @@ const item = (patch: Partial<MockExamSummary>): MockExamSummary => ({
   questionCount: 40,
   durationMinutes: 60,
   level: null,
+  access: { status: 'free', expiresAt: null },
   accessType: 'free',
   price: null,
   releaseDate: '2026-11-01T00:00:00.000Z',
