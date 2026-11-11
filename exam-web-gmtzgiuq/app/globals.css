@@ -166,3 +166,25 @@ textarea,
 select {
   font-family: inherit;
 }
+
+/*
+ * โหมดมืด: select ที่ไม่ได้ใส่ dark:bg-* เอง พื้นโปร่งใส รายการตัวเลือกที่กางออก (popup ของเบราว์เซอร์)
+ * จึงเป็นพื้นขาวแต่ตัวอักษรสีอ่อนที่สืบทอดมา = มองไม่เห็น
+ * อยู่ใน @layer base เพื่อให้ class dark:bg-* / dark:text-* ของแต่ละช่อง (layer utilities) ยังชนะ
+ */
+@layer base {
+  html.dark select {
+    background-color: #1f2937; /* gray-800 */
+    color: #f3f4f6; /* gray-100 */
+  }
+
+  html.dark select option,
+  html.dark select optgroup {
+    background-color: #1f2937;
+    color: #f3f4f6;
+  }
+
+  html.dark select option:disabled {
+    color: #9ca3af; /* gray-400 */
+  }
+}
