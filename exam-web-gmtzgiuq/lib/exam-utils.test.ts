@@ -12,6 +12,7 @@ import {
   nextChoiceId,
   parseChoiceAnswer,
   toggleChoiceAnswer,
+  withCurrentQuestionTime,
 } from '@/lib/exam-utils';
 
 function mcq(id: string, correctIds: string[], ids = ['a', 'b', 'c', 'd', 'e']): Question {
@@ -160,5 +161,37 @@ describe('calculateExamResult — ผสมข้อปกติกับข้�
     expect(result.unanswered).toBe(1);
     expect(result.score).toBe(40);
     expect(result.incorrectQuestionIds).toEqual(['m2', 's2', 'u']);
+  });
+});
+
+describe('withCurrentQuestionTime — นับเวลาข้อที่เปิดอยู่ตอนส่ง (BUG-22)', () => {
+  it('ชุด 1 ข้อที่ยังไม่เคยเปลี่ยนข้อ → เวลาที่ใช้ไม่เป็น 0', () => {
+    const s = session(['s'], { s: 'c' });
+    expect(calculateExamResult(s, [single]).totalTime).toBe(0);
+    const flushed = withCurrentQuestionTime(s, 15);
+    expect(flushed.timePerQuestion).toEqual({ s: 15 });
+    expect(calculateExamResult(flushed, [single]).totalTime).toBe(15);
+    // ไม่แก้ object เดิม
+    expect(s.timePerQuestion).toEqual({});
+  });
+
+  it('หลายข้อ: เขียนทับเฉพาะข้อปัจจุบัน (currentTimer สะสมจากค่าที่เคยบันทึก) ข้ออื่นคงเดิม เรียกซ้ำผลเท่าเดิม', () => {
+    const s = { ...session(['m', 's'], {}), currentIndex: 1, timePerQuestion: { m: 7, s: 4 } };
+    const once = withCurrentQuestionTime(s, 10);
+    expect(once.timePerQuestion).toEqual({ m: 7, s: 10 });
+    expect(withCurrentQuestionTime(once, 10)).toBe(once);
+    expect(calculateExamResult(once, [multi, single]).totalTime).toBe(17);
+  });
+
+  it('currentTimer น้อยกว่าค่าที่บันทึกไว้ (state ยังไม่ sync) → ไม่ลดเวลา', () => {
+    const s = { ...session(['s'], {}), timePerQuestion: { s: 9 } };
+    expect(withCurrentQuestionTime(s, 0)).toBe(s);
+  });
+
+  it('ไม่มีข้อปัจจุบัน / เวลาไม่ใช่ตัวเลข → คืน session เดิม', () => {
+    const empty = session([], {});
+    expect(withCurrentQuestionTime(empty, 5)).toBe(empty);
+    const s = session(['s'], {});
+    expect(withCurrentQuestionTime(s, Number.NaN)).toBe(s);
   });
 });

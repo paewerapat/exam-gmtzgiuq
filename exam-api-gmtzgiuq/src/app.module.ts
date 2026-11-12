@@ -20,6 +20,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { ExamAccessModule } from './exam-access/exam-access.module';
 import { UnlockCodesModule } from './unlock-codes/unlock-codes.module';
+import { AnswerLogsModule } from './answer-logs/answer-logs.module';
 import { setUploadSecurityHeaders } from './upload/upload-headers';
 import type { Response } from 'express';
 
@@ -90,6 +91,7 @@ import type { Response } from 'express';
     FeedbackModule,
     ExamAccessModule,
     UnlockCodesModule,
+    AnswerLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

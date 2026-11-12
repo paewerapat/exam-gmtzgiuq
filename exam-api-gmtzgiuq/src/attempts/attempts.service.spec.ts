@@ -13,11 +13,18 @@ import { ExamAttempt } from './attempt.entity';
 import { Exam } from '../exams/exam.entity';
 import { StartAttemptDto, SubmitAttemptInput } from './dto/attempt.dto';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { AnswerLogsService } from '../answer-logs/answer-logs.service';
 
 /** Access check that lets everything through (lock tests: end of file). */
 const openAccess = () => ({
   provide: ExamAccessService,
   useValue: { assertCanAccessExamId: jest.fn().mockResolvedValue(undefined) },
+});
+
+/** Answer log that writes nothing (task 16; its own tests: answer-logs). */
+const answerLogs = () => ({
+  provide: AnswerLogsService,
+  useValue: { logAttempt: jest.fn().mockResolvedValue(0) },
 });
 
 describe('AttemptsService', () => {
@@ -50,6 +57,7 @@ describe('AttemptsService', () => {
         },
         { provide: getRepositoryToken(Exam), useValue: {} },
         openAccess(),
+        answerLogs(),
       ],
     }).compile();
 
@@ -249,6 +257,7 @@ describe('AttemptsService.startInProgress (task 13)', () => {
           useValue: { exists: examExists },
         },
         openAccess(),
+        answerLogs(),
       ],
     }).compile();
 
@@ -529,6 +538,8 @@ describe('AttemptsService.completeAttempt (task 14 B3, BUG-21)', () => {
     completedAt: '2026-11-07T10:05:00.000Z',
   };
 
+  let logAttempt: jest.Mock;
+
   beforeEach(async () => {
     table = new FakeAttemptTable();
 
@@ -538,10 +549,84 @@ describe('AttemptsService.completeAttempt (task 14 B3, BUG-21)', () => {
         { provide: getRepositoryToken(ExamAttempt), useValue: table.repo },
         { provide: getRepositoryToken(Exam), useValue: {} },
         openAccess(),
+        answerLogs(),
       ],
     }).compile();
 
     service = module.get(AttemptsService);
+    logAttempt = module.get<{ logAttempt: jest.Mock }>(
+      AnswerLogsService,
+    ).logAttempt;
+  });
+
+  describe('answer log (task 16)', () => {
+    it('logs the answers of the request with the attempt mode/exam after completing', async () => {
+      const attempt = table.insert({ mode: 'exam' });
+
+      await service.completeAttempt(attempt.id, 'user-a', submit);
+
+      expect(logAttempt).toHaveBeenCalledTimes(1);
+      expect(logAttempt).toHaveBeenCalledWith({
+        attemptId: attempt.id,
+        userId: 'user-a',
+        examId: 'exam-1',
+        mode: 'exam',
+        answers: submit.answers,
+        timePerQuestion: submit.timePerQuestion,
+      });
+      // logged after the attempt row was completed
+      expect(table.repo.update.mock.invocationCallOrder[0]).toBeLessThan(
+        logAttempt.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('AC8 a repeated submit (409) logs nothing more', async () => {
+      const attempt = table.insert({});
+
+      await service.completeAttempt(attempt.id, 'user-a', submit);
+      await expect(
+        service.completeAttempt(attempt.id, 'user-a', submit),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(logAttempt).toHaveBeenCalledTimes(1);
+    });
+
+    it('logs nothing when the write loses the race (409)', async () => {
+      const attempt = table.insert({ status: 'completed' });
+      table.repo.findOne.mockResolvedValueOnce({
+        ...attempt,
+        status: 'in_progress',
+      });
+
+      await expect(
+        service.completeAttempt(attempt.id, 'user-a', submit),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(logAttempt).not.toHaveBeenCalled();
+    });
+
+    it('logs nothing for another user (403)', async () => {
+      const attempt = table.insert({});
+
+      await expect(
+        service.completeAttempt(attempt.id, 'user-b', submit),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(logAttempt).not.toHaveBeenCalled();
+    });
+
+    it('legacy POST /attempts logs the saved attempt as practice', async () => {
+      const result = await service.submit(submit, {
+        id: 'user-a',
+      } as never);
+
+      expect(logAttempt).toHaveBeenCalledWith({
+        attemptId: result.id,
+        userId: 'user-a',
+        examId: 'exam-1',
+        mode: 'practice',
+        answers: submit.answers,
+        timePerQuestion: submit.timePerQuestion,
+      });
+    });
   });
 
   it('completes an in-progress attempt with the submitted result', async () => {
@@ -745,6 +830,7 @@ describe('AttemptsService stats count only completed attempts (BUG-12)', () => {
         { provide: getRepositoryToken(ExamAttempt), useValue: repo },
         { provide: getRepositoryToken(Exam), useValue: {} },
         openAccess(),
+        answerLogs(),
       ],
     }).compile();
 

@@ -11,6 +11,7 @@ import {
   clearExamSession,
   generateSessionId,
   calculateExamResult,
+  withCurrentQuestionTime,
 } from '@/lib/exam-utils';
 import { getPublicExam } from '@/lib/api/exams';
 import { toast } from 'react-toastify';
@@ -359,12 +360,20 @@ function ExamPageContent({ examId }: { examId: string }) {
   const handleComplete = () => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
-    const { session: savedSession, questions: savedQuestions } =
+    const { session: storedSession, questions: savedQuestions } =
       loadExamSession(true);
-    if (!savedSession || !savedQuestions) {
+    if (!storedSession || !savedQuestions) {
       router.push(`/practice/exam/${examId}/results`);
       return;
     }
+    // ใส่เวลาของข้อที่เปิดอยู่ก่อนคิดผล/ส่ง complete (BUG-22) — เช่นหมดเวลาแล้วส่งเอง ซึ่งไม่ผ่าน completeExam()
+    // ใช้เฉพาะเมื่อเป็น session เดียวกับที่อยู่ในหน้า (กันเอาเวลาไปใส่ session อื่นใน key กลาง)
+    const savedSession =
+      storedSession.id === state.session.id && storedSession.currentIndex === state.session.currentIndex
+        ? withCurrentQuestionTime(storedSession, state.currentTimer)
+        : storedSession;
+    // หน้าผล (results) อ่านจาก storage → เก็บเวลาที่ใส่เพิ่มด้วย
+    if (savedSession !== storedSession) saveExamSession(savedSession, savedQuestions);
 
     const result = calculateExamResult(savedSession, savedQuestions);
     const payload = {

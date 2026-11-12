@@ -25,6 +25,7 @@ import {
   pickSessionForExam,
   saveRealExamSession,
   loadRealExamSession,
+  withCurrentQuestionTime,
 } from '@/lib/exam-utils';
 import { getPublicExam } from '@/lib/api/exams';
 import {
@@ -535,8 +536,9 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
     // ลำดับ: state ในหน่วยความจำ (ใหม่สุดเสมอ — storage อาจค้างค่าเก่าถ้าเก็บล้มกลางทาง)
     // → real-exam storage → key ทั่วไปที่ ExamContainer เก็บ; ทุกแหล่งต้องเป็นข้อสอบนี้ (examId ตรง) ไม่งั้นข้าม
+    // state.session ยังไม่มีเวลาของข้อที่เปิดอยู่ (บันทึกตอนเปลี่ยนข้อเท่านั้น) → ใส่ก่อนคิดผล/ส่ง complete (BUG-22)
     const picked = pickSessionForExam(examId, [
-      { session: state.session, questions: state.questions },
+      { session: withCurrentQuestionTime(state.session, state.currentTimer), questions: state.questions },
       loadRealExamSession(examId),
       loadExamSession(true),
     ]);

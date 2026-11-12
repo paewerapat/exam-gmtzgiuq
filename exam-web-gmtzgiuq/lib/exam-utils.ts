@@ -288,6 +288,22 @@ export function getAnswerHints(correctAnswer: string): string[] {
 }
 
 /**
+ * ใส่เวลาของข้อที่เปิดอยู่ลง timePerQuestion (BUG-22)
+ * reducer บันทึกเวลาเฉพาะตอนเปลี่ยนข้อ ข้อที่เปิดอยู่ตอนส่งจึงยังไม่อยู่ใน timePerQuestion
+ * `currentTimer` = เวลาสะสมของข้อนี้ (เริ่มจากค่าที่เคยบันทึก) จึงเขียนทับได้ เรียกซ้ำผลเท่าเดิม
+ */
+export function withCurrentQuestionTime(session: ExamSession, currentTimer: number): ExamSession {
+  const currentQuestionId = session.questionIds[session.currentIndex];
+  if (!currentQuestionId || !Number.isFinite(currentTimer)) return session;
+  const seconds = Math.max(0, currentTimer, session.timePerQuestion?.[currentQuestionId] ?? 0);
+  if (session.timePerQuestion?.[currentQuestionId] === seconds) return session;
+  return {
+    ...session,
+    timePerQuestion: { ...(session.timePerQuestion ?? {}), [currentQuestionId]: seconds },
+  };
+}
+
+/**
  * Calculate exam results from session and questions
  */
 export function calculateExamResult(

@@ -10,6 +10,7 @@ import { ExamAccess } from '../exam-access/exam-access.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
 import { StartAttemptDto, SubmitAttemptInput } from './dto/attempt.dto';
 import { User } from '../users/user.entity';
+import { AnswerLogsService } from '../answer-logs/answer-logs.service';
 
 /**
  * Task 15: start / progress / complete / legacy submit of a locked Mock
@@ -77,6 +78,11 @@ describe('AttemptsService — locked Mock Exams (task 15)', () => {
       providers: [
         AttemptsService,
         ExamAccessService,
+        // Answer log (task 16) tested in answer-logs
+        {
+          provide: AnswerLogsService,
+          useValue: { logAttempt: jest.fn().mockResolvedValue(0) },
+        },
         {
           provide: getRepositoryToken(ExamAttempt),
           useValue: {

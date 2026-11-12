@@ -453,3 +453,27 @@ describe('CreateExamInput / UpdateExamInput validation (task 07)', () => {
     );
   });
 });
+
+describe('questions[].id (task 16, BUG-1)', () => {
+  const ID = '3b1d376b-0139-425d-81e7-70e92e4b5fb7';
+
+  it('PUT keeps a uuid id; not sent stays undefined', async () => {
+    const result = await validate(UpdateExamInput, {
+      questions: [{ question: 'ข้อ 1', id: ID }, { question: 'ข้อ 2' }],
+    });
+    expect(result.questions?.map((q) => q.id)).toEqual([ID, undefined]);
+  });
+
+  it.each([
+    ['a non-uuid id', 'q-1'],
+    ['a number', 42],
+  ])('PUT with %s → 400', async (_, id) => {
+    const error = await validate(UpdateExamInput, {
+      questions: [{ question: 'ข้อ 1', id }],
+    }).catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect(
+      JSON.stringify((error as BadRequestException).getResponse()),
+    ).toContain('รหัสข้อ (id) ไม่ถูกต้อง');
+  });
+});

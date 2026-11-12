@@ -14,6 +14,7 @@ import {
 } from '@/lib/exam-utils';
 import { getQuestionsBySubject } from '@/lib/api/questions';
 import { getPublicCurriculumTree } from '@/lib/api/curriculum';
+import { logPracticeAnswers } from '@/lib/api/answer-logs';
 import type { ExamSession } from '@/types/exam';
 import type { Question } from '@/lib/api/questions';
 
@@ -138,6 +139,8 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
       if (savedSession && savedQuestions) {
         const r = calculateExamResult(savedSession, savedQuestions);
         setResult({ ...r, examTitle: savedSession.examTitle });
+        // ฝึกตามวิชาไม่มี attempt → บันทึกคำตอบรายข้อผ่าน POST /answer-logs (ล้มเงียบ ไม่ขวางหน้าผล)
+        if (savedSession.examId === sessionKey) void logPracticeAnswers(savedSession);
       }
       clearExamSession();
     }

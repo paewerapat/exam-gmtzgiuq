@@ -73,6 +73,8 @@ interface PageProps {
 
 interface QuestionForm {
   tempId: string;
+  /** id ของข้อที่โหลดมาจาก API — ส่งกลับตอนบันทึกเพื่อให้ API แก้แถวเดิม (id ไม่เปลี่ยน BUG-1) ข้อที่เพิ่มใหม่ไม่มี */
+  id?: string;
   type: 'multiple_choice' | 'short_answer';
   question: string;
   /** รูปของโจทย์ตามลำดับ (≤ 6) */
@@ -210,6 +212,7 @@ export default function EditExamPage({ params }: PageProps) {
 
         const loaded = exam.questions.map((q): QuestionForm => ({
           tempId: q.id || generateTempId(),
+          id: q.id || undefined,
           type: (q.type === 'short_answer' ? 'short_answer' : 'multiple_choice') as 'multiple_choice' | 'short_answer',
           question: q.question,
           // ข้อเก่าที่มีแค่ questionImage → เป็นรูปที่ 1
@@ -565,6 +568,8 @@ export default function EditExamPage({ params }: PageProps) {
     try {
       const examPassages = passages.map(toPassageInput);
       const examQuestions: ExamQuestionInput[] = questions.map((q, index) => ({
+        // ข้อเดิมส่ง id → API แก้แถวเดิม (ประวัติคำตอบยังอ้างข้อเดิมได้) / ข้อใหม่ไม่ส่ง → API สร้างใหม่
+        ...(q.id ? { id: q.id } : {}),
         question: q.question,
         // ส่ง questionImages ทุกครั้ง ([] = ไม่มีรูป) ไม่งั้น API ถือว่าเป็นข้อแบบรูปเดียวและลบรูปที่เหลือ
         questionImages: q.questionImages,

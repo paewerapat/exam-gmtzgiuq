@@ -3,10 +3,11 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import {
   DataSource,
   EntityManager,
+  In,
   Repository,
   getMetadataArgsStorage,
 } from 'typeorm';
-import { ExamsService } from './exams.service';
+import { ExamsService, matchQuestionIds } from './exams.service';
 import { Exam } from './exam.entity';
 import { Question, QuestionStatus } from '../questions/question.entity';
 import { UploadService } from '../upload/upload.service';
@@ -73,6 +74,8 @@ describe('ExamsService', () => {
     save: jest.Mock;
     delete: jest.Mock;
     update: jest.Mock;
+    findOne: jest.Mock;
+    find: jest.Mock;
   };
   let deleteByUrl: jest.SpyInstance;
   // Upload reference query (deleteUnusedImages); default: no other usage
@@ -88,6 +91,15 @@ describe('ExamsService', () => {
       save: jest.fn((data: unknown) => Promise.resolve(data)),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
+      // exam row lock + the exam's questions read inside the transaction
+      // (task 16): the questions of the exam findOne returned
+      findOne: jest.fn().mockResolvedValue({ id: 'exam-1' }),
+      find: jest.fn(async () => {
+        const exam = (await examsRepo.findOne.mock.results[0]?.value) as
+          | Exam
+          | undefined;
+        return (exam?.questions ?? []).map((q) => ({ id: q.id }));
+      }),
     };
 
     // Real UploadService so filename matching uses extractFilename as-is,
@@ -148,8 +160,10 @@ describe('ExamsService', () => {
         ]),
       } as UpdateExamInput);
 
+      // Questions sent without ids replace every current one (task 16)
       expect(manager.delete).toHaveBeenCalledWith(Question, {
         examId: 'exam-1',
+        id: In(['q0', 'q1', 'q2']),
       });
       expect(manager.save).toHaveBeenCalled();
       expect(deleteByUrl).not.toHaveBeenCalled();
@@ -290,6 +304,281 @@ describe('ExamsService', () => {
 
       expect(deletedUrls()).toEqual([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]);
       consoleError.mockRestore();
+    });
+  });
+
+  describe('update — stable question ids (task 16, BUG-1)', () => {
+    function givenStored() {
+      examsRepo.findOne.mockResolvedValue({
+        ...makeExam([]),
+        questionCount: 3,
+        questions: [
+          {
+            id: 'q0',
+            question: 'ข้อ 1',
+            hint: 'คำใบ้เดิม',
+            explanation: 'เฉลยเดิม',
+            topicId: 'topic-1',
+            chapterId: 'chapter-1',
+            chapter: 'บทที่ 1',
+            authorId: 'admin-old',
+          },
+          { id: 'q1', question: 'ข้อ 2' },
+          { id: 'q2', question: 'ข้อ 3' },
+        ] as Question[],
+      } as Exam);
+    }
+
+    function savedQuestions(): Partial<Question>[] {
+      const calls = manager.save.mock.calls as unknown[][];
+      return calls.find((args) => Array.isArray(args[0]))![0] as Question[];
+    }
+
+    function examUpdate(): Partial<Exam> {
+      return (manager.update.mock.calls[0] as unknown[])[2] as Partial<Exam>;
+    }
+
+    const q = (data: Partial<CreateExamQuestionInput>) =>
+      ({ question: 'ข้อ', ...data }) as CreateExamQuestionInput;
+
+    it('AC1 updates sent ids in place, creates new ones, deletes the rest, in the new order', async () => {
+      givenStored();
+
+      await service.update('exam-1', {
+        questions: [
+          q({ id: 'q2', question: 'ข้อ 3' }),
+          q({ id: 'q0', question: 'ข้อ 1 แก้แล้ว' }),
+          q({ question: 'ข้อใหม่' }),
+        ],
+      } as UpdateExamInput);
+
+      expect(manager.delete).toHaveBeenCalledTimes(1);
+      expect(manager.delete).toHaveBeenCalledWith(Question, {
+        examId: 'exam-1',
+        id: In(['q1']),
+      });
+      expect(manager.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        manager.save.mock.invocationCallOrder[0],
+      );
+
+      const saved = savedQuestions();
+      expect(saved.map((s) => s.id)).toEqual(['q2', 'q0', undefined]);
+      expect(saved.map((s) => s.orderIndex)).toEqual([0, 1, 2]);
+      expect(saved[1]).toMatchObject({
+        question: 'ข้อ 1 แก้แล้ว',
+        examId: 'exam-1',
+        status: QuestionStatus.DRAFT,
+      });
+      // a kept row keeps its author; a new one gets the exam's author
+      expect(saved[1]).not.toHaveProperty('authorId');
+      expect(saved[2]).toMatchObject({ examId: 'exam-1', authorId: 'admin-1' });
+      expect(examUpdate().questionCount).toBe(3);
+    });
+
+    it('a kept row gets every field like a recreated one (not sent = cleared)', async () => {
+      givenStored();
+
+      await service.update('exam-1', {
+        questions: [
+          q({ id: 'q0', question: 'ข้อ 1' }),
+          q({ id: 'q1' }),
+          q({ id: 'q2' }),
+        ],
+      } as UpdateExamInput);
+
+      expect(manager.delete).not.toHaveBeenCalled();
+      expect(savedQuestions()[0]).toMatchObject({
+        id: 'q0',
+        hint: null,
+        explanation: null,
+        correctAnswer: null,
+        topicId: null,
+        chapterId: null,
+        chapter: null,
+        passageId: null,
+        questionImage: null,
+        questionImages: null,
+        choices: [],
+        difficulty: 'medium',
+        type: 'multiple_choice',
+      });
+    });
+
+    it('a kept row stores the sent values', async () => {
+      givenStored();
+
+      await service.update('exam-1', {
+        status: QuestionStatus.PUBLISHED,
+        questions: [
+          q({
+            id: 'q0',
+            hint: 'ใหม่',
+            explanation: 'อธิบาย',
+            correctAnswer: '42',
+            topicId: 'topic-2',
+            chapterId: 'chapter-2',
+            chapter: 'บทที่ 2',
+          }),
+        ],
+      } as UpdateExamInput);
+
+      expect(savedQuestions()[0]).toMatchObject({
+        id: 'q0',
+        hint: 'ใหม่',
+        explanation: 'อธิบาย',
+        correctAnswer: '42',
+        topicId: 'topic-2',
+        chapterId: 'chapter-2',
+        chapter: 'บทที่ 2',
+        status: QuestionStatus.PUBLISHED,
+      });
+    });
+
+    it('AC2 an id of another exam becomes a new question; that row is never touched', async () => {
+      givenStored();
+
+      await service.update('exam-1', {
+        questions: [q({ id: 'question-of-exam-2', question: 'สำเนา' })],
+      } as UpdateExamInput);
+
+      const [saved] = savedQuestions();
+      expect(saved.id).toBeUndefined();
+      expect(saved).toMatchObject({ question: 'สำเนา', examId: 'exam-1' });
+      // only this exam's own questions are deleted
+      expect(manager.delete).toHaveBeenCalledWith(Question, {
+        examId: 'exam-1',
+        id: In(['q0', 'q1', 'q2']),
+      });
+    });
+
+    it('pairs ids with the questions read inside the transaction, after locking the exam row', async () => {
+      givenStored();
+      // Another admin's save deleted q1 and added q9 after this request
+      // loaded the exam
+      manager.find.mockResolvedValueOnce([{ id: 'q0' }, { id: 'q9' }]);
+
+      await service.update('exam-1', {
+        questions: [q({ id: 'q0' }), q({ id: 'q1' }), q({ id: 'q2' })],
+      } as UpdateExamInput);
+
+      expect(manager.findOne).toHaveBeenCalledWith(
+        Exam,
+        expect.objectContaining({
+          where: { id: 'exam-1' },
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      expect(manager.findOne.mock.invocationCallOrder[0]).toBeLessThan(
+        manager.find.mock.invocationCallOrder[0],
+      );
+      expect(manager.find).toHaveBeenCalledWith(
+        Question,
+        expect.objectContaining({ where: { examId: 'exam-1' } }),
+      );
+      // q1/q2 no longer exist → created anew; q9 (not sent) → deleted
+      expect(savedQuestions().map((s) => s.id)).toEqual([
+        'q0',
+        undefined,
+        undefined,
+      ]);
+      expect(manager.delete).toHaveBeenCalledWith(Question, {
+        examId: 'exam-1',
+        id: In(['q9']),
+      });
+    });
+
+    it('does not lock or read questions when questions are not sent', async () => {
+      givenStored();
+      await service.update('exam-1', { title: 'ใหม่' } as UpdateExamInput);
+      expect(manager.findOne).not.toHaveBeenCalled();
+      expect(manager.find).not.toHaveBeenCalled();
+    });
+
+    it('matches ids case-insensitively and keeps the stored id', async () => {
+      givenStored();
+
+      await service.update('exam-1', {
+        questions: [q({ id: 'Q0' }), q({ id: 'q1' }), q({ id: 'q2' })],
+      } as UpdateExamInput);
+
+      expect(savedQuestions()[0].id).toBe('q0');
+      expect(manager.delete).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an id of this exam', ['q0', 'q0']],
+      ['an id of another exam', ['other', 'other']],
+      ['ids in different case', ['q1', 'Q1']],
+    ])('AC3 %s sent twice → 400 and nothing is written', async (_, ids) => {
+      givenStored();
+
+      const error = await service
+        .update('exam-1', {
+          questions: ids.map((id) => q({ id })),
+        } as UpdateExamInput)
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).message).toContain('ข้อที่ 2');
+      // rejected before the transaction (no exam row lock taken)
+      expect(manager.findOne).not.toHaveBeenCalled();
+      expect(manager.delete).not.toHaveBeenCalled();
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(deleteByUrl).not.toHaveBeenCalled();
+    });
+
+    it('keeps the images of a kept question and deletes the removed question images', async () => {
+      examsRepo.findOne.mockResolvedValue(
+        makeExam([`${LOCAL}/${IMG.a}`, `${LOCAL}/${IMG.b}`]),
+      );
+
+      await service.update('exam-1', {
+        questions: [q({ id: 'q0', questionImage: `${LOCAL}/${IMG.a}` })],
+      } as UpdateExamInput);
+
+      expect(deletedUrls()).toEqual([`${LOCAL}/${IMG.b}`]);
+    });
+
+    it('create ignores a sent id', async () => {
+      examsRepo.findOne.mockResolvedValue(makeExam([]));
+
+      await service.create(
+        {
+          title: 'ชุดใหม่',
+          category: 'math',
+          questions: [q({ id: 'q0', question: 'ข้อ 1' })],
+        } as CreateExamInput,
+        { id: 'admin-1' } as User,
+      );
+
+      expect(savedQuestions()[0]).not.toHaveProperty('id');
+    });
+
+    describe('matchQuestionIds', () => {
+      const current = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+      it('maps input index → kept id and lists the rest as removed', () => {
+        const result = matchQuestionIds(current, [
+          { id: 'c' },
+          {},
+          { id: 'x' },
+          { id: 'A' },
+        ]);
+        expect([...result.keptIdByIndex]).toEqual([
+          [0, 'c'],
+          [3, 'a'],
+        ]);
+        expect(result.removedIds).toEqual(['b']);
+      });
+
+      it('no ids sent → every current question is removed', () => {
+        expect(matchQuestionIds(current, [{}, {}]).removedIds).toEqual([
+          'a',
+          'b',
+          'c',
+        ]);
+      });
     });
   });
 

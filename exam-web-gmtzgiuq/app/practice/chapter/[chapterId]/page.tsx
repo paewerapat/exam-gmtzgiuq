@@ -13,6 +13,7 @@ import {
 } from '@/lib/exam-utils';
 import { getQuestionsByChapter } from '@/lib/api/questions';
 import { getChapter } from '@/lib/api/curriculum';
+import { logPracticeAnswers } from '@/lib/api/answer-logs';
 import type { ExamSession } from '@/types/exam';
 import type { Question } from '@/lib/api/questions';
 
@@ -119,10 +120,21 @@ function ChapterExamContent({ chapterId }: { chapterId: string }) {
     }
   }
 
+  // จบการฝึก: บทไม่มี attempt → บันทึกคำตอบรายข้อผ่าน POST /answer-logs (ล้มเงียบ) ก่อนล้าง session
+  // ExamContainer เก็บ session ที่จบแล้วลง storage ก่อนเรียก onComplete; effect ด้านล่างอาจเรียกซ้ำ
+  // (logPracticeAnswers กันส่งซ้ำตาม session id เอง)
+  function finishPractice() {
+    const { session: savedSession } = loadExamSession(true);
+    if (savedSession && savedSession.examId === sessionKey && savedSession.status === 'completed') {
+      void logPracticeAnswers(savedSession);
+    }
+    clearExamSession();
+    router.push('/dashboard/library');
+  }
+
   useEffect(() => {
     if (!loading && !showResume && state.session.status === 'completed' && state.session.examId === sessionKey) {
-      clearExamSession();
-      router.push('/dashboard/library');
+      finishPractice();
     }
   }, [loading, showResume, state.session.status, state.session.examId]);
 
@@ -189,10 +201,7 @@ function ChapterExamContent({ chapterId }: { chapterId: string }) {
 
   return (
     <ExamContainer
-      onComplete={() => {
-        clearExamSession();
-        router.push('/dashboard/library');
-      }}
+      onComplete={finishPractice}
       mode="practice"
       backUrl="/dashboard/library"
     />

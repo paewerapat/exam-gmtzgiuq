@@ -16,6 +16,7 @@ import {
   calculateExamResult,
   isAnswerCorrect,
   toggleChoiceAnswer,
+  withCurrentQuestionTime,
 } from '@/lib/exam-utils';
 
 // Initial state
@@ -222,13 +223,9 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
       return {
         ...state,
         session: {
-          ...state.session,
+          ...withCurrentQuestionTime(state.session, state.currentTimer),
           status: 'completed',
           completedAt: new Date().toISOString(),
-          timePerQuestion: {
-            ...state.session.timePerQuestion,
-            [state.session.questionIds[state.session.currentIndex]]: state.currentTimer,
-          },
         },
       };
 
@@ -409,15 +406,11 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'COMPLETE_EXAM' });
 
     // Return finalized session synchronously (don't rely on async state update)
-    const currentQuestionId = state.session.questionIds[state.session.currentIndex];
+    // เวลาของข้อที่เปิดอยู่ต้องถูกนับด้วย (BUG-22)
     const finalSession: ExamSession = {
-      ...state.session,
+      ...withCurrentQuestionTime(state.session, state.currentTimer),
       status: 'completed',
       completedAt: new Date().toISOString(),
-      timePerQuestion: {
-        ...state.session.timePerQuestion,
-        ...(currentQuestionId ? { [currentQuestionId]: state.currentTimer } : {}),
-      },
     };
     return { session: finalSession, questions: state.questions };
   }, [state.session, state.currentTimer, state.questions]);
@@ -435,8 +428,8 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const getResult = useCallback(() => {
-    return calculateExamResult(state.session, state.questions);
-  }, [state.session, state.questions]);
+    return calculateExamResult(withCurrentQuestionTime(state.session, state.currentTimer), state.questions);
+  }, [state.session, state.currentTimer, state.questions]);
 
   const value: ExamContextType = {
     state,

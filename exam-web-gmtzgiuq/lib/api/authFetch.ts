@@ -11,9 +11,18 @@ function handleUnauthorized() {
   window.location.href = '/login';
 }
 
+export interface FetchWithAuthOptions {
+  /**
+   * false = เมื่อได้ 401 ไม่ล้าง token/user และไม่พาไป /login แค่คืน response (status 401) ให้ผู้เรียกจัดการเอง
+   * ใช้กับงานเบื้องหลังที่ต้องไม่ขวางผู้ใช้ เช่นบันทึก answer log ตอนจบการฝึก — ค่าเริ่มต้น true (พฤติกรรมเดิม)
+   */
+  redirectOnUnauthorized?: boolean;
+}
+
 export async function fetchWithAuth(
   url: string,
   options: RequestInit = {},
+  { redirectOnUnauthorized = true }: FetchWithAuthOptions = {},
 ): Promise<Response> {
   const token =
     typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -31,7 +40,7 @@ export async function fetchWithAuth(
     },
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 && redirectOnUnauthorized) {
     handleUnauthorized();
     throw new Error('Session expired. Please log in again.');
   }

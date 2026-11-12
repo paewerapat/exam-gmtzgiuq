@@ -86,6 +86,11 @@ export interface ExamStats {
 }
 
 export interface ExamQuestionInput {
+  /**
+   * แก้ข้อสอบ: id ของข้อเดิมในชุดนี้ → API แก้แถวเดิม (id ไม่เปลี่ยน) / ไม่ส่งหรือ id ของชุดอื่น → สร้างข้อใหม่
+   * id ซ้ำกันใน payload เดียว → 400 / สร้างชุดใหม่และนำเข้าไม่ต้องส่ง (API ไม่สนใจ)
+   */
+  id?: string;
   question: string;
   /** รูปแรก (client เก่า) — API ใช้เฉพาะเมื่อไม่ส่ง questionImages */
   questionImage?: string;

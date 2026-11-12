@@ -21,6 +21,7 @@ import { User } from '../users/user.entity';
 import { QuestionCategory } from '../questions/question.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
 import type { AccessViewer } from '../exam-access/exam-access';
+import { AnswerLogsService } from '../answer-logs/answer-logs.service';
 
 const ATTEMPT_ALREADY_COMPLETED = 'ส่งข้อสอบชุดนี้ไปแล้ว ไม่สามารถส่งซ้ำได้';
 
@@ -32,6 +33,7 @@ export class AttemptsService {
     @InjectRepository(Exam)
     private examsRepository: Repository<Exam>,
     private examAccessService: ExamAccessService,
+    private answerLogsService: AnswerLogsService,
   ) {}
 
   // ── IN-PROGRESS ────────────────────────────────────────────
@@ -284,6 +286,17 @@ export class AttemptsService {
       throw new ConflictException(ATTEMPT_ALREADY_COMPLETED);
     }
 
+    // Per-question answer log (task 16); only the submit that completed the
+    // row gets here, so a repeated submit (409) logs nothing. Never throws.
+    await this.answerLogsService.logAttempt({
+      attemptId: id,
+      userId,
+      examId: attempt.examId,
+      mode: attempt.mode,
+      answers: input.answers,
+      timePerQuestion: input.timePerQuestion,
+    });
+
     return this.findOne(id);
   }
 
@@ -330,6 +343,16 @@ export class AttemptsService {
     });
 
     const saved = await this.attemptsRepository.save(attempt);
+
+    // Per-question answer log (task 16). Never throws.
+    await this.answerLogsService.logAttempt({
+      attemptId: saved.id,
+      userId: user.id,
+      examId: saved.examId,
+      mode: saved.mode,
+      answers: input.answers,
+      timePerQuestion: input.timePerQuestion,
+    });
 
     return this.findOne(saved.id);
   }

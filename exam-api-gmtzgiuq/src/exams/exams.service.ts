@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import { Exam } from './exam.entity';
 import {
   Question,
@@ -15,6 +15,7 @@ import {
 } from '../questions/question.entity';
 import {
   CreateExamInput,
+  CreateExamQuestionInput,
   UpdateExamInput,
   PaginatedExams,
   ExamStats,
@@ -62,6 +63,42 @@ export function parseReleaseDate(value?: string | null): Date | null {
     throw new BadRequestException('วันเผยแพร่ไม่ถูกต้อง');
   }
   return date;
+}
+
+/**
+ * Pair the questions sent to PUT with the exam's current questions by id
+ * (task 16, BUG-1). `keptIdByIndex`: input index → id of the row it updates;
+ * `removedIds`: current questions not sent. An id that is not a question of
+ * this exam (e.g. copied from another exam) is ignored, so that question is
+ * created anew and the other exam's row is never touched. Ids compare
+ * case-insensitively, as MySQL does; the same id twice → 400.
+ */
+export function matchQuestionIds(
+  current: Pick<Question, 'id'>[],
+  input: Pick<CreateExamQuestionInput, 'id'>[],
+): { keptIdByIndex: Map<number, string>; removedIds: string[] } {
+  const currentIds = new Map(current.map((q) => [q.id.toLowerCase(), q.id]));
+  const sent = new Set<string>();
+  const keptIdByIndex = new Map<number, string>();
+
+  input.forEach((q, index) => {
+    if (!q.id) return;
+    const key = q.id.toLowerCase();
+    if (sent.has(key)) {
+      throw new BadRequestException(
+        `รหัสข้อซ้ำกันในชุดข้อสอบ (ข้อที่ ${index + 1})`,
+      );
+    }
+    sent.add(key);
+    const keptId = currentIds.get(key);
+    if (keptId) keptIdByIndex.set(index, keptId);
+  });
+
+  const kept = new Set(keptIdByIndex.values());
+  return {
+    keptIdByIndex,
+    removedIds: current.filter((q) => !kept.has(q.id)).map((q) => q.id),
+  };
 }
 
 @Injectable()
@@ -288,9 +325,11 @@ export class ExamsService {
     const currentQuestionUrls = exam.questions.flatMap((q) =>
       collectQuestionImageUrls(q),
     );
+    // A repeated id → 400 before the transaction starts
+    if (input.questions) matchQuestionIds([], input.questions);
 
     // Passages are replaced when sent, and also (with []) when questions are
-    // sent without them: recreated questions may only refer to this request.
+    // sent without them: the questions may only refer to this request.
     // Sending passages alone checks the existing questions' passageId.
     const replacePassages =
       Boolean(input.questions) || Array.isArray(input.passages);
@@ -326,34 +365,76 @@ export class ExamsService {
         exam.accessDays = input.accessDays ?? null;
       if (input.level !== undefined) exam.level = input.level ?? null;
 
-      // Replace questions if provided
+      // Sync questions by id if provided (task 16, BUG-1): a sent id of this
+      // exam updates that row so its id (and the answer history pointing at
+      // it) stays; anything else is a new question; questions not sent are
+      // deleted
       if (input.questions) {
-        // Delete old questions
-        await manager.delete(Question, { examId: id });
+        // Lock the exam row so two admins saving the same exam run one
+        // after the other, then pair ids with the questions as committed
+        // now (not as loaded before the transaction): a question the
+        // other save deleted is created anew instead of "updated"
+        await manager.findOne(Exam, {
+          select: { id: true },
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
+          loadEagerRelations: false,
+        });
+        const currentRows = await manager.find(Question, {
+          select: { id: true },
+          where: { examId: id },
+          loadEagerRelations: false,
+        });
+        const { keptIdByIndex, removedIds } = matchQuestionIds(
+          currentRows,
+          input.questions,
+        );
 
-        // Create new questions
+        if (removedIds.length > 0) {
+          await manager.delete(Question, { examId: id, id: In(removedIds) });
+        }
+
         const category = input.category || exam.category;
-        const questions = input.questions.map((q, index) =>
-          manager.create(Question, {
+        const questions = input.questions.map((q, index) => {
+          const fields = {
             question: q.question,
             ...resolveQuestionImages(q),
             choices: normalizeChoices(q.choices),
-            correctAnswer: q.correctAnswer,
-            explanation: q.explanation,
-            hint: q.hint,
             category,
             difficulty: q.difficulty || QuestionDifficulty.MEDIUM,
             type: q.type || QuestionType.MULTIPLE_CHOICE,
             status: exam.status,
             orderIndex: q.orderIndex ?? index,
             examId: id,
+            passageId: q.passageId || null,
+          };
+          const keptId = keptIdByIndex.get(index);
+          if (keptId) {
+            // Not sent = cleared, as when the question was recreated
+            return manager.create(Question, {
+              ...fields,
+              id: keptId,
+              ...({
+                correctAnswer: q.correctAnswer ?? null,
+                explanation: q.explanation ?? null,
+                hint: q.hint ?? null,
+                topicId: q.topicId || null,
+                chapterId: q.chapterId || null,
+                chapter: q.chapter || null,
+              } as Partial<Question>),
+            });
+          }
+          return manager.create(Question, {
+            ...fields,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            hint: q.hint,
             authorId: exam.authorId,
             topicId: q.topicId || undefined,
             chapterId: q.chapterId || undefined,
             chapter: q.chapter || undefined,
-            passageId: q.passageId || null,
-          }),
-        );
+          });
+        });
         await manager.save(questions);
 
         exam.questionCount = input.questions.length;

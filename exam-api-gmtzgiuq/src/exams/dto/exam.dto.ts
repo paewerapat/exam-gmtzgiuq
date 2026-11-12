@@ -11,6 +11,7 @@ import {
   IsInt,
   IsNumber,
   IsObject,
+  IsUUID,
   Max,
   Min,
   ValidateNested,
@@ -321,6 +322,14 @@ export class ExamChoiceInput {
 // Individual question within an exam
 @InputType()
 export class CreateExamQuestionInput {
+  // PUT (task 16, BUG-1): id of a question of this exam = update that row
+  // (the id stays); not sent or not of this exam = a new question. Ignored
+  // by POST.
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsUUID('all', { message: 'รหัสข้อ (id) ไม่ถูกต้อง' })
+  id?: string;
+
   @Field()
   @IsString()
   question: string;
@@ -487,11 +496,13 @@ export class UpdateExamInput extends MockExamFieldsInput {
   releaseDate?: string | null;
 
   // Sent = replaces every passage. Not sent while questions are sent = []
-  // (questions are recreated, so their passageId must refer to this request)
+  // (the questions' passageId must refer to this request)
   @Field(() => [ExamPassageInput], { nullable: true })
   @IsPassageList()
   passages?: ExamPassageInput[];
 
+  // Sent = the exam's full question list, synced by id (task 16): rows whose
+  // id is sent are updated, others are created, missing ones are deleted
   @Field(() => [CreateExamQuestionInput], { nullable: true })
   @IsArray()
   @ValidateNested({ each: true })
