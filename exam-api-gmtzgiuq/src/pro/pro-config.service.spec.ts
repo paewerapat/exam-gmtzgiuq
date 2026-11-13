@@ -8,6 +8,7 @@ import {
   assertPlanRules,
 } from './pro-config.service';
 import { ProPage } from './pro-page.entity';
+import { ProPayment } from './pro-payment.entity';
 import { ProPlan } from './pro-plan.entity';
 import { ProVenue } from './pro-venue.entity';
 import { ProSubscriptionsService } from './pro-subscriptions.service';
@@ -60,6 +61,7 @@ describe('ProConfigService (task 17)', () => {
   let service: ProConfigService;
   let venues: Row[];
   let plans: Row[];
+  let payments: Row[];
   let subscriptions: Row[];
   let categories: Row[];
   let page: Row | null;
@@ -159,6 +161,7 @@ describe('ProConfigService (task 17)', () => {
       },
     ];
     subscriptions = [{ id: 's1', venueId: 'v-netsat', planId: 'p-pro' }];
+    payments = [];
     categories = [{ id: 'c1', slug: 'netsat-math', venueId: 'v-netsat' }];
     page = {
       id: 1,
@@ -181,9 +184,12 @@ describe('ProConfigService (task 17)', () => {
       find: jest.fn(() => Promise.resolve([])),
       count: jest.fn((entity: unknown, { where }: { where: Row }) =>
         Promise.resolve(
-          (entity === ProPlan ? plans : subscriptions).filter((r) =>
-            matches(r, where),
-          ).length,
+          (entity === ProPlan
+            ? plans
+            : entity === ProPayment
+              ? payments
+              : subscriptions
+          ).filter((r) => matches(r, where)).length,
         ),
       ),
       save: jest.fn((_entity: unknown, data: Row) => {
@@ -252,6 +258,7 @@ describe('ProConfigService (task 17)', () => {
         subtitle: 'เลือกแพ็กเกจ',
         venuePickerTitle: 'เลือกสนาม',
         footerNote: null,
+        vatEnabled: false,
       });
       expect(result.venues.map((v) => v.key)).toEqual(['netsat']);
       const netsat = result.venues[0];
@@ -296,6 +303,7 @@ describe('ProConfigService (task 17)', () => {
         subtitle: null,
         venuePickerTitle: null,
         footerNote: null,
+        vatEnabled: false,
       });
     });
   });
@@ -324,7 +332,18 @@ describe('ProConfigService (task 17)', () => {
       subtitle: 'เลือกแพ็กเกจ',
       venuePickerTitle: 'เลือกสนาม',
       footerNote: null,
+      vatEnabled: false,
     });
+  });
+
+  it('PUT page: vatEnabled on/off (task 18 AC12), shown on the public page', async () => {
+    await expect(service.updatePage({ vatEnabled: true })).resolves.toEqual(
+      expect.objectContaining({ vatEnabled: true, title: 'แพ็กเกจ LUMO' }),
+    );
+    expect((await service.getUpgrade(null)).page.vatEnabled).toBe(true);
+    // tinyint from MySQL
+    page = { ...page, vatEnabled: 0 };
+    expect((await service.getPage()).vatEnabled).toBe(false);
   });
 
   describe('plans: price rules (AC4)', () => {
@@ -660,6 +679,18 @@ describe('ProConfigService (task 17)', () => {
       expect(venues.map((v) => v.id)).toEqual(['v-old']);
       expect(plans.every((p) => p.venueId !== 'v-netsat')).toBe(true);
       expect(categories[0].venueId).toBeNull();
+    });
+
+    it('plan / venue with payments but no subscription → 409 (task 18)', async () => {
+      subscriptions = [];
+      payments = [{ id: 'pay-1', venueId: 'v-netsat', planId: 'p-max' }];
+      expect((await errorOf(service.deletePlan('p-max'))).body.errorCode).toBe(
+        'PLAN_IN_USE',
+      );
+      expect(
+        (await errorOf(service.deleteVenue('v-netsat'))).body.errorCode,
+      ).toBe('VENUE_IN_USE');
+      expect(plans.some((p) => p.id === 'p-max')).toBe(true);
     });
 
     it('FK error (row referenced) → 409 instead of 500', async () => {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ExternalLink, Loader2, Save } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { ADMIN_CARD, ADMIN_INPUT, ADMIN_PRIMARY_BUTTON } from '@/components/admin/unlock-codes/shared';
-import { updateProPage, type ProPageText } from '@/lib/api/pro';
+import { updateProPage, type ProPageSettings, type ProPageText } from '@/lib/api/pro';
 import { proErrorMessage } from '@/lib/pro';
 
 const FIELDS: { key: keyof ProPageText; label: string; hint: string; multiline?: boolean }[] = [
@@ -16,13 +16,13 @@ const FIELDS: { key: keyof ProPageText; label: string; hint: string; multiline?:
 ];
 
 interface PageTextTabProps {
-  page: ProPageText;
-  onSaved: (page: ProPageText) => void;
+  page: ProPageSettings;
+  onSaved: (page: ProPageSettings) => void;
 }
 
-/** แท็บ "หน้า Upgrade": แก้ข้อความระดับหน้า */
+/** แท็บ "หน้า Upgrade": แก้ข้อความระดับหน้า + เปิด/ปิด VAT 7% (task 18) */
 export default function PageTextTab({ page, onSaved }: PageTextTabProps) {
-  const [form, setForm] = useState<ProPageText>(page);
+  const [form, setForm] = useState<ProPageSettings>(page);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +38,7 @@ export default function PageTextTab({ page, onSaved }: PageTextTabProps) {
       const saved = await updateProPage(form);
       onSaved(saved);
       setForm(saved);
-      toast.success('บันทึกข้อความหน้า Upgrade แล้ว');
+      toast.success('บันทึกการตั้งค่าหน้า Upgrade แล้ว');
     } catch (err) {
       setError(proErrorMessage(err, 'บันทึกไม่สำเร็จ'));
     } finally {
@@ -83,6 +83,26 @@ export default function PageTextTab({ page, onSaved }: PageTextTabProps) {
           );
         })}
       </div>
+      <fieldset className="mt-6 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <legend className="px-1 text-sm font-semibold text-gray-900 dark:text-gray-100">ภาษีมูลค่าเพิ่ม</legend>
+        <label className="flex items-start gap-3 min-h-11 py-1 cursor-pointer">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={form.vatEnabled}
+            onChange={(e) => setForm((prev) => ({ ...prev, vatEnabled: e.target.checked }))}
+            aria-describedby="pro-page-vat-hint"
+            className="mt-0.5 h-5 w-5 flex-shrink-0 rounded border-gray-300 dark:border-gray-600 accent-indigo-600"
+          />
+          <span className="text-sm text-gray-800 dark:text-gray-200">
+            คิด VAT 7% เพิ่มจากราคาแพ็กเกจ
+            <span id="pro-page-vat-hint" className="block text-xs text-gray-500 dark:text-gray-400">
+              มีผลกับการชำระครั้งใหม่เท่านั้น ไม่กระทบรอบต่ออายุอัตโนมัติที่ตั้งไว้แล้ว (ตัดยอดเดิม) — ราคาบนการ์ดยังเป็นราคาก่อน VAT
+              หน้าชำระเงินแสดง ราคา / VAT 7% / ยอดรวม
+            </span>
+          </span>
+        </label>
+      </fieldset>
       {error && (
         <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-400">
           {error}

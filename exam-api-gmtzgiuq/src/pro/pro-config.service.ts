@@ -4,6 +4,7 @@ import { DataSource, EntityManager, Not, Repository } from 'typeorm';
 import { Category } from '../categories/category.entity';
 import type { AccessViewer } from '../exam-access/exam-access';
 import { ProPage, PRO_PAGE_ID } from './pro-page.entity';
+import { ProPayment } from './pro-payment.entity';
 import { ProPlan } from './pro-plan.entity';
 import { ProSubscription } from './pro-subscription.entity';
 import { ProVenue } from './pro-venue.entity';
@@ -37,6 +38,8 @@ export interface ProPageView {
   subtitle: string | null;
   venuePickerTitle: string | null;
   footerNote: string | null;
+  // VAT 7% on top of the price for new payments (task 18)
+  vatEnabled: boolean;
 }
 
 /** A plan card of the public Upgrade page (no entitlements). */
@@ -106,6 +109,7 @@ const EMPTY_PAGE: ProPageView = {
   subtitle: null,
   venuePickerTitle: null,
   footerNote: null,
+  vatEnabled: false,
 };
 
 /** Trimmed text; blank / null → null. */
@@ -203,6 +207,7 @@ export class ProConfigService {
     if (input.footerNote !== undefined) {
       changes.footerNote = nullableText(input.footerNote);
     }
+    if (input.vatEnabled !== undefined) changes.vatEnabled = input.vatEnabled;
     if (Object.keys(changes).length > 0) {
       await this.pageRepository.upsert({ id: PRO_PAGE_ID, ...changes }, ['id']);
     }
@@ -285,8 +290,8 @@ export class ProConfigService {
   }
 
   /**
-   * DELETE /pro/admin/venues/:id: only when no subscription refers to it
-   * (else 409 VENUE_IN_USE: turn isActive off instead). Its plans go with it
+   * DELETE /pro/admin/venues/:id: only when no subscription or payment
+   * refers to it (else 409 VENUE_IN_USE: turn isActive off instead). Its plans go with it
    * and categories of the venue get venueId = null. Locks venue X, then
    * its plans X (the order of every Pro write, see withUserLock): a grant
    * holds a shared lock on the venue, so it either finishes first (then
@@ -308,9 +313,10 @@ export class ProConfigService {
             where: { venueId: id },
             lock: { mode: 'pessimistic_write' },
           });
-          const used = await manager.count(ProSubscription, {
-            where: { venueId: id },
-          });
+          const used =
+            (await manager.count(ProSubscription, {
+              where: { venueId: id },
+            })) + (await manager.count(ProPayment, { where: { venueId: id } }));
           if (used > 0) throw new ProException('VENUE_IN_USE');
           await manager.update(Category, { venueId: id }, { venueId: null });
           await manager.delete(ProVenue, { id });
@@ -462,8 +468,9 @@ export class ProConfigService {
   }
 
   /**
-   * DELETE /pro/admin/plans/:id: only when no subscription refers to it
-   * (else 409 PLAN_IN_USE: hide it instead). Comparison cells of its code
+   * DELETE /pro/admin/plans/:id: only when no subscription or payment
+   * refers to it (else 409 PLAN_IN_USE: hide it instead; checkout and the
+   * payment activation take venue S → plan S, so they are counted). Comparison cells of its code
    * stay in the table and are simply not shown. Locks venue X then plan X
    * (the order of every Pro write); a deadlock is retried, then 409.
    */
@@ -479,9 +486,10 @@ export class ProConfigService {
             lock: { mode: 'pessimistic_write' },
           });
           if (!plan) throw new ProException('PLAN_NOT_FOUND');
-          const used = await manager.count(ProSubscription, {
-            where: { planId: id },
-          });
+          const used =
+            (await manager.count(ProSubscription, {
+              where: { planId: id },
+            })) + (await manager.count(ProPayment, { where: { planId: id } }));
           if (used > 0) throw new ProException('PLAN_IN_USE');
           await manager.delete(ProPlan, { id });
         }),
@@ -603,6 +611,7 @@ function toPageView(row: ProPage): ProPageView {
     subtitle: row.subtitle ?? null,
     venuePickerTitle: row.venuePickerTitle ?? null,
     footerNote: row.footerNote ?? null,
+    vatEnabled: bool(row.vatEnabled),
   };
 }
 

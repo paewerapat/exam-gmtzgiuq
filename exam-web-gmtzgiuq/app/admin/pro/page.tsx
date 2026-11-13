@@ -6,6 +6,7 @@ import FadeIn from '@/components/animations/FadeIn';
 import ComparisonEditor from '@/components/admin/pro/ComparisonEditor';
 import MembersTab from '@/components/admin/pro/MembersTab';
 import PageTextTab from '@/components/admin/pro/PageTextTab';
+import PaymentsTab from '@/components/admin/pro/PaymentsTab';
 import VenuesPlansTab, { type VenuesUpdater } from '@/components/admin/pro/VenuesPlansTab';
 import { confirmDanger } from '@/components/admin/pro/confirm';
 import { getProAdminConfig, type ProAdminConfig } from '@/lib/api/pro';
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'venues', label: 'สนามและแพ็กเกจ' },
   { id: 'comparison', label: 'ตารางเปรียบเทียบ' },
   { id: 'members', label: 'สมาชิก' },
+  { id: 'payments', label: 'การชำระเงิน' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
@@ -99,7 +101,7 @@ export default function AdminProPage() {
             สมาชิก Pro
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-            ข้อความหน้า Upgrade, สนาม, แพ็กเกจ, สิทธิ์จริง, ตารางเปรียบเทียบ และรายชื่อสมาชิก
+            ข้อความหน้า Upgrade, VAT, สนาม, แพ็กเกจ, สิทธิ์จริง, ตารางเปรียบเทียบ, รายชื่อสมาชิก และการชำระเงิน
           </p>
         </div>
 
@@ -137,12 +139,12 @@ export default function AdminProPage() {
         </div>
 
         <div role="tabpanel" id={`pro-panel-${tab}`} aria-labelledby={`pro-tab-${tab}`} tabIndex={0} className="focus-visible:outline-none">
-          {loading && tab !== 'members' ? (
+          {loading && tab !== 'members' && tab !== 'payments' ? (
             <div className="p-8 text-center" role="status">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-600 dark:text-indigo-400 mx-auto mb-2" aria-hidden="true" />
               <p className="text-gray-500 dark:text-gray-400">กำลังโหลด...</p>
             </div>
-          ) : !config && tab !== 'members' ? (
+          ) : !config && tab !== 'members' && tab !== 'payments' ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 text-center">
               <AlertCircle className="w-10 h-10 text-red-300 dark:text-red-700 mx-auto mb-2" aria-hidden="true" />
               <p className="text-gray-600 dark:text-gray-400">โหลดการตั้งค่าสมาชิก Pro ไม่สำเร็จ</p>
@@ -205,6 +207,8 @@ export default function AdminProPage() {
             )
           ) : tab === 'members' ? (
             <MembersTab venues={venues} />
+          ) : tab === 'payments' ? (
+            <PaymentsTab venues={venues} />
           ) : null}
         </div>
       </FadeIn>

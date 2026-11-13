@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, FindOperator } from 'typeorm';
 import { User } from '../users/user.entity';
+import { ProBillingService } from './pro-billing.service';
 import { ProPlan } from './pro-plan.entity';
 import { ProVenue } from './pro-venue.entity';
 import { ProSubscription } from './pro-subscription.entity';
@@ -77,8 +78,10 @@ describe('ProSubscriptionsService (task 17)', () => {
   // [table, lock] of every findOne in the grant transaction
   let reads: [string, unknown][];
   let venues: string[];
+  let billing: { cancelScheduleQuietly: jest.Mock };
 
   beforeEach(async () => {
+    billing = { cancelScheduleQuietly: jest.fn().mockResolvedValue(true) };
     store = [];
     queries = [];
     locks = new Map();
@@ -204,6 +207,7 @@ describe('ProSubscriptionsService (task 17)', () => {
           },
         },
         { provide: DataSource, useValue: { transaction: transactions } },
+        { provide: ProBillingService, useValue: billing },
       ],
     }).compile();
 
@@ -515,6 +519,11 @@ describe('ProSubscriptionsService (task 17)', () => {
     );
     await expect(service.findMine('user-a', NOW)).resolves.toEqual([
       {
+        id: 's1',
+        cardBrand: null,
+        cardLastDigits: null,
+        canceledAt: null,
+        renewalFailedAt: null,
         venueId: 'netsat',
         venueKey: 'netsat',
         venueName: 'NETSAT',
@@ -528,6 +537,97 @@ describe('ProSubscriptionsService (task 17)', () => {
         source: 'admin',
       },
     ]);
+  });
+
+  describe('task 18: card subscriptions', () => {
+    const cardRow = (extra: Row = {}) => ({
+      id: 'card-1',
+      userId: 'user-a',
+      venueId: 'netsat',
+      planId: 'netsat-pro',
+      status: 'active',
+      source: 'card',
+      autoRenew: 1,
+      omiseScheduleId: 'schd_test_1',
+      canceledAt: null,
+      currentPeriodStart: NOW_S,
+      currentPeriodEnd: new Date(NOW.getTime() + 10 * DAY),
+      venue: { key: 'netsat', name: 'NETSAT' },
+      plan: { code: 'pro', name: 'PRO' },
+      ...extra,
+    });
+
+    it('GET /pro/me: card rows show their own card (brand / last 4), canceledAt and renewalFailedAt; others no card', async () => {
+      store.push(
+        cardRow({
+          canceledAt: NOW_S,
+          renewalFailedAt: NOW_S,
+          autoRenew: 0,
+          cardBrand: 'Visa',
+          cardLastDigits: '4242',
+          omiseCardId: 'card_test_1',
+        }),
+        cardRow({
+          id: 'pp-1',
+          venueId: 'tgat',
+          source: 'promptpay',
+          cardBrand: 'MasterCard',
+          cardLastDigits: '4444',
+        }),
+      );
+      const mine = await service.findMine('user-a', NOW);
+      expect(mine.find((m) => m.id === 'card-1')).toMatchObject({
+        source: 'card',
+        cardBrand: 'Visa',
+        cardLastDigits: '4242',
+        canceledAt: NOW_S,
+        renewalFailedAt: NOW_S,
+        autoRenew: false,
+      });
+      expect(mine.find((m) => m.id === 'pp-1')).toMatchObject({
+        source: 'promptpay',
+        cardBrand: null,
+        cardLastDigits: null,
+      });
+      expect(JSON.stringify(mine)).not.toContain('card_test_1');
+      expect(JSON.stringify(mine)).not.toContain('schd_test_1');
+      const summaries = await service.findMySummaries('user-a', NOW);
+      expect(summaries.map((m) => m.source).sort()).toEqual([
+        'card',
+        'promptpay',
+      ]);
+    });
+
+    it('admin revoke of a card row: auto renewal off and its Opn schedule deleted', async () => {
+      store.push(cardRow());
+      await service.revoke('card-1', {}, admin, NOW);
+      expect(store[0]).toMatchObject({ status: 'revoked', autoRenew: false });
+      expect(billing.cancelScheduleQuietly).toHaveBeenCalledWith('schd_test_1');
+    });
+
+    it('admin grant replacing a card row: the old schedule is deleted after the commit', async () => {
+      store.push(cardRow());
+      billing.cancelScheduleQuietly.mockImplementation(() => {
+        // runs after the commit: the new row is already stored
+        expect(activeOf('user-a', 'netsat').map((r) => r.planId)).toEqual([
+          'netsat-max',
+        ]);
+        return Promise.resolve(true);
+      });
+      await grant('netsat-max');
+      expect(store.find((r) => r.id === 'card-1')).toMatchObject({
+        status: 'revoked',
+        autoRenew: false,
+      });
+      expect(billing.cancelScheduleQuietly).toHaveBeenCalledTimes(1);
+      expect(billing.cancelScheduleQuietly).toHaveBeenCalledWith('schd_test_1');
+    });
+
+    it('grant / revoke of rows without a schedule do not call Opn', async () => {
+      const view = await grant('netsat-pro');
+      await service.revoke(view.id, {}, admin, NOW);
+      expect(billing.cancelScheduleQuietly).not.toHaveBeenCalled();
+    });
   });
 
   it('admin list: unknown status filter → 400 INVALID_STATUS_FILTER', async () => {

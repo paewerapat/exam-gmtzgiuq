@@ -1,4 +1,6 @@
 // สมาชิก Pro (task 17): หน้า Upgrade สาธารณะ + สิทธิ์ของฉัน + หลังบ้าน (สนาม แพ็กเกจ ตารางเปรียบเทียบ สมาชิก)
+// task 18: ชำระเงินผ่าน Opn (quote, checkout, สถานะ payment, ประวัติ, ยกเลิกต่ออายุ, เปลี่ยนบัตร, แท็บการชำระเงินของแอดมิน)
+// ข้อมูลบัตรไม่ผ่านโค้ดนี้ — ส่งแค่ token (tokn_...) ที่ได้จาก OmiseCard
 // error ของ endpoint กลุ่มนี้: `{ statusCode, message: <ไทย>, errorCode }` → ApiError (lib/api/apiError)
 // ทุก response ผ่าน normalize ก่อนใช้ (ค่าแปลก/ขาด → ค่าปลอดภัย) ข้อความทั้งหมดเป็น plain text แสดงแบบ text เท่านั้น
 import { fetchWithAuth } from './authFetch';
@@ -48,6 +50,12 @@ export interface ProPageText {
   footerNote: string;
 }
 
+/** ค่าระดับหน้า + การตั้งค่า VAT (task 18) */
+export interface ProPageSettings extends ProPageText {
+  /** เปิด VAT 7% กับการชำระครั้งใหม่ */
+  vatEnabled: boolean;
+}
+
 export interface ProPublicPlan {
   id: string;
   code: string;
@@ -83,16 +91,20 @@ export interface ProMySubscription {
   status: ProSubscriptionStatus;
   currentPeriodEnd: string;
   autoRenew: boolean;
+  /** admin / card / promptpay / code (task 18) */
+  source: string;
 }
 
 export interface ProUpgradeData {
-  page: ProPageText;
+  page: ProPageSettings;
   venues: ProPublicVenue[];
   /** [] ถ้าไม่ได้ login */
   my: ProMySubscription[];
 }
 
 export interface ProMeItem {
+  /** id ของ subscription (ใช้กับ cancel-renewal / change-card) */
+  id: string;
   venueId: string;
   venueKey: string;
   venueName: string;
@@ -104,6 +116,133 @@ export interface ProMeItem {
   currentPeriodEnd: string;
   autoRenew: boolean;
   source: string;
+  /** บัตร default ของผู้ใช้ (เฉพาะ source card) */
+  cardBrand: string | null;
+  cardLastDigits: string | null;
+  /** เวลาที่ยกเลิกการต่ออายุ */
+  canceledAt: string | null;
+  /** ตัดบัตรรอบต่ออายุไม่สำเร็จเมื่อ (API ปิด autoRenew แล้ว; ล้างเมื่อต่ออายุเองสำเร็จ) — null = ไม่มี */
+  renewalFailedAt: string | null;
+}
+
+// ── ชำระเงิน (task 18) ───────────────────────────────────────
+
+export type ProPaymentMethod = 'card' | 'promptpay';
+/** ค่าที่ไม่รู้จักเก็บเป็น string เดิม */
+export type ProPaymentStatus = 'pending' | 'successful' | 'failed' | 'expired' | (string & {});
+
+export interface ProCheckoutQuote {
+  plan: {
+    id: string;
+    code: string;
+    name: string;
+    /** ไม่อยู่ในสัญญา task 18 — ถ้า API ส่งมาจะใช้แสดง "ต่ออายุทุก N วัน" (0 = ไม่ทราบ) */
+    periodDays: number;
+    venue: { id: string; key: string; name: string };
+  };
+  subtotalSatang: number;
+  vatSatang: number;
+  totalSatang: number;
+  vatEnabled: boolean;
+  /** สิทธิ์ที่ยังใช้ได้ของสนามนี้ (source: admin / card / promptpay — '' ถ้า API ไม่ส่ง) */
+  current: { planId: string; currentPeriodEnd: string; autoRenew: boolean; source: string } | null;
+  /** ซื้อแล้วจะเปลี่ยนแพ็กเกจ (เริ่มรอบใหม่ทันที) */
+  changesPlan: boolean;
+}
+
+export interface ProCheckoutInput {
+  planId: string;
+  method: ProPaymentMethod;
+  /** tokn_... เฉพาะ card */
+  cardToken?: string;
+}
+
+export interface ProCheckoutResult {
+  paymentId: string;
+  status: ProPaymentStatus;
+  /** 3-D Secure → พาไปหน้านี้ */
+  authorizeUri: string | null;
+  qrImageUrl: string | null;
+  expiresAt: string | null;
+  failureMessage: string | null;
+}
+
+export interface ProPaymentDetail {
+  id: string;
+  status: ProPaymentStatus;
+  method: string;
+  totalSatang: number;
+  subtotalSatang: number;
+  vatSatang: number;
+  qrImageUrl: string | null;
+  expiresAt: string | null;
+  failureMessage: string | null;
+  /** id ไม่อยู่ในสัญญา ('' ถ้า API ไม่ส่ง) — ใช้กับปุ่มลองใหม่ */
+  plan: { id: string; name: string };
+  venue: { name: string };
+  subscription: { currentPeriodEnd: string; autoRenew: boolean } | null;
+}
+
+/** แถวประวัติการชำระของฉัน (GET /pro/payments/me) */
+export interface ProMyPayment {
+  id: string;
+  status: ProPaymentStatus;
+  method: string;
+  isRenewal: boolean;
+  subtotalSatang: number;
+  vatSatang: number;
+  totalSatang: number;
+  failureMessage: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  subscriptionId: string | null;
+  plan: { id: string; name: string } | null;
+  venue: { id: string; name: string } | null;
+  /** ตัดเงินแล้วแต่ให้สิทธิ์ไม่ได้ → ต้องคืนเงิน (ไม่ส่ง = false) */
+  refundRequired: boolean;
+}
+
+export interface ProMyPaymentPage {
+  items: ProMyPayment[];
+  total: number;
+}
+
+export interface ProAdminPayment {
+  id: string;
+  /** null = บัญชีผู้ใช้ถูกลบไปแล้ว */
+  user: { id: string; email: string; firstName: string | null; lastName: string | null } | null;
+  venue: { id: string; key: string; name: string } | null;
+  plan: { id: string; code: string; name: string } | null;
+  method: string;
+  status: ProPaymentStatus;
+  isRenewal: boolean;
+  totalSatang: number;
+  vatSatang: number;
+  /** รหัสอ้างอิงของ Opn (chrg_...) */
+  omiseChargeId: string | null;
+  failureMessage: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  /** ต้องคืนเงินในแดชบอร์ด Opn (ไม่ส่ง = false) */
+  refundRequired: boolean;
+}
+
+export interface ProAdminPaymentPage {
+  items: ProAdminPayment[];
+  total: number;
+}
+
+export type ProPaymentStatusFilter = 'pending' | 'successful' | 'failed' | 'expired';
+
+export interface GetProAdminPaymentsParams {
+  page?: number;
+  /** ≤100 */
+  limit?: number;
+  status?: ProPaymentStatusFilter;
+  method?: ProPaymentMethod;
+  venueId?: string;
+  /** อีเมล/ชื่อ/รหัสอ้างอิง */
+  search?: string;
 }
 
 // ── หลังบ้าน ─────────────────────────────────────────────────
@@ -141,7 +280,7 @@ export interface ProAdminVenue {
 }
 
 export interface ProAdminConfig {
-  page: ProPageText;
+  page: ProPageSettings;
   /** ทุกสนาม (รวมที่ปิด) เรียงตาม sortOrder พร้อมแพ็กเกจ (รวมที่ซ่อน) */
   venues: ProAdminVenue[];
 }
@@ -270,13 +409,14 @@ export function normalizeComparison(raw: unknown): Comparison {
   return { groups };
 }
 
-export function normalizePageText(raw: unknown): ProPageText {
+export function normalizePageText(raw: unknown): ProPageSettings {
   const p = isRecord(raw) ? raw : {};
   return {
     title: str(p.title),
     subtitle: str(p.subtitle),
     venuePickerTitle: str(p.venuePickerTitle),
     footerNote: str(p.footerNote),
+    vatEnabled: bool(p.vatEnabled),
   };
 }
 
@@ -377,12 +517,14 @@ export function normalizeUpgradeData(raw: unknown): ProUpgradeData {
     status: str(m.status),
     currentPeriodEnd: str(m.currentPeriodEnd),
     autoRenew: bool(m.autoRenew),
+    source: str(m.source),
   }));
   return { page: normalizePageText(data.page), venues, my };
 }
 
 function normalizeMeItem(m: RawRecord): ProMeItem {
   return {
+    id: str(m.id) || str(m.subscriptionId),
     venueId: str(m.venueId),
     venueKey: str(m.venueKey),
     venueName: str(m.venueName),
@@ -394,6 +536,110 @@ function normalizeMeItem(m: RawRecord): ProMeItem {
     currentPeriodEnd: str(m.currentPeriodEnd),
     autoRenew: bool(m.autoRenew),
     source: str(m.source),
+    cardBrand: strOrNull(m.cardBrand),
+    cardLastDigits: strOrNull(m.cardLastDigits),
+    canceledAt: strOrNull(m.canceledAt),
+    renewalFailedAt: strOrNull(m.renewalFailedAt),
+  };
+}
+
+const satang = (v: unknown) => Math.max(0, Math.round(num(v)));
+
+export function normalizeCheckoutQuote(raw: unknown): ProCheckoutQuote {
+  const d = isRecord(raw) ? raw : {};
+  const p = isRecord(d.plan) ? d.plan : {};
+  const v = isRecord(p.venue) ? p.venue : {};
+  const c = isRecord(d.current) ? d.current : null;
+  return {
+    plan: {
+      id: str(p.id),
+      code: str(p.code),
+      name: str(p.name),
+      periodDays: Math.max(0, Math.floor(num(p.periodDays))),
+      venue: { id: str(v.id), key: str(v.key), name: str(v.name) },
+    },
+    subtotalSatang: satang(d.subtotalSatang),
+    vatSatang: satang(d.vatSatang),
+    totalSatang: satang(d.totalSatang),
+    vatEnabled: bool(d.vatEnabled),
+    current: c
+      ? { planId: str(c.planId), currentPeriodEnd: str(c.currentPeriodEnd), autoRenew: bool(c.autoRenew), source: str(c.source) }
+      : null,
+    changesPlan: bool(d.changesPlan),
+  };
+}
+
+export function normalizeCheckoutResult(raw: unknown): ProCheckoutResult {
+  const d = isRecord(raw) ? raw : {};
+  return {
+    paymentId: str(d.paymentId),
+    status: str(d.status),
+    authorizeUri: strOrNull(d.authorizeUri),
+    qrImageUrl: strOrNull(d.qrImageUrl),
+    expiresAt: strOrNull(d.expiresAt),
+    failureMessage: strOrNull(d.failureMessage),
+  };
+}
+
+export function normalizePaymentDetail(raw: unknown): ProPaymentDetail {
+  const d = isRecord(raw) ? raw : {};
+  const s = isRecord(d.subscription) ? d.subscription : null;
+  return {
+    id: str(d.id),
+    status: str(d.status),
+    method: str(d.method),
+    totalSatang: satang(d.totalSatang),
+    subtotalSatang: satang(d.subtotalSatang),
+    vatSatang: satang(d.vatSatang),
+    qrImageUrl: strOrNull(d.qrImageUrl),
+    expiresAt: strOrNull(d.expiresAt),
+    failureMessage: strOrNull(d.failureMessage),
+    plan: { id: str(isRecord(d.plan) ? d.plan.id : ''), name: str(isRecord(d.plan) ? d.plan.name : '') },
+    venue: { name: str(isRecord(d.venue) ? d.venue.name : '') },
+    subscription: s ? { currentPeriodEnd: str(s.currentPeriodEnd), autoRenew: bool(s.autoRenew) } : null,
+  };
+}
+
+export function normalizeMyPayment(raw: RawRecord): ProMyPayment {
+  const p = isRecord(raw.plan) ? raw.plan : null;
+  const v = isRecord(raw.venue) ? raw.venue : null;
+  return {
+    id: str(raw.id),
+    status: str(raw.status),
+    method: str(raw.method),
+    isRenewal: bool(raw.isRenewal),
+    subtotalSatang: satang(raw.subtotalSatang),
+    vatSatang: satang(raw.vatSatang),
+    totalSatang: satang(raw.totalSatang),
+    failureMessage: strOrNull(raw.failureMessage),
+    paidAt: strOrNull(raw.paidAt),
+    createdAt: str(raw.createdAt),
+    subscriptionId: strOrNull(raw.subscriptionId),
+    plan: p ? { id: str(p.id), name: str(p.name) } : null,
+    venue: v ? { id: str(v.id), name: str(v.name) } : null,
+    refundRequired: bool(raw.refundRequired),
+  };
+}
+
+export function normalizeAdminPayment(raw: RawRecord): ProAdminPayment {
+  const u = isRecord(raw.user) ? raw.user : null;
+  const v = isRecord(raw.venue) ? raw.venue : null;
+  const p = isRecord(raw.plan) ? raw.plan : null;
+  return {
+    id: str(raw.id),
+    user: u ? { id: str(u.id), email: str(u.email), firstName: strOrNull(u.firstName), lastName: strOrNull(u.lastName) } : null,
+    venue: v ? { id: str(v.id), key: str(v.key), name: str(v.name) } : null,
+    plan: p ? { id: str(p.id), code: str(p.code), name: str(p.name) } : null,
+    method: str(raw.method),
+    status: str(raw.status),
+    isRenewal: bool(raw.isRenewal),
+    totalSatang: satang(raw.totalSatang),
+    vatSatang: satang(raw.vatSatang),
+    omiseChargeId: strOrNull(raw.omiseChargeId),
+    failureMessage: strOrNull(raw.failureMessage),
+    paidAt: strOrNull(raw.paidAt),
+    createdAt: str(raw.createdAt),
+    refundRequired: bool(raw.refundRequired),
   };
 }
 
@@ -453,6 +699,76 @@ export async function getMyPro(signal?: AbortSignal): Promise<ProMeItem[]> {
   return Array.isArray(data) ? data.filter(isRecord).map(normalizeMeItem) : [];
 }
 
+/** GET /pro/checkout/quote?planId= (JWT) — แพ็กเกจซื้อไม่ได้ → ApiError 400 PLAN_NOT_PURCHASABLE */
+export async function getCheckoutQuote(planId: string, signal?: AbortSignal): Promise<ProCheckoutQuote> {
+  const query = new URLSearchParams({ planId });
+  const response = await fetchWithAuth(`${BASE}/checkout/quote?${query.toString()}`, { cache: 'no-store', signal });
+  if (!response.ok) throw await toApiError(response, 'Failed to fetch checkout quote');
+  return normalizeCheckoutQuote(await response.json());
+}
+
+/** POST /pro/checkout — ยอดคิดที่ server (ไม่ส่ง amount) บัตรส่งแค่ token */
+export async function createCheckout(input: ProCheckoutInput): Promise<ProCheckoutResult> {
+  const body: ProCheckoutInput = { planId: input.planId, method: input.method };
+  if (input.method === 'card' && input.cardToken) body.cardToken = input.cardToken;
+  return normalizeCheckoutResult(await sendJson(`${BASE}/checkout`, 'POST', body, 'Failed to create checkout'));
+}
+
+/** GET /pro/payments/:id (เจ้าของเท่านั้น คนอื่น 404) — ยัง pending server จะถาม Opn ให้ */
+export async function getProPayment(id: string, signal?: AbortSignal): Promise<ProPaymentDetail> {
+  const response = await fetchWithAuth(`${BASE}/payments/${encodeURIComponent(id)}`, { cache: 'no-store', signal });
+  if (!response.ok) throw await toApiError(response, 'Failed to fetch payment');
+  return normalizePaymentDetail(await response.json());
+}
+
+/** GET /pro/payments/me?page&limit (≤50) — รับได้ทั้ง { items, total } และ array */
+export async function getMyProPayments(
+  params: { page?: number; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<ProMyPaymentPage> {
+  const { page = 1, limit = 10 } = params;
+  const query = new URLSearchParams({ page: String(page), limit: String(Math.min(50, limit)) });
+  const response = await fetchWithAuth(`${BASE}/payments/me?${query.toString()}`, { cache: 'no-store', signal });
+  if (!response.ok) throw await toApiError(response, 'Failed to fetch payments');
+  const data: unknown = await response.json();
+  const list = Array.isArray(data) ? data : isRecord(data) && Array.isArray(data.items) ? data.items : [];
+  const items = list.filter(isRecord).map(normalizeMyPayment);
+  return { items, total: isRecord(data) ? num(data.total, items.length) : items.length };
+}
+
+/** POST /pro/subscriptions/:id/cancel-renewal (เจ้าของ) — สิทธิ์ใช้ได้ถึงวันหมด */
+export async function cancelProRenewal(subscriptionId: string): Promise<void> {
+  await sendJson(
+    `${BASE}/subscriptions/${encodeURIComponent(subscriptionId)}/cancel-renewal`,
+    'POST',
+    undefined,
+    'Failed to cancel renewal',
+  );
+}
+
+export interface ProChangeCardResult {
+  cardBrand: string | null;
+  cardLastDigits: string | null;
+  /** id ของ subscription ที่ตั้งต่ออายุอัตโนมัติด้วยบัตรใหม่ไม่สำเร็จ (ถูกปิดต่ออายุ) */
+  autoRenewFailed: string[];
+}
+
+/** POST /pro/subscriptions/:id/change-card { cardToken } → บัตรใหม่ (ยี่ห้อ + เลขท้าย) + รายการที่ตั้งต่ออายุใหม่ไม่สำเร็จ */
+export async function changeProCard(subscriptionId: string, cardToken: string): Promise<ProChangeCardResult> {
+  const data = await sendJson(
+    `${BASE}/subscriptions/${encodeURIComponent(subscriptionId)}/change-card`,
+    'POST',
+    { cardToken },
+    'Failed to change card',
+  );
+  const d = isRecord(data) ? data : {};
+  return {
+    cardBrand: strOrNull(d.cardBrand),
+    cardLastDigits: strOrNull(d.cardLastDigits),
+    autoRenewFailed: Array.isArray(d.autoRenewFailed) ? d.autoRenewFailed.filter((x): x is string => typeof x === 'string' && x !== '') : [],
+  };
+}
+
 // ── แอดมิน ───────────────────────────────────────────────────
 
 const ADMIN = `${BASE}/admin`;
@@ -474,8 +790,8 @@ export async function getProAdminConfig(signal?: AbortSignal): Promise<ProAdminC
   return normalizeAdminConfig(await response.json());
 }
 
-/** PUT /pro/admin/page */
-export async function updateProPage(input: ProPageText): Promise<ProPageText> {
+/** PUT /pro/admin/page (vatEnabled ไม่ส่ง = คงค่าเดิม) */
+export async function updateProPage(input: ProPageText & { vatEnabled?: boolean }): Promise<ProPageSettings> {
   return normalizePageText(await sendJson(`${ADMIN}/page`, 'PUT', input, 'Failed to update page text'));
 }
 
@@ -556,4 +872,23 @@ export async function revokeProSubscription(id: string, note?: string): Promise<
     'Failed to revoke subscription',
   );
   return normalizeAdminSubscription(isRecord(data) ? data : {});
+}
+
+/** GET /pro/admin/payments?page&limit&status&method&venueId&search */
+export async function getProAdminPayments(
+  params: GetProAdminPaymentsParams = {},
+  signal?: AbortSignal,
+): Promise<ProAdminPaymentPage> {
+  const { page = 1, limit = 20, status, method, venueId, search } = params;
+  const query = new URLSearchParams({ page: String(page), limit: String(Math.min(100, limit)) });
+  if (status) query.set('status', status);
+  if (method) query.set('method', method);
+  if (venueId) query.set('venueId', venueId);
+  if (search?.trim()) query.set('search', search.trim());
+  const response = await fetchWithAuth(`${ADMIN}/payments?${query.toString()}`, { cache: 'no-store', signal });
+  if (!response.ok) throw await toApiError(response, 'Failed to fetch payments');
+  const data: unknown = await response.json();
+  const body = isRecord(data) ? data : {};
+  const items = Array.isArray(body.items) ? body.items.filter(isRecord).map(normalizeAdminPayment) : [];
+  return { items, total: num(body.total, items.length) };
 }

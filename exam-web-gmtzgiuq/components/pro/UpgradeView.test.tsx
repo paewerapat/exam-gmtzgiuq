@@ -1,20 +1,19 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { toast } from 'react-toastify';
-import UpgradeView, { PAYMENT_COMING_SOON } from './UpgradeView';
+import UpgradeView from './UpgradeView';
 import { getProUpgrade, type ProUpgradeData } from '@/lib/api/pro';
 import { useAuth } from '@/contexts/AuthContext';
 
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 let mockSearch = '';
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mockReplace, push: jest.fn() }),
+  useRouter: () => ({ replace: mockReplace, push: mockPush }),
   usePathname: () => '/upgrade',
   useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 jest.mock('@/lib/api/pro', () => ({ getProUpgrade: jest.fn() }));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: jest.fn() }));
-jest.mock('react-toastify', () => ({ toast: { info: jest.fn(), success: jest.fn(), error: jest.fn() } }));
 jest.mock('@/components/animations/FadeIn', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -30,7 +29,7 @@ const plans = (prefix: string) => [
 ];
 
 const data = (patch: Partial<ProUpgradeData> = {}): ProUpgradeData => ({
-  page: { title: 'แพ็กเกจ LUMO', subtitle: 'เลือกแพ็กเกจที่เหมาะกับคุณ', venuePickerTitle: 'เลือกสนามที่จะสมัคร', footerNote: 'ราคาตัวอย่าง' },
+  page: { title: 'แพ็กเกจ LUMO', subtitle: 'เลือกแพ็กเกจที่เหมาะกับคุณ', venuePickerTitle: 'เลือกสนามที่จะสมัคร', footerNote: 'ราคาตัวอย่าง', vatEnabled: false },
   venues: [
     {
       id: 'v1',
@@ -106,14 +105,44 @@ describe('/upgrade — UpgradeView (task 17)', () => {
     expect(cards[2].className).toContain('dark:border-indigo-400');
   });
 
-  it('ปุ่ม: ฟรี (guest) → ลิงก์สมัครสมาชิก / จ่ายเงิน → toast ระบบชำระเงินกำลังจะเปิด', async () => {
+  it('ปุ่ม: ฟรี (guest) → ลิงก์สมัครสมาชิก / จ่ายเงิน (guest) → /login?redirect=<checkout> (task 18)', async () => {
     const user = userEvent.setup();
     render(<UpgradeView />);
     const free = await screen.findByTestId('plan-card-free');
     expect(within(free).getByRole('link', { name: 'เริ่มใช้งาน' })).toHaveAttribute('href', '/register');
     await user.click(within(screen.getByTestId('plan-card-max')).getByRole('button', { name: 'สมัคร MAX' }));
-    expect(toast.info).toHaveBeenCalledWith(PAYMENT_COMING_SOON);
-    expect(PAYMENT_COMING_SOON).toBe('ระบบชำระเงินกำลังจะเปิดให้บริการ');
+    expect(mockPush).toHaveBeenCalledWith('/login?redirect=' + encodeURIComponent('/upgrade/checkout?plan=n-max'));
+  });
+
+  it('login แล้ว: ปุ่มแพ็กเกจที่ซื้อได้ → /upgrade/checkout?plan=<id> (task 18)', async () => {
+    const user = userEvent.setup();
+    setUser({ id: 'u1' });
+    render(<UpgradeView />);
+    await user.click(within(await screen.findByTestId('plan-card-pro')).getByRole('button', { name: 'สมัคร PRO' }));
+    expect(mockPush).toHaveBeenCalledWith('/upgrade/checkout?plan=n-pro');
+  });
+
+  it('การ์ดแพ็กเกจปัจจุบัน: บัตร autoRenew → "ต่ออายุอัตโนมัติ · ยกเลิกได้" / PromptPay → ปุ่มต่ออายุไป checkout (task 18)', async () => {
+    const user = userEvent.setup();
+    setUser({ id: 'u1' });
+    (getProUpgrade as jest.Mock).mockResolvedValue(
+      data({ my: [{ venueId: 'v1', planId: 'n-pro', planCode: 'pro', status: 'active', currentPeriodEnd: FUTURE, autoRenew: true, source: 'card' }] }),
+    );
+    const { unmount } = render(<UpgradeView />);
+    const pro = await screen.findByTestId('plan-card-pro');
+    expect(within(pro).getByTestId('auto-renew-note')).toHaveTextContent('ต่ออายุอัตโนมัติ · ยกเลิกได้');
+    expect(within(pro).getByRole('link', { name: 'ยกเลิกได้' })).toHaveAttribute('href', '/dashboard/membership');
+    expect(within(pro).queryByRole('button', { name: /ต่ออายุ/ })).not.toBeInTheDocument();
+    unmount();
+
+    (getProUpgrade as jest.Mock).mockResolvedValue(
+      data({ my: [{ venueId: 'v1', planId: 'n-pro', planCode: 'pro', status: 'active', currentPeriodEnd: FUTURE, autoRenew: false, source: 'promptpay' }] }),
+    );
+    render(<UpgradeView />);
+    const pro2 = await screen.findByTestId('plan-card-pro');
+    expect(within(pro2).queryByTestId('auto-renew-note')).not.toBeInTheDocument();
+    await user.click(within(pro2).getByRole('button', { name: 'ต่ออายุ' }));
+    expect(mockPush).toHaveBeenCalledWith('/upgrade/checkout?plan=n-pro');
   });
 
   it('login แล้ว: แพ็กเกจฟรีลิงก์ไปหน้าฝึก', async () => {
@@ -177,9 +206,9 @@ describe('/upgrade — UpgradeView (task 17)', () => {
     (getProUpgrade as jest.Mock).mockResolvedValue(
       data({
         my: [
-          { venueId: 'v1', planId: 'n-pro', planCode: 'pro', status: 'active', currentPeriodEnd: FUTURE, autoRenew: false },
-          { venueId: 'v1', planId: 'n-max', planCode: 'max', status: 'active', currentPeriodEnd: PAST, autoRenew: false },
-          { venueId: 'v2', planId: 't-pro', planCode: 'pro', status: 'revoked', currentPeriodEnd: FUTURE, autoRenew: false },
+          { venueId: 'v1', planId: 'n-pro', planCode: 'pro', status: 'active', currentPeriodEnd: FUTURE, autoRenew: false, source: 'admin' },
+          { venueId: 'v1', planId: 'n-max', planCode: 'max', status: 'active', currentPeriodEnd: PAST, autoRenew: false, source: 'admin' },
+          { venueId: 'v2', planId: 't-pro', planCode: 'pro', status: 'revoked', currentPeriodEnd: FUTURE, autoRenew: false, source: 'admin' },
         ],
       }),
     );

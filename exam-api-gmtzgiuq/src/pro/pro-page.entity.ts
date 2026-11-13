@@ -22,6 +22,10 @@ export class ProPage {
   @Column({ type: 'varchar', length: 500, nullable: true })
   footerNote: string | null;
 
+  // VAT 7% added on top of the plan price for new payments (task 18)
+  @Column({ type: 'boolean', default: false })
+  vatEnabled: boolean;
+
   @UpdateDateColumn()
   updatedAt: Date;
 }

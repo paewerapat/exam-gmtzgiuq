@@ -106,6 +106,11 @@ export class UpdateProPageDto {
 
   @NullableText('ข้อความท้ายหน้า', 500)
   footerNote?: string | null;
+
+  // VAT 7% on top of the plan price for new payments (task 18)
+  @OptionalNotNull()
+  @Flag('การเปิด VAT ')
+  vatEnabled?: boolean;
 }
 
 // ── venues ──────────────────────────────────────────────────────────────

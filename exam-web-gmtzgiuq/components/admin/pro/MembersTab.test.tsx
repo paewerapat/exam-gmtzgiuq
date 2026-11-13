@@ -230,4 +230,22 @@ describe('MembersTab (task 17)', () => {
     await user.click(await screen.findByRole('button', { name: 'ลองใหม่' }));
     expect(await screen.findByText('ยังไม่มีสมาชิก')).toBeInTheDocument();
   });
+
+  it('ที่มา card/promptpay + สถานะต่ออายุอัตโนมัติ (task 18)', async () => {
+    (getProSubscriptions as jest.Mock).mockResolvedValue({
+      items: [
+        sub({ id: 'c1', source: 'card', autoRenew: true }),
+        sub({ id: 'q1', source: 'promptpay', autoRenew: false, user: { id: 'u9', email: 'q@x.com', firstName: null, lastName: null } }),
+      ],
+      total: 2,
+    });
+    render(<MembersTab venues={venues} />);
+    const table = await screen.findByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'ที่มา / ต่ออายุ' })).toBeInTheDocument();
+    const [, cardRow, ppRow] = within(table).getAllByRole('row');
+    expect(within(cardRow).getByText('บัตร')).toBeInTheDocument();
+    expect(within(cardRow).getByText('ต่ออายุอัตโนมัติ')).toBeInTheDocument();
+    expect(within(ppRow).getByText('PromptPay')).toBeInTheDocument();
+    expect(within(ppRow).getByText('ไม่ต่ออายุอัตโนมัติ')).toBeInTheDocument();
+  });
 });

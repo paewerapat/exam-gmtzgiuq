@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, RefreshCw } from 'lucide-react';
 import type { ProMySubscription, ProPublicPlan } from '@/lib/api/pro';
 import { formatSatang } from '@/lib/pro';
+import { MEMBERSHIP_PATH } from '@/lib/pro-payments';
 import { formatThaiDate } from '@/lib/unlock-codes';
 
 const FOCUS_RING =
@@ -16,7 +17,7 @@ interface PlanCardProps {
   /** สิทธิ์ที่ยังใช้ได้ของแพ็กเกจนี้ (null = ไม่ใช่แพ็กเกจปัจจุบัน) */
   current: ProMySubscription | null;
   isLoggedIn: boolean;
-  /** กดปุ่มสมัครของแพ็กเกจที่ต้องจ่าย */
+  /** กดปุ่มสมัคร/ต่ออายุของแพ็กเกจที่ต้องจ่าย */
   onSubscribe: (plan: ProPublicPlan) => void;
 }
 
@@ -29,16 +30,38 @@ export default function PlanCard({ plan, current, isLoggedIn, onSubscribe }: Pla
 
   let action: React.ReactNode;
   if (current) {
+    // task 18: บัตรที่ต่ออายุอัตโนมัติ → บอกว่ายกเลิกได้ / PromptPay หรือบัตรที่ยกเลิกต่ออายุแล้ว → ปุ่มต่ออายุ
+    const autoRenewing = current.source === 'card' && current.autoRenew;
+    const canRenew = !autoRenewing && (current.source === 'promptpay' || current.source === 'card') && plan.isPurchasable;
     action = (
-      <p
-        data-testid="current-plan"
-        className="flex items-center justify-center gap-1.5 w-full min-h-12 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-sm font-semibold dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800/60"
-      >
-        <CheckCircle2 className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-        <span>
-          แพ็กเกจปัจจุบัน{until ? ` · ใช้ได้ถึง ${until}` : ''}
-        </span>
-      </p>
+      <div className="space-y-2">
+        <p
+          data-testid="current-plan"
+          className="flex items-center justify-center gap-1.5 w-full min-h-12 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-sm font-semibold dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800/60"
+        >
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+          <span>
+            แพ็กเกจปัจจุบัน{until ? ` · ใช้ได้ถึง ${until}` : ''}
+          </span>
+        </p>
+        {autoRenewing && (
+          <p data-testid="auto-renew-note" className="text-xs text-gray-600 dark:text-gray-400">
+            ต่ออายุอัตโนมัติ ·{' '}
+            <Link
+              href={MEMBERSHIP_PATH}
+              className={`font-medium text-indigo-700 dark:text-indigo-300 underline underline-offset-2 rounded ${FOCUS_RING}`}
+            >
+              ยกเลิกได้
+            </Link>
+          </p>
+        )}
+        {canRenew && (
+          <button type="button" onClick={() => onSubscribe(plan)} className={BTN_OUTLINE}>
+            <RefreshCw className="w-4 h-4 mr-2" aria-hidden="true" />
+            ต่ออายุ
+          </button>
+        )}
+      </div>
     );
   } else if (isFree) {
     action = (

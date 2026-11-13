@@ -14,6 +14,7 @@ import {
 import { ProVenue } from './pro-venue.entity';
 import { ProException, isMissingReference } from './pro-errors';
 import { withUserLock } from './pro-user-lock';
+import { ProBillingService } from './pro-billing.service';
 import {
   GrantProSubscriptionDto,
   RevokeProSubscriptionDto,
@@ -31,15 +32,27 @@ export interface MySubscriptionSummary {
   status: string;
   currentPeriodEnd: Date;
   autoRenew: boolean;
+  // admin / card / promptpay (task 18)
+  source: string;
 }
 
 /** GET /pro/me item. */
 export interface MySubscriptionView extends MySubscriptionSummary {
+  // subscription id (for cancel-renewal / change-card, task 18)
+  id: string;
   venueKey: string | null;
   venueName: string | null;
   planName: string | null;
   currentPeriodStart: Date;
-  source: string;
+  // The card of this subscription (source card only): the card it was paid
+  // with / its renewal schedule charges, •••• 4242
+  cardBrand: string | null;
+  cardLastDigits: string | null;
+  // When the auto renewal was stopped (by the user, or because a renewal
+  // charge failed); rights stay until the end
+  canceledAt: Date | null;
+  // A renewal charge failed (auto renewal stopped): renew by hand
+  renewalFailedAt: Date | null;
 }
 
 /** A row of the admin member list (safe user fields only). */
@@ -161,6 +174,7 @@ export class ProSubscriptionsService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private dataSource: DataSource,
+    private billing: ProBillingService,
   ) {}
 
   // ── the user's own ──────────────────────────────────────────────────
@@ -171,19 +185,24 @@ export class ProSubscriptionsService {
     now: Date = new Date(),
   ): Promise<MySubscriptionView[]> {
     const rows = await this.findActiveWithPlan(userId, now);
-    return rows.map((s) => ({
-      venueId: s.venueId,
-      venueKey: s.venue?.key ?? null,
-      venueName: s.venue?.name ?? null,
-      planId: s.planId,
-      planCode: s.plan?.code ?? null,
-      planName: s.plan?.name ?? null,
-      status: effectiveStatus(s.status, s.currentPeriodEnd, now),
-      currentPeriodStart: s.currentPeriodStart,
-      currentPeriodEnd: s.currentPeriodEnd,
-      autoRenew: bool(s.autoRenew),
-      source: s.source,
-    }));
+    return rows.map((s) => toMyView(s, now));
+  }
+
+  /**
+   * One of the user's own subscriptions as in GET /pro/me (any status);
+   * someone else's or missing → 404 SUBSCRIPTION_NOT_FOUND.
+   */
+  async findMineOne(
+    userId: string,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<MySubscriptionView> {
+    const row = await this.subscriptionsRepository.findOne({
+      where: { id, userId },
+      relations: { venue: true, plan: true },
+    });
+    if (!row) throw new ProException('SUBSCRIPTION_NOT_FOUND');
+    return toMyView(row, now);
   }
 
   /** `my` of GET /pro/upgrade. */
@@ -199,6 +218,7 @@ export class ProSubscriptionsService {
       status: effectiveStatus(s.status, s.currentPeriodEnd, now),
       currentPeriodEnd: s.currentPeriodEnd,
       autoRenew: bool(s.autoRenew),
+      source: s.source,
     }));
   }
 
@@ -326,8 +346,9 @@ export class ProSubscriptionsService {
     const end = new Date(start.getTime() + input.days * DAY_MS);
     const id = randomUUID();
 
+    let schedules: string[] = [];
     try {
-      await withUserLock(this.dataSource, user.id, (manager) =>
+      schedules = await withUserLock(this.dataSource, user.id, (manager) =>
         this.replaceActive(manager, {
           id,
           userId: user.id,
@@ -343,6 +364,10 @@ export class ProSubscriptionsService {
       if (isMissingReference(err)) throw new ProException('PLAN_NOT_FOUND');
       throw err;
     }
+    // Card rows that were replaced stop renewing at Opn (task 18)
+    for (const scheduleId of schedules) {
+      await this.billing.cancelScheduleQuietly(scheduleId);
+    }
 
     return this.findAdminView(id, now);
   }
@@ -357,7 +382,8 @@ export class ProSubscriptionsService {
    *   3. shared lock on the plan, read again: deleted → 404, rank 0 → 400
    * then end the active row of the venue (by primary key, see below) and
    * insert the new one (the FK checks of the insert need the S locks
-   * already held).
+   * already held). Returns the Opn schedules of the ended rows (deleted
+   * after the commit, task 18).
    */
   private async replaceActive(
     manager: EntityManager,
@@ -370,7 +396,7 @@ export class ProSubscriptionsService {
       note: string | null;
       adminId: string;
     },
-  ): Promise<void> {
+  ): Promise<string[]> {
     const found = await manager.findOne(ProPlan, {
       select: { id: true, venueId: true },
       where: { id: row.planId },
@@ -396,7 +422,7 @@ export class ProSubscriptionsService {
     // condition would take next-key (gap) locks across other users' index
     // entries and deadlock with their grants' inserts.
     const active = await manager.find(ProSubscription, {
-      select: { id: true, currentPeriodEnd: true },
+      select: { id: true, currentPeriodEnd: true, omiseScheduleId: true },
       where: {
         userId: row.userId,
         venueId: plan.venueId,
@@ -417,6 +443,7 @@ export class ProSubscriptionsService {
           status: ProSubscriptionStatus.REVOKED,
           revokedAt: row.start,
           revokedById: row.adminId,
+          autoRenew: false,
         },
       );
     }
@@ -424,7 +451,7 @@ export class ProSubscriptionsService {
       await manager.update(
         ProSubscription,
         { id: In(ended) },
-        { status: ProSubscriptionStatus.EXPIRED },
+        { status: ProSubscriptionStatus.EXPIRED, autoRenew: false },
       );
     }
     await manager.insert(ProSubscription, {
@@ -442,6 +469,7 @@ export class ProSubscriptionsService {
       revokedAt: null,
       revokedById: null,
     });
+    return active.map((s) => s.omiseScheduleId).filter((s): s is string => !!s);
   }
 
   /**
@@ -466,10 +494,11 @@ export class ProSubscriptionsService {
     const changes: Pick<
       ProSubscription,
       'status' | 'revokedAt' | 'revokedById'
-    > & { note?: string } = {
+    > & { note?: string; autoRenew?: boolean } = {
       status: ProSubscriptionStatus.REVOKED,
       revokedAt: floorToSecond(now),
       revokedById: admin.id,
+      autoRenew: false,
     };
     const note = nullableText(input?.note);
     if (note) changes.note = note;
@@ -483,6 +512,10 @@ export class ProSubscriptionsService {
         where: { id },
       });
       throw notActive(latest?.status ?? ProSubscriptionStatus.REVOKED);
+    }
+    // A card row stops renewing at Opn (task 18)
+    if (row.omiseScheduleId) {
+      await this.billing.cancelScheduleQuietly(row.omiseScheduleId);
     }
     return this.findAdminView(id, now);
   }
@@ -523,6 +556,28 @@ export class ProSubscriptionsService {
       .addSelect('p.rank', 'planRank')
       .where('1 = 1');
   }
+}
+
+function toMyView(s: ProSubscription, now: Date): MySubscriptionView {
+  const card = s.source === String(ProSubscriptionSource.CARD) ? s : null;
+  return {
+    id: s.id,
+    venueId: s.venueId,
+    venueKey: s.venue?.key ?? null,
+    venueName: s.venue?.name ?? null,
+    planId: s.planId,
+    planCode: s.plan?.code ?? null,
+    planName: s.plan?.name ?? null,
+    status: effectiveStatus(s.status, s.currentPeriodEnd, now),
+    currentPeriodStart: s.currentPeriodStart,
+    currentPeriodEnd: s.currentPeriodEnd,
+    autoRenew: bool(s.autoRenew),
+    source: s.source,
+    cardBrand: card?.cardBrand ?? null,
+    cardLastDigits: card?.cardLastDigits ?? null,
+    canceledAt: s.canceledAt ?? null,
+    renewalFailedAt: s.renewalFailedAt ?? null,
+  };
 }
 
 function notActive(status: string): ProException {

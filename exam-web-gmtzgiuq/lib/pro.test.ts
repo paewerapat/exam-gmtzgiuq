@@ -88,9 +88,9 @@ describe('ราคา', () => {
 describe('สถานะสิทธิ์', () => {
   it('findLiveSubscription: เฉพาะ active ที่ยังไม่หมดอายุของสนามนั้น', () => {
     const my = [
-      { venueId: 'v1', planId: 'p-old', planCode: 'pro', status: 'active', currentPeriodEnd: PAST, autoRenew: false },
-      { venueId: 'v1', planId: 'p-max', planCode: 'max', status: 'active', currentPeriodEnd: FUTURE, autoRenew: false },
-      { venueId: 'v2', planId: 'p-x', planCode: 'pro', status: 'revoked', currentPeriodEnd: FUTURE, autoRenew: false },
+      { venueId: 'v1', planId: 'p-old', planCode: 'pro', status: 'active', currentPeriodEnd: PAST, autoRenew: false, source: 'admin' },
+      { venueId: 'v1', planId: 'p-max', planCode: 'max', status: 'active', currentPeriodEnd: FUTURE, autoRenew: false, source: 'admin' },
+      { venueId: 'v2', planId: 'p-x', planCode: 'pro', status: 'revoked', currentPeriodEnd: FUTURE, autoRenew: false, source: 'admin' },
     ];
     expect(findLiveSubscription(my, 'v1', NOW)?.planId).toBe('p-max');
     expect(findLiveSubscription(my, 'v2', NOW)).toBeNull();

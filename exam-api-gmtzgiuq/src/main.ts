@@ -1,12 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { uploadSecurityHeaders } from './upload/upload-headers';
+import { TRUST_PROXY } from './common/trust-proxy';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: true,
   });
+  // req.ip = the client behind Plesk's local nginx / Passenger (task 18:
+  // per-IP limit of the Opn webhook); see common/trust-proxy.ts
+  app.set('trust proxy', TRUST_PROXY);
   app.use(require('express').json({ limit: '10mb' }));
   app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
 

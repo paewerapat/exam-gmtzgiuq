@@ -22,6 +22,7 @@ import {
   GraduationCap,
   MessageSquare,
   ClipboardCheck,
+  Crown,
 } from 'lucide-react';
 
 const menuItems = [
@@ -33,6 +34,7 @@ const menuItems = [
   { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: Clock },
   { href: '/blogs', label: 'บทความ', icon: BookOpen },
   { href: '/dashboard/profile', label: 'โปรไฟล์', icon: User },
+  { href: '/dashboard/membership', label: 'สมาชิกของฉัน', icon: Crown },
   { action: 'feedback' as const, label: 'ส่งความคิดเห็น', icon: MessageSquare },
   { href: '/admin/exams', label: 'จัดการข้อสอบ', icon: ClipboardList, adminOnly: true },
   { href: '/admin/users', label: 'จัดการผู้ใช้', icon: Users, adminOnly: true },

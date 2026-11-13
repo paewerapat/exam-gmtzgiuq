@@ -234,7 +234,7 @@ export default function MembersTab({ venues }: { venues: ProAdminVenue[] }) {
               <table className="w-full min-w-[860px] text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    {['ผู้สมัคร', 'สนาม', 'แพ็กเกจ', 'สถานะ', 'เริ่ม – หมดอายุ', 'ที่มา', 'หมายเหตุ', ''].map((h, i) => (
+                    {['ผู้สมัคร', 'สนาม', 'แพ็กเกจ', 'สถานะ', 'เริ่ม – หมดอายุ', 'ที่มา / ต่ออายุ', 'หมายเหตุ', ''].map((h, i) => (
                       <th key={h || i} scope="col" className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {h || <span className="sr-only">จัดการ</span>}
                       </th>
@@ -273,7 +273,18 @@ export default function MembersTab({ venues }: { venues: ProAdminVenue[] }) {
                             ถึง {formatThaiDate(sub.currentPeriodEnd) ?? '-'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">{subscriptionSourceLabel(sub.source)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">
+                          {subscriptionSourceLabel(sub.source)}
+                          {(sub.source === 'card' || sub.source === 'promptpay') && (
+                            <span
+                              className={`block text-xs ${
+                                sub.autoRenew ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400'
+                              }`}
+                            >
+                              {sub.autoRenew ? 'ต่ออายุอัตโนมัติ' : 'ไม่ต่ออายุอัตโนมัติ'}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 max-w-[14rem] text-xs text-gray-600 dark:text-gray-400 break-words">{sub.note ?? '-'}</td>
                         <td className="px-4 py-2">
                           {st === 'active' && (

@@ -61,6 +61,53 @@ export const PRO_ERRORS = {
     status: 400,
     message: 'status ต้องเป็น active, expired หรือ revoked',
   },
+  // ── payments (task 18) ──
+  PLAN_NOT_PURCHASABLE: {
+    status: 400,
+    message: 'แพ็กเกจนี้ยังไม่เปิดให้ซื้อ',
+  },
+  AMOUNT_TOO_LOW: {
+    status: 400,
+    message: 'ยอดชำระต้องไม่ต่ำกว่า 20 บาท กรุณาติดต่อผู้ดูแลระบบ',
+  },
+  PAYMENT_NOT_FOUND: { status: 404, message: 'ไม่พบรายการชำระเงินนี้' },
+  PAYMENT_IN_PROGRESS: {
+    status: 409,
+    message:
+      'มีรายการชำระเงินของแพ็กเกจนี้กำลังดำเนินการอยู่ กรุณารอสักครู่แล้วลองใหม่',
+  },
+  CARD_DECLINED: {
+    status: 400,
+    message:
+      'ไม่สามารถใช้บัตรนี้ได้ กรุณาตรวจสอบข้อมูลบัตรแล้วกรอกใหม่ หรือใช้บัตรอื่น',
+  },
+  OMISE_UNAVAILABLE: {
+    status: 503,
+    message: 'ระบบชำระเงินขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในอีกสักครู่',
+  },
+  NOT_RENEWABLE: {
+    status: 409,
+    message: 'รายการนี้ไม่ได้ตั้งต่ออายุอัตโนมัติด้วยบัตร',
+  },
+  ALREADY_AUTO_RENEW: {
+    status: 409,
+    message:
+      'แพ็กเกจนี้ต่ออายุอัตโนมัติด้วยบัตรอยู่แล้ว ไม่ต้องชำระซ้ำ (ยกเลิกการต่ออายุก่อนหากต้องการชำระเอง)',
+  },
+  NOT_CARD_SUBSCRIPTION: {
+    status: 409,
+    message: 'เปลี่ยนบัตรได้เฉพาะแพ็กเกจที่ชำระด้วยบัตรและยังใช้งานอยู่',
+  },
+  // 503 (not 429) so Opn always retries if it were ever hit by mistake
+  WEBHOOK_RATE_LIMITED: {
+    status: 503,
+    message: 'เรียกบ่อยเกินไป กรุณาลองใหม่ภายหลัง',
+  },
+  INVALID_PAYMENT_FILTER: {
+    status: 400,
+    message:
+      'status ต้องเป็น pending, successful, failed หรือ expired และ method ต้องเป็น card หรือ promptpay',
+  },
 } as const;
 
 export type ProErrorCode = keyof typeof PRO_ERRORS;

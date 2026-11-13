@@ -13,8 +13,9 @@ import { ProVenue } from './pro-venue.entity';
 
 /**
  * Stored status of a subscription. A row that is `active` but whose
- * currentPeriodEnd has passed counts as expired (no cron needed); task 18
- * adds pending/canceled for renewals.
+ * currentPeriodEnd has passed counts as expired (no cron needed). A
+ * canceled renewal keeps the row active until its end (canceledAt set,
+ * autoRenew off).
  */
 export enum ProSubscriptionStatus {
   ACTIVE = 'active',
@@ -22,9 +23,14 @@ export enum ProSubscriptionStatus {
   REVOKED = 'revoked',
 }
 
-/** How the subscription was made (task 18 adds card/promptpay/code). */
+/**
+ * How the subscription was made or last paid for (task 18: card =
+ * renewed by an Opn schedule while autoRenew, promptpay = renewed by hand).
+ */
 export enum ProSubscriptionSource {
   ADMIN = 'admin',
+  CARD = 'card',
+  PROMPTPAY = 'promptpay',
 }
 
 /**
@@ -42,6 +48,7 @@ export enum ProSubscriptionSource {
 @Index('IDX_pro_subscriptions_status_end', ['status', 'currentPeriodEnd'])
 @Index('IDX_pro_subscriptions_venueId', ['venueId'])
 @Index('IDX_pro_subscriptions_planId', ['planId'])
+@Index('IDX_pro_subscriptions_schedule', ['omiseScheduleId'])
 export class ProSubscription {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -97,6 +104,34 @@ export class ProSubscription {
 
   @Column({ type: 'varchar', length: 36, nullable: true })
   revokedById: string | null;
+
+  // Opn schedule that renews this row by card (task 18); null = none
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  omiseScheduleId: string | null;
+
+  // When the user canceled the auto renewal (rights stay until the end)
+  @Column({ type: 'datetime', nullable: true })
+  canceledAt: Date | null;
+
+  // The latest successful payment of this row (its amounts are charged
+  // again by the renewal schedule)
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  lastPaymentId: string | null;
+
+  // The card of this row (paid with / charged by its schedule): brand and
+  // last 4 digits only, plus Opn's card id
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  cardBrand: string | null;
+
+  @Column({ type: 'varchar', length: 4, nullable: true })
+  cardLastDigits: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  omiseCardId: string | null;
+
+  // The renewal charge failed: auto renewal was stopped (schedule deleted)
+  @Column({ type: 'datetime', nullable: true })
+  renewalFailedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -3,15 +3,13 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, Loader2, PackageOpen, RotateCcw } from 'lucide-react';
-import { toast } from 'react-toastify';
 import FadeIn from '@/components/animations/FadeIn';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProUpgrade, type ProUpgradeData } from '@/lib/api/pro';
+import { getProUpgrade, type ProPublicPlan, type ProUpgradeData } from '@/lib/api/pro';
 import { findLiveSubscription } from '@/lib/pro';
+import { checkoutHref, loginHref } from '@/lib/pro-payments';
 import PlanCard from './PlanCard';
 import ComparisonTable from './ComparisonTable';
-
-export const PAYMENT_COMING_SOON = 'ระบบชำระเงินกำลังจะเปิดให้บริการ';
 
 function isAbortError(err: unknown) {
   return err instanceof DOMException && err.name === 'AbortError';
@@ -86,9 +84,10 @@ export default function UpgradeView() {
     router.replace(`${pathname || '/upgrade'}?${params.toString()}`, { scroll: false });
   }
 
-  // task 18 จะเปลี่ยนเป็น checkout ของแพ็กเกจที่เลือก
-  function handleSubscribe() {
-    toast.info(PAYMENT_COMING_SOON);
+  // สมัคร / ต่ออายุ → หน้า checkout ของแพ็กเกจ (ยังไม่ login → login แล้วกลับมาที่ checkout)
+  function handleSubscribe(plan: ProPublicPlan) {
+    const target = checkoutHref(plan.id);
+    router.push(userId ? target : loginHref(target));
   }
 
   const plans = venue?.plans ?? [];
