@@ -164,10 +164,16 @@ export type MockAccessStatus = 'free' | 'locked' | 'unlocked' | 'expired';
 export const MOCK_ACCESS_STATUSES: MockAccessStatus[] = ['free', 'locked', 'unlocked', 'expired'];
 
 /** สิทธิ์ของบัญชีกับชุดนี้ (`access` ใน GET /exams/mock, /exams/mock/:id) */
+/** ที่มาของสิทธิ์ (task 17): pro = แพ็กเกจ Pro ของสนาม, code / purchase / admin = สิทธิ์รายชุดตามที่มา */
+export type MockAccessVia = 'pro' | 'code' | 'purchase' | 'admin';
+export const MOCK_ACCESS_VIAS: MockAccessVia[] = ['pro', 'code', 'purchase', 'admin'];
+
 export interface MockExamAccess {
   status: MockAccessStatus;
   /** วันหมดสิทธิ์ ISO (เฉพาะ unlocked/expired) */
   expiresAt: string | null;
+  /** ที่มาของสิทธิ์ (API ก่อน task 17 ไม่มี → null) — free/locked = null */
+  via?: MockAccessVia | null;
 }
 
 /**

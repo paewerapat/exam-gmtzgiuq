@@ -36,6 +36,7 @@ const exam = (patch: Partial<MockExamDetailData> = {}): MockExamDetailData => ({
   price: null,
   releaseDate: '2026-11-01T00:00:00.000Z',
   access: { status: 'free', expiresAt: null },
+  venueKey: null,
   description: 'คำอธิบายเดิม',
   detailBlocks: [],
   codeInstructions: null,
@@ -244,6 +245,24 @@ describe('MockExamDetail (task 11 + task 15 โครงใหม่)', () => {
     expect(getMyInProgressAttempts).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['code', 'ใช้โค้ดสำเร็จ', /^ทำได้ถึง .+ · เหลือ 10 วัน$/],
+    ['pro', null, /^สิทธิ์จากแพ็กเกจ Pro · ใช้ได้ถึง .+$/],
+    ['admin', null, /^มีสิทธิ์เข้าทำ · ใช้ได้ถึง .+$/],
+    ['purchase', null, /^มีสิทธิ์เข้าทำ · ใช้ได้ถึง .+$/],
+    [null, null, /^มีสิทธิ์เข้าทำ · ใช้ได้ถึง .+$/],
+  ] as const)('กล่องสิทธิ์ตามที่มา (task 17): via=%s', async (via, title, line) => {
+    setUser({ id: 'u1' });
+    (getMockExam as jest.Mock).mockResolvedValue(
+      exam({ accessType: 'purchase', price: 150, venueKey: 'netsat', access: { status: 'unlocked', expiresAt: FUTURE, via } }),
+    );
+    render(<MockExamDetail id="m1" />);
+    await screen.findByRole('link', { name: /เริ่มทำข้อสอบ/ });
+    expect(within(panel()).getByTestId('access-until')).toHaveTextContent(line);
+    if (title) expect(within(panel()).getByText(title)).toBeInTheDocument();
+    else expect(within(panel()).queryByText('ใช้โค้ดสำเร็จ')).not.toBeInTheDocument();
+  });
+
   it('ชุดโค้ดที่ unlocked อยู่แล้ว + มี attempt ค้าง → "ทำต่อ" + วันหมดสิทธิ์ในแถบหัว', async () => {
     setUser({ id: 'u1' });
     (getMockExam as jest.Mock).mockResolvedValue(codeExam({ access: { status: 'unlocked', expiresAt: FUTURE } }));
@@ -335,6 +354,39 @@ describe('MockExamDetail (task 11 + task 15 โครงใหม่)', () => {
     await user.click(within(panel()).getByRole('button', { name: 'Unlock' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('โค้ดนี้ใช้กับชุดข้อสอบนี้ไม่ได้');
     expect(screen.getByRole('button', { name: /ซื้อ/ })).toBeDisabled();
+  });
+
+  it('ชุดซื้อที่หมวดผูกสนาม (venueKey) + locked → ปุ่ม Upgrade ไป /upgrade?venue=<key> แทนปุ่มซื้อ (task 17)', async () => {
+    setUser({ id: 'u1' });
+    (getMockExam as jest.Mock).mockResolvedValue(
+      exam({ accessType: 'purchase', price: 150, venueKey: 'netsat', access: { status: 'locked', expiresAt: null } }),
+    );
+    render(<MockExamDetail id="m1" />);
+    const upgrade = await within(await screen.findByTestId('mock-access-panel')).findByRole('link', { name: 'Upgrade' });
+    expect(upgrade).toHaveAttribute('href', '/upgrade?venue=netsat');
+    expect(screen.queryByRole('button', { name: /ซื้อ/ })).not.toBeInTheDocument();
+    // ป้ายราคาในแถบหัว + ช่องกรอกโค้ดยังอยู่
+    expect(within(screen.getByTestId('mock-detail-hero')).getByText('150 บาท')).toBeInTheDocument();
+    expect(within(panel()).getByLabelText('โค้ด Unlock')).toBeEnabled();
+    expect(screen.queryByRole('link', { name: /เริ่มทำ/ })).not.toBeInTheDocument();
+  });
+
+  it('ชุดซื้อที่ผูกสนาม + สิทธิ์หมดอายุ → ยังเป็นปุ่ม Upgrade พร้อมแจ้งหมดอายุ / unlocked → เริ่มทำได้ ไม่มี Upgrade', async () => {
+    setUser({ id: 'u1' });
+    (getMockExam as jest.Mock).mockResolvedValue(
+      exam({ accessType: 'purchase', price: 150, venueKey: 'a-level', access: { status: 'expired', expiresAt: '2026-10-01T00:00:00.000Z' } }),
+    );
+    const { unmount } = render(<MockExamDetail id="m1" />);
+    expect(await screen.findByRole('link', { name: 'Upgrade' })).toHaveAttribute('href', '/upgrade?venue=a-level');
+    expect(within(panel()).getByText('สิทธิ์ของคุณหมดอายุแล้ว')).toBeInTheDocument();
+    unmount();
+
+    (getMockExam as jest.Mock).mockResolvedValue(
+      exam({ accessType: 'purchase', price: 150, venueKey: 'netsat', access: { status: 'unlocked', expiresAt: FUTURE } }),
+    );
+    render(<MockExamDetail id="m1" />);
+    expect(await screen.findByRole('link', { name: /เริ่มทำข้อสอบ/ })).toHaveAttribute('href', '/exam/m1');
+    expect(screen.queryByRole('link', { name: 'Upgrade' })).not.toBeInTheDocument();
   });
 
   it('ชุดซื้อ + guest → ช่องโค้ด disabled + ลิงก์เข้าสู่ระบบ/สมัครสมาชิก', async () => {

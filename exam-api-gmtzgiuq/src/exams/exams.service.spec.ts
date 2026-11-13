@@ -21,6 +21,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ExamAccessType, ExamLevel } from './exam-mock';
 import { UPLOAD_REFERENCE_SQL } from '../questions/question-images';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ProAccessService } from '../pro/pro-access.service';
 import { ExamAccess } from '../exam-access/exam-access.entity';
 
 const LOCAL = 'http://localhost:3001/uploads';
@@ -129,6 +130,13 @@ describe('ExamsService', () => {
         { provide: UploadService, useValue: uploadService },
         // Real access rules on a mocked exam_access table (task 15)
         ExamAccessService,
+        // No Pro plans (task 17): purchase exams only by grants here
+        {
+          provide: ProAccessService,
+          useValue: {
+            getMockPurchaseAccess: () => Promise.resolve(new Map()),
+          },
+        },
         {
           provide: getRepositoryToken(ExamAccess),
           useValue: { find: accessFind },
@@ -1881,6 +1889,8 @@ describe('ExamsService', () => {
         accessType: 'purchase',
         price: '150.00',
         releaseDate: new Date('2026-11-05T03:00:00.000Z'),
+        // task 17: key of the active Pro venue of the category
+        venueKey: 'tgat',
       };
 
       it('GET /exams (old list) hides mock exams', async () => {
@@ -1935,7 +1945,7 @@ describe('ExamsService', () => {
               level: 'hard',
               accessType: 'purchase',
               // guest (task 15)
-              access: { status: 'locked', expiresAt: null },
+              access: { status: 'locked', expiresAt: null, via: null },
             },
           ],
           total: 13,
@@ -1954,6 +1964,27 @@ describe('ExamsService', () => {
           { category: 'tgat' },
         );
         expect(result).toMatchObject({ page: 1, limit: 100 });
+      });
+
+      it('venueKey (task 17): key of the active venue of the category, null without one', async () => {
+        const withoutVenue: Record<string, unknown> = { ...row };
+        delete withoutVenue.venueKey;
+        qb.getRawMany.mockResolvedValue([row, { ...withoutVenue, id: 'm2' }]);
+        qb.getCount.mockResolvedValue(2);
+
+        const result = await service.findMockExams(1, 12);
+
+        expect(selected()).toContain('venue.key');
+        expect(qb.leftJoin).toHaveBeenCalledWith(
+          expect.anything(),
+          'venue',
+          'venue.id = cat.venueId AND venue.isActive = :venueActive',
+          { venueActive: true },
+        );
+        expect(result.items.map((item) => item.venueKey)).toEqual([
+          'tgat',
+          null,
+        ]);
       });
 
       it('GET /exams/mock/:id returns the card fields + description + blocks, no questions', async () => {
@@ -1977,7 +2008,7 @@ describe('ExamsService', () => {
           price: 99.5,
           description: 'คำอธิบาย',
           detailBlocks: [textBlock('a'), imageBlock('/uploads/x.png')],
-          access: { status: 'locked', expiresAt: null },
+          access: { status: 'locked', expiresAt: null, via: null },
           codeInstructions: null,
         });
         expect(exam).not.toHaveProperty('questions');

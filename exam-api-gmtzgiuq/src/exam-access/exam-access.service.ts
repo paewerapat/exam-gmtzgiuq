@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { Exam } from '../exams/exam.entity';
-import type { MockExamAccess } from '../exams/exam-mock';
+import type { MockExamAccess, MockExamAccessVia } from '../exams/exam-mock';
+import { ExamAccessType } from '../exams/exam-mock';
+import { ProAccessService } from '../pro/pro-access.service';
 import { ExamAccess, ExamAccessSource } from './exam-access.entity';
 import {
   AccessViewer,
@@ -12,8 +14,21 @@ import {
   isLockedExam,
 } from './exam-access';
 
-const FREE: MockExamAccess = { status: 'free', expiresAt: null };
-const LOCKED: MockExamAccess = { status: 'locked', expiresAt: null };
+const FREE: MockExamAccess = { status: 'free', expiresAt: null, via: null };
+const LOCKED: MockExamAccess = {
+  status: 'locked',
+  expiresAt: null,
+  via: null,
+};
+
+/** Tie-break between grants with the same end (deterministic `via`). */
+const SOURCE_ORDER: ExamAccessSource[] = [
+  ExamAccessSource.ADMIN,
+  ExamAccessSource.PURCHASE,
+  ExamAccessSource.CODE,
+];
+
+type GrantRow = Pick<ExamAccess, 'expiresAt' | 'source'>;
 
 /** Input of ExamAccessService.grant (one grant per exam, or all Mock). */
 export interface GrantAccessInput {
@@ -27,8 +42,12 @@ export interface GrantAccessInput {
 
 /**
  * Who may take a locked Mock Exam (task 15). Used by the exam, attempt and
- * question endpoints and by unlock codes; built so task 3 (purchase) only
- * has to call grant() with source = purchase.
+ * question endpoints and by unlock codes.
+ *
+ * A Mock Exam with accessType = purchase is also unlocked by Pro (task 17):
+ * the entitlements of the user in the venue of the exam's category have
+ * mockPurchase (ProAccessService). An exam whose category has no venue
+ * stays locked unless there is a grant (exam_access, code/purchase/admin).
  *
  * Admins can always take every exam. A guest never can.
  */
@@ -39,6 +58,7 @@ export class ExamAccessService {
     private accessRepository: Repository<ExamAccess>,
     @InjectRepository(Exam)
     private examsRepository: Repository<Exam>,
+    private proAccessService: ProAccessService,
   ) {}
 
   /** Access of the viewer to one exam (see getAccessMany). */
@@ -56,6 +76,8 @@ export class ExamAccessService {
    * whole list: `free` (not locked), `locked`, `unlocked` (an admin, or a
    * grant that has not expired; expiresAt = the latest end, null = none) or
    * `expired` (grants only in the past; expiresAt = the latest end).
+   * Purchase exams: a Pro plan with mockPurchase in the exam's venue also
+   * unlocks (its end counts like a grant's); one more query batch.
    */
   async getAccessMany(
     viewer: AccessViewer | null | undefined,
@@ -75,22 +97,48 @@ export class ExamAccessService {
     }
     if (isAdminViewer(viewer)) {
       for (const exam of locked) {
-        result.set(exam.id, { status: 'unlocked', expiresAt: null });
+        result.set(exam.id, {
+          status: 'unlocked',
+          expiresAt: null,
+          via: 'admin',
+        });
       }
       return result;
     }
 
     const grants = await this.accessRepository.find({
-      select: { id: true, examId: true, allMock: true, expiresAt: true },
+      select: {
+        id: true,
+        examId: true,
+        allMock: true,
+        expiresAt: true,
+        source: true,
+      },
       where: [
         { userId: viewer.id, examId: In(locked.map((e) => e.id)) },
         { userId: viewer.id, allMock: true },
       ],
     });
 
+    const purchase = locked.filter(
+      (exam) => exam.accessType === ExamAccessType.PURCHASE,
+    );
+    const pro =
+      purchase.length > 0
+        ? await this.proAccessService.getMockPurchaseAccess(
+            viewer.id,
+            purchase,
+            now,
+          )
+        : new Map<string, Date | null>();
+
     for (const exam of locked) {
       const mine = grants.filter((g) => g.allMock || g.examId === exam.id);
-      result.set(exam.id, summarize(mine, now));
+      const access = summarize(mine, now);
+      result.set(
+        exam.id,
+        pro.has(exam.id) ? withPro(access, pro.get(exam.id) ?? null) : access,
+      );
     }
     return result;
   }
@@ -116,7 +164,7 @@ export class ExamAccessService {
   ): Promise<void> {
     if (!examId) return;
     const exam = await this.examsRepository.findOne({
-      select: { id: true, isMock: true, accessType: true },
+      select: { id: true, isMock: true, accessType: true, category: true },
       where: { id: examId },
       loadEagerRelations: false,
     });
@@ -148,28 +196,55 @@ export class ExamAccessService {
 }
 
 /** Status of one locked exam from the viewer's grants for it. */
-function summarize(
-  grants: Pick<ExamAccess, 'expiresAt'>[],
-  now: Date,
-): MockExamAccess {
+function summarize(grants: GrantRow[], now: Date): MockExamAccess {
   if (grants.length === 0) return LOCKED;
 
   const active = grants.filter(
     (g) => g.expiresAt === null || g.expiresAt.getTime() > now.getTime(),
   );
-  if (active.length > 0) {
-    if (active.some((g) => g.expiresAt === null)) {
-      return { status: 'unlocked', expiresAt: null };
-    }
-    return { status: 'unlocked', expiresAt: latest(active) };
-  }
-  return { status: 'expired', expiresAt: latest(grants) };
+  const winner = latestGrant(active.length > 0 ? active : grants);
+  return {
+    status: active.length > 0 ? 'unlocked' : 'expired',
+    expiresAt: winner.expiresAt ? winner.expiresAt.toISOString() : null,
+    via: toVia(winner.source),
+  };
 }
 
-function latest(grants: Pick<ExamAccess, 'expiresAt'>[]): string | null {
-  let max: Date | null = null;
-  for (const g of grants) {
-    if (g.expiresAt && (!max || g.expiresAt > max)) max = g.expiresAt;
-  }
-  return max ? max.toISOString() : null;
+/**
+ * Add a Pro right (end `until`, null = none) to the access from grants:
+ * always unlocked; the later end wins (no end beats any date) and gives
+ * `via`; on a tie the grant is kept.
+ */
+function withPro(access: MockExamAccess, until: Date | null): MockExamAccess {
+  const pro: MockExamAccess = {
+    status: 'unlocked',
+    expiresAt: until ? until.toISOString() : null,
+    via: 'pro',
+  };
+  if (access.status !== 'unlocked') return pro;
+  if (access.expiresAt === null) return access;
+  if (until === null) return pro;
+  return new Date(access.expiresAt).getTime() >= until.getTime() ? access : pro;
+}
+
+/** The grant whose end is latest (no end first), ties by SOURCE_ORDER. */
+function latestGrant(grants: GrantRow[]): GrantRow {
+  const endOf = (g: GrantRow) =>
+    g.expiresAt === null ? Number.POSITIVE_INFINITY : g.expiresAt.getTime();
+  const rankOf = (g: GrantRow) => {
+    const i = SOURCE_ORDER.indexOf(g.source);
+    return i === -1 ? SOURCE_ORDER.length : i;
+  };
+  return grants.reduce((best, g) =>
+    endOf(g) > endOf(best) ||
+    (endOf(g) === endOf(best) && rankOf(g) < rankOf(best))
+      ? g
+      : best,
+  );
+}
+
+function toVia(source: ExamAccessSource | string | null | undefined) {
+  return (SOURCE_ORDER as string[]).includes(source as string)
+    ? (source as MockExamAccessVia)
+    : null;
 }

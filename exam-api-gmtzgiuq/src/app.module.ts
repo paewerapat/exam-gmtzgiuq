@@ -21,6 +21,7 @@ import { FeedbackModule } from './feedback/feedback.module';
 import { ExamAccessModule } from './exam-access/exam-access.module';
 import { UnlockCodesModule } from './unlock-codes/unlock-codes.module';
 import { AnswerLogsModule } from './answer-logs/answer-logs.module';
+import { ProModule } from './pro/pro.module';
 import { setUploadSecurityHeaders } from './upload/upload-headers';
 import type { Response } from 'express';
 
@@ -92,6 +93,7 @@ import type { Response } from 'express';
     ExamAccessModule,
     UnlockCodesModule,
     AnswerLogsModule,
+    ProModule,
   ],
   controllers: [AppController],
   providers: [AppService],

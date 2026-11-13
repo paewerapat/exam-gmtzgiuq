@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
-import { AlertTriangle, CheckCircle2, KeyRound, Loader2, PlayCircle, ShoppingCart } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Crown, KeyRound, Loader2, PlayCircle, ShoppingCart } from 'lucide-react';
 import { authInputClass } from '@/components/auth/AuthShell';
 import { ApiError } from '@/lib/api/apiError';
 import { redeemUnlockCode, type RedeemUnlockCodeResult } from '@/lib/api/unlockCodes';
@@ -25,6 +25,10 @@ import {
   UNLOCK_TEXT,
 } from '@/lib/unlock-codes';
 
+/** ข้อความกล่องสิทธิ์ตามที่มา (task 17): pro = แพ็กเกจ Pro ของสนาม / admin, purchase, ไม่ทราบ = กลาง ๆ */
+export const ACCESS_VIA_PRO = 'สิทธิ์จากแพ็กเกจ Pro';
+export const ACCESS_VIA_OTHER = 'มีสิทธิ์เข้าทำ';
+
 const CARD_CLASS =
   'bg-white dark:bg-gray-800 rounded-2xl border-2 border-indigo-500 dark:border-indigo-500/60 shadow-lg shadow-indigo-100/70 dark:shadow-black/30 p-5 sm:p-6';
 
@@ -38,7 +42,8 @@ const LINK_CLASS =
   'font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline underline-offset-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500';
 
 interface MockAccessPanelProps {
-  exam: { id: string; accessType: MockAccessType; price: number | null };
+  /** venueKey: สนาม Pro ของหมวดชุดนี้ (task 17) — ชุดซื้อที่มีสนาม → ปุ่ม Upgrade */
+  exam: { id: string; accessType: MockAccessType; price: number | null; venueKey?: string | null };
   access: MockExamAccess;
   /** ยังไม่ได้เข้าสู่ระบบ */
   isGuest: boolean;
@@ -97,16 +102,23 @@ export default function MockAccessPanel({
           {unlocked ? UNLOCK_TEXT.unlockedSubtitle : 'พร้อมแล้วกดเริ่มทำข้อสอบได้เลย'}
         </p>
 
-        {/* วันหมดสิทธิ์ null = ไม่หมดอายุ (เช่นแอดมิน) → ไม่แสดงกล่อง "ใช้โค้ดสำเร็จ" */}
+        {/* วันหมดสิทธิ์ null = ไม่หมดอายุ (เช่นแอดมิน) → ไม่แสดงกล่องสิทธิ์ / ข้อความตามที่มาของสิทธิ์ (task 17) */}
         {unlocked && access.expiresAt && (
           <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 px-3 py-2.5 text-sm text-emerald-800 dark:text-emerald-200">
             <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
-            <p className="min-w-0">
-              <span className="block font-semibold">{UNLOCK_TEXT.unlockedSuccess}</span>
-              <span className="block" data-testid="access-until">
-                {formatAccessUntil(access.expiresAt)}
-              </span>
-            </p>
+            {access.via === 'code' ? (
+              <p className="min-w-0">
+                <span className="block font-semibold">{UNLOCK_TEXT.unlockedSuccess}</span>
+                <span className="block" data-testid="access-until">
+                  {formatAccessUntil(access.expiresAt)}
+                </span>
+              </p>
+            ) : (
+              <p className="min-w-0" data-testid="access-until">
+                <span className="font-semibold">{access.via === 'pro' ? ACCESS_VIA_PRO : ACCESS_VIA_OTHER}</span>
+                {formatThaiDate(access.expiresAt) && ` · ใช้ได้ถึง ${formatThaiDate(access.expiresAt)}`}
+              </p>
+            )}
           </div>
         )}
 
@@ -140,7 +152,32 @@ export default function MockAccessPanel({
     return <RedeemCodeForm examId={exam.id} access={access} isGuest={isGuest} onRedeemed={onRedeemed} />;
   }
 
-  // ชุดซื้อที่ยังไม่มีสิทธิ์ (งานที่ 3 จะเปิดให้ซื้อ)
+  // ชุดซื้อที่ยังไม่มีสิทธิ์: หมวดผูกสนาม Pro → ปุ่ม Upgrade ไปหน้าแพ็กเกจของสนามนั้น (task 17)
+  // หมวดไม่ผูกสนาม → ปุ่ม "ซื้อ" กดไม่ได้แบบเดิม
+  if (exam.venueKey) {
+    return (
+      <div className={CARD_CLASS} data-testid="mock-access-panel">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">สมัครแพ็กเกจเพื่อทำชุดนี้</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          ชุดนี้เปิดให้ผู้ที่สมัครแพ็กเกจของสนามสอบนี้ ทำได้ทุกชุดในสนามเดียวกัน
+        </p>
+        {access.status === 'expired' && <ExpiredNotice expiresAt={access.expiresAt} className="mt-3" />}
+        <Link
+          href={`/upgrade?venue=${encodeURIComponent(exam.venueKey)}`}
+          className={`mt-4 flex items-center justify-center gap-2 w-full min-h-12 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition ${FOCUS_RING} focus-visible:ring-indigo-500`}
+        >
+          <Crown className="w-5 h-5" aria-hidden="true" />
+          Upgrade
+        </Link>
+
+        <div className="mt-5 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{UNLOCK_TEXT.purchaseCodeTitle}</h3>
+          <RedeemCodeFields examId={exam.id} isGuest={isGuest} onRedeemed={onRedeemed} className="mt-2" />
+        </div>
+      </div>
+    );
+  }
+
   const priceLabel = getMockPriceLabel(exam);
   return (
     <div className={CARD_CLASS} data-testid="mock-access-panel">

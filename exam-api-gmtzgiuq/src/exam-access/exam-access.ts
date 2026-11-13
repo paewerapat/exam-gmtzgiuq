@@ -20,6 +20,9 @@ export interface LockableExam {
   // boolean from an entity, 0/1 (or '0'/'1') from a raw row
   isMock?: boolean | number | string | null;
   accessType?: ExamAccessType | string | null;
+  // Category slug: decides the Pro venue of a purchase exam (task 17).
+  // Left out = looked up by ProAccessService when needed.
+  category?: string | null;
 }
 
 /**

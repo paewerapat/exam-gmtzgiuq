@@ -166,7 +166,7 @@ export default function MockExamDetail({ id }: { id: string }) {
   const instructions = exam.accessType === 'code' ? exam.codeInstructions : null;
 
   function handleRedeemed(res: RedeemUnlockCodeResult) {
-    setRedeemed({ key: requestKey, access: { status: 'unlocked', expiresAt: res.expiresAt || null } });
+    setRedeemed({ key: requestKey, access: { status: 'unlocked', expiresAt: res.expiresAt || null, via: 'code' } });
   }
 
   const infoRows = [

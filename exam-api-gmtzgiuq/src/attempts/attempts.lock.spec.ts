@@ -8,6 +8,7 @@ import { Exam } from '../exams/exam.entity';
 import { ExamAccessType } from '../exams/exam-mock';
 import { ExamAccess } from '../exam-access/exam-access.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ProAccessService } from '../pro/pro-access.service';
 import { StartAttemptDto, SubmitAttemptInput } from './dto/attempt.dto';
 import { User } from '../users/user.entity';
 import { AnswerLogsService } from '../answer-logs/answer-logs.service';
@@ -78,6 +79,13 @@ describe('AttemptsService — locked Mock Exams (task 15)', () => {
       providers: [
         AttemptsService,
         ExamAccessService,
+        // No Pro plans (task 17): purchase exams only by grants here
+        {
+          provide: ProAccessService,
+          useValue: {
+            getMockPurchaseAccess: () => Promise.resolve(new Map()),
+          },
+        },
         // Answer log (task 16) tested in answer-logs
         {
           provide: AnswerLogsService,

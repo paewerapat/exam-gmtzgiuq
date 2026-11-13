@@ -16,12 +16,14 @@ import {
   normalizeCodeInstructions,
   normalizeDetailBlocks,
   normalizeLevel,
+  MOCK_ACCESS_VIAS,
   normalizeMockAccess,
   parsePrice,
   type CodeInstructions,
   type DetailBlock,
   type ExamLevel,
   type MockAccessType,
+  type MockAccessVia,
   type MockExamAccess,
   type MockExamInput,
 } from '@/lib/mock-exam';
@@ -33,6 +35,7 @@ export type {
   DetailBlock,
   ExamLevel,
   MockAccessStatus,
+  MockAccessVia,
   MockAccessType,
   MockExamAccess,
 } from '@/lib/mock-exam';
@@ -383,6 +386,8 @@ export interface MockExamSummary {
   releaseDate: string;
   /** สิทธิ์ของบัญชีที่ส่ง token มา (guest → locked สำหรับชุดไม่ฟรี) — task 15 */
   access: MockExamAccess;
+  /** key ของสนาม Pro ของหมวดชุดนี้ (category.venueId) null = หมวดไม่ได้ผูกสนาม — task 17 */
+  venueKey: string | null;
 }
 
 /** หน้ารายละเอียด (GET /exams/mock/:id) */
@@ -425,6 +430,17 @@ const toNumberOrNull = (v: unknown): number | null => {
   return typeof n === 'number' && Number.isFinite(n) ? n : null;
 };
 
+/** access + via (task 17): via ที่ไม่รู้จัก/ไม่มี → null, ชุดฟรีหรือยังล็อก → null */
+export function normalizeMockAccessWithVia(value: unknown, accessType: MockAccessType): MockExamAccess {
+  const access = normalizeMockAccess(value, accessType);
+  const rawVia = value && typeof value === 'object' ? (value as { via?: unknown }).via : null;
+  const via =
+    (access.status === 'unlocked' || access.status === 'expired') && MOCK_ACCESS_VIAS.includes(rawVia as MockAccessVia)
+      ? (rawVia as MockAccessVia)
+      : null;
+  return { ...access, via };
+}
+
 /** แปลง item จาก API ให้ชนิดตรง (price string → number, enum ที่ไม่รู้จัก → ค่าเริ่มต้น) */
 export function normalizeMockExamSummary(raw: RawRecord): MockExamSummary {
   const accessType = normalizeAccessType(raw.accessType);
@@ -442,7 +458,8 @@ export function normalizeMockExamSummary(raw: RawRecord): MockExamSummary {
     accessType,
     price: parsePrice(raw.price),
     releaseDate: typeof raw.releaseDate === 'string' ? raw.releaseDate : '',
-    access: normalizeMockAccess(raw.access, accessType),
+    access: normalizeMockAccessWithVia(raw.access, accessType),
+    venueKey: toStringOrNull(raw.venueKey),
   };
 }
 

@@ -49,6 +49,7 @@ import {
   toMockExamItem,
 } from './exam-mock';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ProVenue } from '../pro/pro-venue.entity';
 import type { AccessViewer } from '../exam-access/exam-access';
 
 /**
@@ -577,7 +578,11 @@ export class ExamsService {
     return {
       items: items.map((item) => ({
         ...item,
-        access: access.get(item.id) ?? { status: 'locked', expiresAt: null },
+        access: access.get(item.id) ?? {
+          status: 'locked',
+          expiresAt: null,
+          via: null,
+        },
       })),
       total,
       page: safePage,
@@ -675,6 +680,13 @@ export class ExamsService {
       .createQueryBuilder('exam')
       .leftJoin('subjects', 'subject', 'subject.id = exam.subjectId')
       .leftJoin('categories', 'cat', 'cat.slug = exam.category')
+      // Pro venue of the category (task 17), only while /upgrade shows it
+      .leftJoin(
+        ProVenue,
+        'venue',
+        'venue.id = cat.venueId AND venue.isActive = :venueActive',
+        { venueActive: true },
+      )
       .select('exam.id', 'id')
       .addSelect('exam.title', 'title')
       .addSelect('exam.category', 'category')
@@ -688,6 +700,7 @@ export class ExamsService {
       .addSelect('exam.accessType', 'accessType')
       .addSelect('exam.price', 'price')
       .addSelect('exam.releaseDate', 'releaseDate')
+      .addSelect('venue.key', 'venueKey')
       .where('exam.isMock = :isMock', { isMock: true })
       .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED });
 

@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   MessageSquare,
   KeyRound,
+  Crown,
 } from 'lucide-react';
 
 const menuItems = [
@@ -20,6 +21,7 @@ const menuItems = [
   { href: '/admin/curriculum', label: 'หลักสูตร', icon: BookOpen },
   { href: '/admin/exams', label: 'ชุดข้อสอบ', icon: ClipboardList },
   { href: '/admin/unlock-codes', label: 'โค้ด Unlock', icon: KeyRound },
+  { href: '/admin/pro', label: 'สมาชิก Pro', icon: Crown },
   { href: '/admin/categories', label: 'หมวดหมู่', icon: Tag },
   { href: '/admin/blogs', label: 'บทความ', icon: FileText },
   { href: '/admin/users', label: 'ผู้ใช้งาน', icon: Users },

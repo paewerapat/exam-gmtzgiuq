@@ -26,6 +26,12 @@ export class Category {
   @Column({ default: 0 })
   orderIndex: number;
 
+  // Pro venue (pro_venues.id) the category belongs to, null = none
+  // (task 17, sql/20261113-01-pro-membership.sql). No FK (see the SQL).
+  @Field(() => String, { nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  venueId: string | null;
+
   @Field()
   @CreateDateColumn()
   createdAt: Date;

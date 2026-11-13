@@ -7,6 +7,7 @@ import { ExamAccessType } from '../exams/exam-mock';
 import { ExamAccess, ExamAccessSource } from './exam-access.entity';
 import { ExamAccessService } from './exam-access.service';
 import { isLockedExam } from './exam-access';
+import { ProAccessService } from '../pro/pro-access.service';
 
 const NOW = new Date('2026-11-10T05:00:00.000Z');
 const DAY = 24 * 60 * 60 * 1000;
@@ -48,9 +49,23 @@ describe('ExamAccessService (task 15)', () => {
   let grants: Partial<ExamAccess>[];
   let accessFind: jest.Mock;
   let examFindOne: jest.Mock;
+  // Pro rights by exam id → end (task 17); empty = no Pro plan
+  let proAccess: Map<string, Date | null>;
+  let getMockPurchaseAccess: jest.Mock;
 
   beforeEach(async () => {
     grants = [];
+    proAccess = new Map();
+    getMockPurchaseAccess = jest.fn(
+      (_userId: string, exams: { id: string }[]) =>
+        Promise.resolve(
+          new Map(
+            exams
+              .filter((e) => proAccess.has(e.id))
+              .map((e) => [e.id, proAccess.get(e.id) ?? null]),
+          ),
+        ),
+    );
     // Mimics find({ where: [..] }) on exam_access: OR of the conditions
     accessFind = jest.fn(({ where }: { where: Record<string, unknown>[] }) =>
       Promise.resolve(
@@ -80,6 +95,10 @@ describe('ExamAccessService (task 15)', () => {
           provide: getRepositoryToken(Exam),
           useValue: { findOne: examFindOne },
         },
+        {
+          provide: ProAccessService,
+          useValue: { getMockPurchaseAccess },
+        },
       ],
     }).compile();
 
@@ -103,8 +122,16 @@ describe('ExamAccessService (task 15)', () => {
         [freeMock, normalExam],
         NOW,
       );
-      expect(map.get('free-1')).toEqual({ status: 'free', expiresAt: null });
-      expect(map.get('normal-1')).toEqual({ status: 'free', expiresAt: null });
+      expect(map.get('free-1')).toEqual({
+        status: 'free',
+        expiresAt: null,
+        via: null,
+      });
+      expect(map.get('normal-1')).toEqual({
+        status: 'free',
+        expiresAt: null,
+        via: null,
+      });
       expect(accessFind).not.toHaveBeenCalled();
     });
 
@@ -114,8 +141,16 @@ describe('ExamAccessService (task 15)', () => {
         [codeExam, purchaseExam],
         NOW,
       );
-      expect(map.get('code-1')).toEqual({ status: 'locked', expiresAt: null });
-      expect(map.get('buy-1')).toEqual({ status: 'locked', expiresAt: null });
+      expect(map.get('code-1')).toEqual({
+        status: 'locked',
+        expiresAt: null,
+        via: null,
+      });
+      expect(map.get('buy-1')).toEqual({
+        status: 'locked',
+        expiresAt: null,
+        via: null,
+      });
       expect(accessFind).not.toHaveBeenCalled();
     });
 
@@ -123,6 +158,7 @@ describe('ExamAccessService (task 15)', () => {
       await expect(service.getAccess(admin, codeExam, NOW)).resolves.toEqual({
         status: 'unlocked',
         expiresAt: null,
+        via: 'admin',
       });
       expect(accessFind).not.toHaveBeenCalled();
     });
@@ -132,6 +168,7 @@ describe('ExamAccessService (task 15)', () => {
       await expect(service.getAccess(student, codeExam, NOW)).resolves.toEqual({
         status: 'locked',
         expiresAt: null,
+        via: null,
       });
     });
 
@@ -150,10 +187,12 @@ describe('ExamAccessService (task 15)', () => {
       expect(map.get('code-1')).toEqual({
         status: 'unlocked',
         expiresAt: end.toISOString(),
+        via: 'code',
       });
       expect(map.get('buy-1')).toEqual({
         status: 'expired',
         expiresAt: past.toISOString(),
+        via: 'code',
       });
       expect(map.get('free-1')?.status).toBe('free');
       // one query for the whole list: this user's grants of the locked
@@ -187,6 +226,7 @@ describe('ExamAccessService (task 15)', () => {
         expect(map.get(id)).toEqual({
           status: 'unlocked',
           expiresAt: end.toISOString(),
+          via: 'code',
         });
       }
     });
@@ -201,6 +241,7 @@ describe('ExamAccessService (task 15)', () => {
       await expect(service.getAccess(student, codeExam, NOW)).resolves.toEqual({
         status: 'unlocked',
         expiresAt: later.toISOString(),
+        via: 'code',
       });
 
       grant({
@@ -211,6 +252,7 @@ describe('ExamAccessService (task 15)', () => {
       await expect(service.getAccess(student, codeExam, NOW)).resolves.toEqual({
         status: 'unlocked',
         expiresAt: null,
+        via: 'admin',
       });
     });
 
@@ -222,6 +264,7 @@ describe('ExamAccessService (task 15)', () => {
       await expect(service.getAccess(student, codeExam, NOW)).resolves.toEqual({
         status: 'expired',
         expiresAt: b.toISOString(),
+        via: 'code',
       });
     });
   });
@@ -272,7 +315,7 @@ describe('ExamAccessService (task 15)', () => {
       examFindOne.mockResolvedValue(codeExam);
       await expectLocked(service.assertCanAccessExamId(student, 'code-1'));
       expect(examFindOne).toHaveBeenCalledWith({
-        select: { id: true, isMock: true, accessType: true },
+        select: { id: true, isMock: true, accessType: true, category: true },
         where: { id: 'code-1' },
         loadEagerRelations: false,
       });
@@ -282,6 +325,146 @@ describe('ExamAccessService (task 15)', () => {
         service.assertCanAccessExamId(student, 'missing'),
       ).resolves.toBe(undefined);
       await expect(service.assertCanAccessExamId(student, null)).resolves.toBe(
+        undefined,
+      );
+    });
+  });
+
+  describe('purchase exams and Pro plans (task 17)', () => {
+    const netsatBuy = {
+      ...exam('buy-netsat', ExamAccessType.PURCHASE),
+      category: 'netsat-math',
+    };
+
+    it('only purchase exams of a logged-in non-admin are asked about Pro', async () => {
+      await service.getAccessMany(null, [netsatBuy], NOW);
+      await service.getAccessMany(admin, [netsatBuy], NOW);
+      await service.getAccessMany(student, [codeExam, freeMock], NOW);
+      expect(getMockPurchaseAccess).not.toHaveBeenCalled();
+
+      await service.getAccessMany(student, [codeExam, netsatBuy], NOW);
+      expect(getMockPurchaseAccess).toHaveBeenCalledTimes(1);
+      expect(getMockPurchaseAccess).toHaveBeenCalledWith(
+        'user-a',
+        [netsatBuy],
+        NOW,
+      );
+    });
+
+    it('no Pro right (no plan, other venue, category without venue) → locked', async () => {
+      await expect(service.getAccess(student, netsatBuy, NOW)).resolves.toEqual(
+        { status: 'locked', expiresAt: null, via: null },
+      );
+    });
+
+    it('Pro right with mockPurchase → unlocked until the end of the plan', async () => {
+      const end = new Date(NOW.getTime() + 30 * DAY);
+      proAccess.set('buy-netsat', end);
+      await expect(service.getAccess(student, netsatBuy, NOW)).resolves.toEqual(
+        { status: 'unlocked', expiresAt: end.toISOString(), via: 'pro' },
+      );
+      // a code exam is never unlocked by Pro
+      proAccess.set('code-1', end);
+      await expect(service.getAccess(student, codeExam, NOW)).resolves.toEqual({
+        status: 'locked',
+        expiresAt: null,
+        via: null,
+      });
+    });
+
+    it('Pro without an end (free plan allows it) → unlocked, no end', async () => {
+      proAccess.set('buy-netsat', null);
+      await expect(service.getAccess(student, netsatBuy, NOW)).resolves.toEqual(
+        { status: 'unlocked', expiresAt: null, via: 'pro' },
+      );
+    });
+
+    it('a grant and a Pro right: the later end wins; an expired grant does not matter', async () => {
+      const planEnd = new Date(NOW.getTime() + 10 * DAY);
+      proAccess.set('buy-netsat', planEnd);
+
+      grant({ examId: 'buy-netsat', expiresAt: new Date(NOW.getTime() - DAY) });
+      await expect(service.getAccess(student, netsatBuy, NOW)).resolves.toEqual(
+        { status: 'unlocked', expiresAt: planEnd.toISOString(), via: 'pro' },
+      );
+
+      const grantEnd = new Date(NOW.getTime() + 20 * DAY);
+      grant({ examId: 'buy-netsat', expiresAt: grantEnd });
+      await expect(service.getAccess(student, netsatBuy, NOW)).resolves.toEqual(
+        { status: 'unlocked', expiresAt: grantEnd.toISOString(), via: 'code' },
+      );
+
+      grant({
+        examId: 'buy-netsat',
+        expiresAt: null,
+        source: ExamAccessSource.ADMIN,
+      });
+      await expect(service.getAccess(student, netsatBuy, NOW)).resolves.toEqual(
+        { status: 'unlocked', expiresAt: null, via: 'admin' },
+      );
+    });
+
+    it('via (round 2): the source whose end won; ties → the grant, then admin > purchase > code', async () => {
+      const end = new Date(NOW.getTime() + 10 * DAY);
+      const via = async () =>
+        (await service.getAccess(student, netsatBuy, NOW)).via;
+
+      // Pro without an end beats a dated grant
+      grant({ examId: 'buy-netsat', expiresAt: end });
+      proAccess.set('buy-netsat', null);
+      await expect(via()).resolves.toBe('pro');
+      // same end → the grant is kept
+      proAccess.set('buy-netsat', end);
+      await expect(via()).resolves.toBe('code');
+      // grants with the same end: purchase before code
+      grant({
+        examId: 'buy-netsat',
+        expiresAt: end,
+        source: ExamAccessSource.PURCHASE,
+      });
+      await expect(via()).resolves.toBe('purchase');
+      // a grant without an end beats Pro without an end
+      proAccess.set('buy-netsat', null);
+      grant({ allMock: true, expiresAt: null });
+      await expect(via()).resolves.toBe('code');
+    });
+
+    it('via: expired → the grant that ended last; locked / free → null', async () => {
+      grant({
+        examId: 'buy-netsat',
+        expiresAt: new Date(NOW.getTime() - 5 * DAY),
+        source: ExamAccessSource.ADMIN,
+      });
+      grant({
+        examId: 'buy-netsat',
+        expiresAt: new Date(NOW.getTime() - DAY),
+        source: ExamAccessSource.PURCHASE,
+      });
+      await expect(service.getAccess(student, netsatBuy, NOW)).resolves.toEqual(
+        {
+          status: 'expired',
+          expiresAt: new Date(NOW.getTime() - DAY).toISOString(),
+          via: 'purchase',
+        },
+      );
+      await expect(service.getAccess(null, netsatBuy, NOW)).resolves.toEqual({
+        status: 'locked',
+        expiresAt: null,
+        via: null,
+      });
+      await expect(service.getAccess(student, freeMock, NOW)).resolves.toEqual({
+        status: 'free',
+        expiresAt: null,
+        via: null,
+      });
+    });
+
+    it('assertCanAccess: 403 without Pro, passes with Pro', async () => {
+      await expect(
+        service.assertCanAccess(student, netsatBuy),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      proAccess.set('buy-netsat', new Date(Date.now() + DAY));
+      await expect(service.assertCanAccess(student, netsatBuy)).resolves.toBe(
         undefined,
       );
     });

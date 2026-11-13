@@ -285,6 +285,9 @@ export interface MockExamItem {
   accessType: ExamAccessType;
   price: number | null;
   releaseDate: Date;
+  // Key of the active Pro venue of the exam's category (task 17): the web
+  // links a locked purchase exam to /upgrade?venue=<key>; null = none
+  venueKey: string | null;
 }
 
 /** Raw row of the Mock Exam card query (ExamsService.mockExamQuery). */
@@ -302,6 +305,7 @@ export interface MockExamRow {
   accessType: ExamAccessType | null;
   price: number | string | null;
   releaseDate: Date;
+  venueKey?: string | null;
 }
 
 /** Card fields of a raw row, with numbers as numbers (DECIMAL → number). */
@@ -323,6 +327,7 @@ export function toMockExamItem(row: MockExamRow): MockExamItem {
     accessType: row.accessType ?? ExamAccessType.FREE,
     price: toPrice(row.price),
     releaseDate: row.releaseDate,
+    venueKey: row.venueKey ?? null,
   };
 }
 
@@ -334,9 +339,20 @@ export function toMockExamItem(row: MockExamRow): MockExamItem {
  */
 export type MockExamAccessStatus = 'free' | 'locked' | 'unlocked' | 'expired';
 
+/**
+ * Where the access in effect comes from (task 17): `pro` = a Pro plan of
+ * the exam's venue (mockPurchase); `code` / `purchase` / `admin` = a grant
+ * in exam_access with that source (`admin` also for an admin viewer, who can
+ * take every exam). The source whose end won: unlocked → the active right
+ * with the latest end (no end beats any date; a grant beats Pro on a tie);
+ * expired → the grant that ended last; free / locked → null.
+ */
+export type MockExamAccessVia = 'pro' | 'code' | 'purchase' | 'admin';
+
 export interface MockExamAccess {
   status: MockExamAccessStatus;
   expiresAt: string | null;
+  via: MockExamAccessVia | null;
 }
 
 export interface MockExamListItem extends MockExamItem {

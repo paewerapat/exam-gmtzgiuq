@@ -1,0 +1,541 @@
+import { HttpException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource, FindOperator } from 'typeorm';
+import { User } from '../users/user.entity';
+import { ProPlan } from './pro-plan.entity';
+import { ProVenue } from './pro-venue.entity';
+import { ProSubscription } from './pro-subscription.entity';
+import {
+  AdminSubscriptionView,
+  ProSubscriptionsService,
+  effectiveStatus,
+} from './pro-subscriptions.service';
+
+const NOW = new Date('2026-11-13T05:00:00.400Z');
+const NOW_S = new Date('2026-11-13T05:00:00.000Z');
+const DAY = 24 * 60 * 60 * 1000;
+
+const admin = { id: 'admin-1', role: 'admin' };
+
+const plans = [
+  { id: 'netsat-free', venueId: 'netsat', code: 'free', rank: 0 },
+  { id: 'netsat-pro', venueId: 'netsat', code: 'pro', rank: 1 },
+  { id: 'netsat-max', venueId: 'netsat', code: 'max', rank: 2 },
+  { id: 'tgat-pro', venueId: 'tgat', code: 'pro', rank: 1 },
+];
+const users = [
+  { id: 'user-a', email: 'a@example.com' },
+  { id: 'user-b', email: 'b@example.com' },
+];
+
+type Row = Record<string, unknown>;
+
+function matches(row: Row, where: Row): boolean {
+  return Object.entries(where).every(([key, value]) => {
+    const actual = row[key];
+    if (value instanceof FindOperator) {
+      if (value.type === 'in') {
+        return (value.value as unknown as unknown[]).includes(actual);
+      }
+      const t = (actual as Date).getTime();
+      const v = (value.value as Date).getTime();
+      if (value.type === 'moreThan') return t > v;
+      if (value.type === 'lessThanOrEqual') return t <= v;
+      throw new Error(`operator ${value.type} not mocked`);
+    }
+    return actual === value;
+  });
+}
+
+const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+async function errorOf(promise: Promise<unknown>) {
+  const err = await promise.then(
+    () => null,
+    (e: unknown) => e,
+  );
+  expect(err).toBeInstanceOf(HttpException);
+  return {
+    status: (err as HttpException).getStatus(),
+    body: (err as HttpException).getResponse() as Row,
+  };
+}
+
+describe('ProSubscriptionsService (task 17)', () => {
+  let service: ProSubscriptionsService;
+  let store: Row[];
+  let queries: { sql: string; params?: unknown[] }[];
+  let transactions: jest.Mock;
+  // Fake InnoDB row locks of users: a FOR UPDATE waits for the holder
+  let locks: Map<string, Promise<void>>;
+  let lockTimeoutFor: string | null;
+  let deadlocksLeft: number;
+  let subsUpdate: jest.Mock;
+  let insertError: Error | null;
+  let updateCriteria: Row[];
+  // [table, lock] of every findOne in the grant transaction
+  let reads: [string, unknown][];
+  let venues: string[];
+
+  beforeEach(async () => {
+    store = [];
+    queries = [];
+    locks = new Map();
+    lockTimeoutFor = null;
+    deadlocksLeft = 0;
+    insertError = null;
+    updateCriteria = [];
+    reads = [];
+    venues = ['netsat', 'tgat'];
+
+    transactions = jest.fn(async (work: (m: unknown) => Promise<unknown>) => {
+      if (deadlocksLeft > 0) {
+        deadlocksLeft--;
+        throw Object.assign(new Error('Deadlock found'), {
+          code: 'ER_LOCK_DEADLOCK',
+          errno: 1213,
+        });
+      }
+      let release = () => {};
+      const pending: Row[] = [];
+      const manager = {
+        query: jest.fn(async (sql: string, params?: unknown[]) => {
+          queries.push({ sql, params });
+          if (sql.startsWith('SELECT @@SESSION')) return [{ t: 50 }];
+          if (sql.startsWith('SET SESSION')) return undefined;
+          if (sql.includes('FOR UPDATE')) {
+            const userId = params?.[0] as string;
+            if (lockTimeoutFor === userId) {
+              throw Object.assign(new Error('Lock wait timeout'), {
+                code: 'ER_LOCK_WAIT_TIMEOUT',
+                errno: 1205,
+              });
+            }
+            while (locks.has(userId)) await locks.get(userId);
+            let done = () => {};
+            locks.set(userId, new Promise<void>((resolve) => (done = resolve)));
+            release = () => {
+              locks.delete(userId);
+              done();
+            };
+            return users.some((u) => u.id === userId) ? [{ id: userId }] : [];
+          }
+          throw new Error(`unexpected query ${sql}`);
+        }),
+        findOne: jest.fn(
+          (entity: unknown, options: { where: Row; lock?: unknown }) => {
+            const isVenue = entity === ProVenue;
+            reads.push([isVenue ? 'venue' : 'plan', options.lock]);
+            if (isVenue) {
+              const id = options.where.id as string;
+              return Promise.resolve(venues.includes(id) ? { id } : null);
+            }
+            return Promise.resolve(
+              plans.find((p) => p.id === options.where.id) ?? null,
+            );
+          },
+        ),
+        find: jest.fn(async (_entity: unknown, { where }: { where: Row }) => {
+          await tick();
+          return store.filter((r) => matches(r, where)).map((r) => ({ ...r }));
+        }),
+        update: jest.fn(
+          async (_entity: unknown, criteria: Row, changes: Row) => {
+            updateCriteria.push(criteria);
+            await tick();
+            for (const row of store) {
+              if (matches(row, criteria)) Object.assign(row, changes);
+            }
+          },
+        ),
+        insert: jest.fn(async (_entity: unknown, row: Row) => {
+          await tick();
+          if (insertError) throw insertError;
+          pending.push({ ...row });
+        }),
+      };
+      try {
+        const result = await work(manager);
+        store.push(...pending); // commit
+        return result;
+      } finally {
+        release();
+      }
+    });
+
+    subsUpdate = jest.fn((criteria: Row, changes: Row) => {
+      const rows = store.filter((r) => matches(r, criteria));
+      for (const row of rows) Object.assign(row, changes);
+      return Promise.resolve({ affected: rows.length });
+    });
+
+    const module = await Test.createTestingModule({
+      providers: [
+        ProSubscriptionsService,
+        {
+          provide: getRepositoryToken(ProSubscription),
+          useValue: {
+            findOne: jest.fn(({ where }: { where: Row }) =>
+              Promise.resolve(store.find((r) => r.id === where.id) ?? null),
+            ),
+            update: subsUpdate,
+            find: jest.fn(({ where }: { where: Row }) =>
+              Promise.resolve(store.filter((r) => matches(r, where))),
+            ),
+          },
+        },
+        {
+          provide: getRepositoryToken(ProPlan),
+          useValue: {
+            findOne: jest.fn(({ where }: { where: Row }) =>
+              Promise.resolve(plans.find((p) => p.id === where.id) ?? null),
+            ),
+          },
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn(({ where }: { where: Row }) =>
+              Promise.resolve(
+                users.find((u) => u.email === where.email) ?? null,
+              ),
+            ),
+          },
+        },
+        { provide: DataSource, useValue: { transaction: transactions } },
+      ],
+    }).compile();
+
+    service = module.get(ProSubscriptionsService);
+    // The view is a joined query (checked against the dev DB); here the row
+    jest
+      .spyOn(service, 'findAdminView')
+      .mockImplementation((id: string) =>
+        Promise.resolve(
+          store.find((r) => r.id === id) as unknown as AdminSubscriptionView,
+        ),
+      );
+  });
+
+  const activeOf = (userId: string, venueId: string) =>
+    store.filter(
+      (r) =>
+        r.userId === userId && r.venueId === venueId && r.status === 'active',
+    );
+
+  const grant = (planId: string, email = 'a@example.com', days = 30) =>
+    service.grant({ email, planId, days, note: ' ให้ทดลอง ' }, admin, NOW);
+
+  describe('grant (AC5)', () => {
+    it('adds an active row from now (whole seconds) for `days` days under the user lock', async () => {
+      const view = await grant('netsat-pro');
+
+      expect(store).toHaveLength(1);
+      expect(store[0]).toMatchObject({
+        id: view.id,
+        userId: 'user-a',
+        venueId: 'netsat',
+        planId: 'netsat-pro',
+        status: 'active',
+        source: 'admin',
+        currentPeriodStart: NOW_S,
+        currentPeriodEnd: new Date(NOW_S.getTime() + 30 * DAY),
+        autoRenew: false,
+        note: 'ให้ทดลอง',
+        grantedById: 'admin-1',
+      });
+      // lock the user row first, with a short lock wait, restored after
+      const sqls = queries.map((q) => q.sql);
+      expect(sqls[1]).toBe('SET SESSION innodb_lock_wait_timeout = 5');
+      expect(queries[2]).toEqual({
+        sql: 'SELECT id FROM users WHERE id = ? FOR UPDATE',
+        params: ['user-a'],
+      });
+      expect(queries[queries.length - 1]).toEqual({
+        sql: 'SET SESSION innodb_lock_wait_timeout = ?',
+        params: [50],
+      });
+    });
+
+    it('a second plan of the same venue replaces the first (revoked); another venue is separate', async () => {
+      const first = await grant('netsat-pro');
+      const second = await grant('netsat-max');
+
+      expect(activeOf('user-a', 'netsat').map((r) => r.id)).toEqual([
+        second.id,
+      ]);
+      expect(store.find((r) => r.id === first.id)).toMatchObject({
+        status: 'revoked',
+        revokedAt: NOW_S,
+        revokedById: 'admin-1',
+      });
+
+      await grant('tgat-pro');
+      expect(activeOf('user-a', 'netsat')).toHaveLength(1);
+      expect(activeOf('user-a', 'tgat')).toHaveLength(1);
+    });
+
+    it('ends the old rows by primary key only (no range locks, round 3)', async () => {
+      const first = await grant('netsat-pro');
+      await grant('netsat-max');
+      // the first grant had nothing to end; the second ends one row by id
+      expect(updateCriteria).toHaveLength(1);
+      expect(Object.keys(updateCriteria[0])).toEqual(['id']);
+      expect((updateCriteria[0].id as FindOperator<string[]>).value).toEqual([
+        first.id,
+      ]);
+    });
+
+    it('an old active row already past its end becomes expired, not revoked', async () => {
+      store.push({
+        id: 'old',
+        userId: 'user-a',
+        venueId: 'netsat',
+        planId: 'netsat-pro',
+        status: 'active',
+        currentPeriodEnd: new Date(NOW.getTime() - DAY),
+      });
+      await grant('netsat-max');
+      expect(store.find((r) => r.id === 'old')).toMatchObject({
+        status: 'expired',
+      });
+      expect(store.find((r) => r.id === 'old')?.revokedAt).toBeUndefined();
+    });
+
+    it('other users are not touched', async () => {
+      await grant('netsat-pro', 'b@example.com');
+      await grant('netsat-max', 'a@example.com');
+      expect(activeOf('user-b', 'netsat')).toHaveLength(1);
+      expect(activeOf('user-a', 'netsat')).toHaveLength(1);
+    });
+
+    it('unknown email → 404 USER_NOT_FOUND; unknown plan → 404; free plan → 400; nothing written', async () => {
+      expect(await errorOf(grant('netsat-pro', 'nobody@example.com'))).toEqual({
+        status: 404,
+        body: {
+          statusCode: 404,
+          message: 'ไม่พบผู้ใช้ที่มีอีเมลนี้',
+          errorCode: 'USER_NOT_FOUND',
+        },
+      });
+      expect((await errorOf(grant('missing'))).body.errorCode).toBe(
+        'PLAN_NOT_FOUND',
+      );
+      expect(await errorOf(grant('netsat-free'))).toMatchObject({
+        status: 400,
+        body: { errorCode: 'FREE_PLAN_GRANT' },
+      });
+      expect(store).toHaveLength(0);
+      expect(transactions).not.toHaveBeenCalled();
+    });
+
+    it('lock still held after the wait → 409 USER_BUSY, nothing written', async () => {
+      lockTimeoutFor = 'user-a';
+      expect(await errorOf(grant('netsat-pro'))).toMatchObject({
+        status: 409,
+        body: { errorCode: 'USER_BUSY' },
+      });
+      expect(store).toHaveLength(0);
+    });
+
+    it('lock order users → venue → plan, like the admin edits (round 3)', async () => {
+      await grant('netsat-pro');
+      expect(queries[2].sql).toBe(
+        'SELECT id FROM users WHERE id = ? FOR UPDATE',
+      );
+      expect(reads).toEqual([
+        // venueId only (it never changes), no lock
+        ['plan', undefined],
+        ['venue', { mode: 'pessimistic_read' }],
+        ['plan', { mode: 'pessimistic_read' }],
+      ]);
+    });
+
+    it('venue deleted meanwhile → 404 PLAN_NOT_FOUND, nothing written (round 3)', async () => {
+      venues = ['tgat'];
+      expect(await errorOf(grant('netsat-pro'))).toMatchObject({
+        status: 404,
+        body: { errorCode: 'PLAN_NOT_FOUND' },
+      });
+      expect(store).toHaveLength(0);
+    });
+
+    it('venue/plan deleted before the insert (FK 1452) → 404 PLAN_NOT_FOUND, not 500 (round 2)', async () => {
+      insertError = Object.assign(
+        new Error('Cannot add or update a child row'),
+        {
+          code: 'ER_NO_REFERENCED_ROW_2',
+          errno: 1452,
+        },
+      );
+      expect(await errorOf(grant('netsat-pro'))).toEqual({
+        status: 404,
+        body: {
+          statusCode: 404,
+          message: 'ไม่พบแพ็กเกจนี้',
+          errorCode: 'PLAN_NOT_FOUND',
+        },
+      });
+      expect(store).toHaveLength(0);
+      // other DB errors are not hidden
+      insertError = new Error('boom');
+      await expect(grant('netsat-pro')).rejects.toThrow('boom');
+    });
+
+    it('a deadlock victim is retried', async () => {
+      deadlocksLeft = 1;
+      await grant('netsat-pro');
+      expect(transactions).toHaveBeenCalledTimes(2);
+      expect(activeOf('user-a', 'netsat')).toHaveLength(1);
+    });
+
+    it('still a deadlock victim after 3 tries → 409 USER_BUSY, not 500 (round 3)', async () => {
+      deadlocksLeft = 3;
+      expect(await errorOf(grant('netsat-pro'))).toMatchObject({
+        status: 409,
+        body: { errorCode: 'USER_BUSY' },
+      });
+      expect(transactions).toHaveBeenCalledTimes(3);
+      expect(store).toHaveLength(0);
+    });
+  });
+
+  it('two grants at once for the same user and venue → one active row (AC9)', async () => {
+    const results = await Promise.all([
+      grant('netsat-pro'),
+      grant('netsat-max'),
+      grant('netsat-pro'),
+    ]);
+    expect(results).toHaveLength(3);
+    expect(activeOf('user-a', 'netsat')).toHaveLength(1);
+    expect(store.filter((r) => r.status === 'revoked')).toHaveLength(2);
+  });
+
+  describe('revoke (AC6)', () => {
+    beforeEach(() => {
+      store.push(
+        {
+          id: 'sub-1',
+          userId: 'user-a',
+          venueId: 'netsat',
+          status: 'active',
+          note: 'เดิม',
+          currentPeriodEnd: new Date(NOW.getTime() + DAY),
+        },
+        { id: 'sub-old', userId: 'user-a', status: 'expired' },
+      );
+    });
+
+    it('active → revoked now by the admin, note replaced when sent', async () => {
+      await service.revoke('sub-1', { note: 'ขอคืนเงิน' }, admin, NOW);
+      expect(store[0]).toMatchObject({
+        status: 'revoked',
+        revokedAt: NOW_S,
+        revokedById: 'admin-1',
+        note: 'ขอคืนเงิน',
+      });
+      // conditional: only while still active
+      expect(subsUpdate).toHaveBeenCalledWith(
+        { id: 'sub-1', status: 'active' },
+        expect.objectContaining({ status: 'revoked' }),
+      );
+    });
+
+    it('no note → keeps the note', async () => {
+      await service.revoke('sub-1', {}, admin, NOW);
+      expect(store[0]).toMatchObject({ status: 'revoked', note: 'เดิม' });
+    });
+
+    it('already revoked → 409 ALREADY_REVOKED; expired → 409 NOT_ACTIVE; missing → 404', async () => {
+      await service.revoke('sub-1', {}, admin, NOW);
+      expect(
+        (await errorOf(service.revoke('sub-1', {}, admin, NOW))).body,
+      ).toMatchObject({ errorCode: 'ALREADY_REVOKED' });
+      expect(
+        (await errorOf(service.revoke('sub-old', {}, admin, NOW))).body,
+      ).toMatchObject({ errorCode: 'NOT_ACTIVE' });
+      expect(
+        await errorOf(service.revoke('nope', {}, admin, NOW)),
+      ).toMatchObject({
+        status: 404,
+        body: { errorCode: 'SUBSCRIPTION_NOT_FOUND' },
+      });
+    });
+
+    it('revoked meanwhile (conditional update matches nothing) → 409', async () => {
+      subsUpdate.mockImplementationOnce(() => {
+        store[0].status = 'revoked';
+        return Promise.resolve({ affected: 0 });
+      });
+      expect(
+        (await errorOf(service.revoke('sub-1', {}, admin, NOW))).body,
+      ).toMatchObject({ errorCode: 'ALREADY_REVOKED' });
+    });
+  });
+
+  it('effectiveStatus: active past its end → expired (AC6)', () => {
+    const later = new Date(NOW.getTime() + 1000);
+    expect(effectiveStatus('active', later, NOW)).toBe('active');
+    expect(effectiveStatus('active', NOW, NOW)).toBe('expired');
+    expect(effectiveStatus('active', new Date(0), NOW)).toBe('expired');
+    expect(effectiveStatus('revoked', later, NOW)).toBe('revoked');
+    expect(effectiveStatus('expired', later, NOW)).toBe('expired');
+  });
+
+  it('GET /pro/me: only rows that give rights now, no user fields', async () => {
+    store.push(
+      {
+        id: 's1',
+        userId: 'user-a',
+        venueId: 'netsat',
+        planId: 'netsat-pro',
+        status: 'active',
+        source: 'admin',
+        autoRenew: 0,
+        currentPeriodStart: NOW_S,
+        currentPeriodEnd: new Date(NOW.getTime() + DAY),
+        venue: { key: 'netsat', name: 'NETSAT' },
+        plan: { code: 'pro', name: 'PRO' },
+      },
+      {
+        id: 's2',
+        userId: 'user-a',
+        venueId: 'tgat',
+        status: 'active',
+        currentPeriodEnd: new Date(NOW.getTime() - DAY),
+      },
+      {
+        id: 's3',
+        userId: 'user-a',
+        venueId: 'alevel',
+        status: 'revoked',
+        currentPeriodEnd: new Date(NOW.getTime() + DAY),
+      },
+    );
+    await expect(service.findMine('user-a', NOW)).resolves.toEqual([
+      {
+        venueId: 'netsat',
+        venueKey: 'netsat',
+        venueName: 'NETSAT',
+        planId: 'netsat-pro',
+        planCode: 'pro',
+        planName: 'PRO',
+        status: 'active',
+        currentPeriodStart: NOW_S,
+        currentPeriodEnd: new Date(NOW.getTime() + DAY),
+        autoRenew: false,
+        source: 'admin',
+      },
+    ]);
+  });
+
+  it('admin list: unknown status filter → 400 INVALID_STATUS_FILTER', async () => {
+    expect(
+      await errorOf(service.listForAdmin({ status: 'pending' }, NOW)),
+    ).toMatchObject({
+      status: 400,
+      body: { errorCode: 'INVALID_STATUS_FILTER' },
+    });
+  });
+});

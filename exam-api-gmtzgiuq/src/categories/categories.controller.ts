@@ -11,6 +11,7 @@ import {
 import { CategoriesService } from './categories.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
 @Controller('categories')
 export class CategoriesController {
@@ -23,13 +24,14 @@ export class CategoriesController {
 
   @Post('admin')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  create(@Body() body: { name: string; slug: string; orderIndex?: number }) {
+  create(@Body() body: CreateCategoryDto) {
     return this.service.create(body);
   }
 
+  // venueId (task 17): Pro venue of the category, null = none
   @Put('admin/:id')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  update(@Param('id') id: string, @Body() body: { name?: string; slug?: string; orderIndex?: number }) {
+  update(@Param('id') id: string, @Body() body: UpdateCategoryDto) {
     return this.service.update(id, body);
   }
 

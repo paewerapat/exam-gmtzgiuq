@@ -5,6 +5,8 @@ export interface Category {
   name: string;
   slug: string;
   orderIndex: number;
+  /** สนาม Pro ที่หมวดนี้อยู่ (task 17) null/ไม่มี = ไม่ระบุ */
+  venueId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,7 +38,11 @@ export async function createCategory(data: { name: string; slug: string; orderIn
   return res.json();
 }
 
-export async function updateCategory(id: string, data: { name?: string; slug?: string; orderIndex?: number }): Promise<Category> {
+// venueId: uuid ของ pro_venues หรือ null = ไม่ระบุสนาม (task 17 — API ตรวจว่าสนามมีอยู่)
+export async function updateCategory(
+  id: string,
+  data: { name?: string; slug?: string; orderIndex?: number; venueId?: string | null },
+): Promise<Category> {
   const res = await fetch(`${API_URL}/categories/admin/${id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),

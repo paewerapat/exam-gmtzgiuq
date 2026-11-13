@@ -9,6 +9,7 @@ import { Exam } from '../exams/exam.entity';
 import { ExamAccessType } from '../exams/exam-mock';
 import { ExamAccess } from '../exam-access/exam-access.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ProAccessService } from '../pro/pro-access.service';
 import { UserRole } from '../users/user.entity';
 import { AnswerLogItemDto } from './dto/answer-log.dto';
 
@@ -224,6 +225,13 @@ describe('AnswerLogsService (task 16)', () => {
         },
         // Real access rules (task 15) on a mocked exam_access table
         ExamAccessService,
+        // No Pro plans (task 17): purchase exams only by grants here
+        {
+          provide: ProAccessService,
+          useValue: {
+            getMockPurchaseAccess: () => Promise.resolve(new Map()),
+          },
+        },
         {
           provide: getRepositoryToken(ExamAccess),
           useValue: {

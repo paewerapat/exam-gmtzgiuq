@@ -8,8 +8,12 @@ import { ExamAccessType } from './exam-mock';
 import { CreateExamInput, UpdateExamInput } from './dto/exam.dto';
 import { Question, QuestionStatus } from '../questions/question.entity';
 import { UploadService } from '../upload/upload.service';
-import { ExamAccess } from '../exam-access/exam-access.entity';
+import {
+  ExamAccess,
+  ExamAccessSource,
+} from '../exam-access/exam-access.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ProAccessService } from '../pro/pro-access.service';
 import { User } from '../users/user.entity';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -82,6 +86,13 @@ describe('ExamsService — unlock codes (task 15)', () => {
       providers: [
         ExamsService,
         ExamAccessService,
+        // No Pro plans (task 17): purchase exams only by grants here
+        {
+          provide: ProAccessService,
+          useValue: {
+            getMockPurchaseAccess: () => Promise.resolve(new Map()),
+          },
+        },
         {
           provide: getRepositoryToken(Exam),
           useValue: {
@@ -132,6 +143,7 @@ describe('ExamsService — unlock codes (task 15)', () => {
       examId: 'exam-1',
       allMock: false,
       expiresAt: null,
+      source: ExamAccessSource.CODE,
       ...data,
     });
 
@@ -216,10 +228,16 @@ describe('ExamsService — unlock codes (task 15)', () => {
 
       const result = await service.findMockExams(1, 12, undefined, student);
       expect(result.items.map((i) => [i.id, i.access])).toEqual([
-        ['free', { status: 'free', expiresAt: null }],
-        ['locked', { status: 'locked', expiresAt: null }],
-        ['mine', { status: 'unlocked', expiresAt: end.toISOString() }],
-        ['old', { status: 'expired', expiresAt: past.toISOString() }],
+        ['free', { status: 'free', expiresAt: null, via: null }],
+        ['locked', { status: 'locked', expiresAt: null, via: null }],
+        [
+          'mine',
+          { status: 'unlocked', expiresAt: end.toISOString(), via: 'code' },
+        ],
+        [
+          'old',
+          { status: 'expired', expiresAt: past.toISOString(), via: 'code' },
+        ],
       ]);
       // never questions
       expect(result.items[0]).not.toHaveProperty('questions');
@@ -247,7 +265,11 @@ describe('ExamsService — unlock codes (task 15)', () => {
       grant({ allMock: true, examId: null, expiresAt: null });
 
       const detail = await service.findMockOne('exam-1', student);
-      expect(detail.access).toEqual({ status: 'unlocked', expiresAt: null });
+      expect(detail.access).toEqual({
+        status: 'unlocked',
+        expiresAt: null,
+        via: 'code',
+      });
       expect(detail.codeInstructions).toEqual({
         steps: [
           {
@@ -262,7 +284,11 @@ describe('ExamsService — unlock codes (task 15)', () => {
       expect(detail).not.toHaveProperty('questions');
 
       const guest = await service.findMockOne('exam-1');
-      expect(guest.access).toEqual({ status: 'locked', expiresAt: null });
+      expect(guest.access).toEqual({
+        status: 'locked',
+        expiresAt: null,
+        via: null,
+      });
     });
   });
 

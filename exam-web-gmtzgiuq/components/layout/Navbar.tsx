@@ -14,8 +14,12 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
-  // Dashboard/admin have their own sidebar — hide Navbar entirely on those routes
-  const isDashboard = pathname?.startsWith('/dashboard') || pathname?.startsWith('/admin');
+  // Dashboard/admin (and /upgrade, which reuses the dashboard layout) have their own sidebar — hide Navbar on those routes
+  const isDashboard =
+    pathname?.startsWith('/dashboard') ||
+    pathname?.startsWith('/admin') ||
+    pathname === '/upgrade' ||
+    pathname?.startsWith('/upgrade/');
   if (isDashboard) return null;
 
   const handleLogout = () => {

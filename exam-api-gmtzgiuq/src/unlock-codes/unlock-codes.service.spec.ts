@@ -10,6 +10,7 @@ import {
   ExamAccessSource,
 } from '../exam-access/exam-access.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ProAccessService } from '../pro/pro-access.service';
 import { UnlockCodeBatch } from './unlock-code-batch.entity';
 import { UnlockCodeBatchExam } from './unlock-code-batch-exam.entity';
 import { UnlockCode } from './unlock-code.entity';
@@ -531,6 +532,13 @@ describe('UnlockCodesService (task 15)', () => {
       providers: [
         UnlockCodesService,
         ExamAccessService,
+        // No Pro plans (task 17): purchase exams only by grants here
+        {
+          provide: ProAccessService,
+          useValue: {
+            getMockPurchaseAccess: () => Promise.resolve(new Map()),
+          },
+        },
         {
           provide: getRepositoryToken(UnlockCodeBatch),
           useValue: repos.batches,
@@ -1173,7 +1181,9 @@ describe('UnlockCodesService (task 15)', () => {
         createdAt: null,
       });
       expect(db.batches[0]).toMatchObject({ createdById: 'admin-1' });
-    });
+      // 20 s jest timeout: ~5,000 generated codes are slow under the full
+      // parallel run (the test's own timing assertion is unchanged)
+    }, 20_000);
 
     it('all Mock: no exam links needed (examIds ignored)', async () => {
       const view = await service.createBatch(

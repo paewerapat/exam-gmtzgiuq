@@ -39,12 +39,31 @@ describe('exams API — Mock Exam (task 11)', () => {
     expect(url.searchParams.get('limit')).toBe('12');
     expect(res).toEqual({
       // API ก่อน task 15 ไม่มี access → ชุดไม่ฟรีถือว่า locked
-      items: [{ ...rawItem, price: 150, access: { status: 'locked', expiresAt: null } }],
+      items: [{ ...rawItem, price: 150, access: { status: 'locked', expiresAt: null, via: null }, venueKey: null }],
       total: 1,
       page: 2,
       limit: 12,
       totalPages: 3,
     });
+  });
+
+  it('venueKey (task 17): string → คงไว้, ว่าง/ไม่มี/ชนิดผิด → null', async () => {
+    mockFetch({
+      items: [
+        { ...rawItem, id: 'a', venueKey: 'netsat' },
+        { ...rawItem, id: 'b', venueKey: '' },
+        { ...rawItem, id: 'c', venueKey: 5 },
+        { ...rawItem, id: 'd' },
+      ],
+      total: 4,
+      page: 1,
+      limit: 12,
+      totalPages: 1,
+    });
+    const res = await getMockExams();
+    expect(res.items.map((i) => i.venueKey)).toEqual(['netsat', null, null, null]);
+    mockFetch({ ...rawItem, venueKey: 'tgat', description: null });
+    expect((await getMockExam('m1'))?.venueKey).toBe('tgat');
   });
 
   it('getMockExams: ไม่เลือกสนามสอบ → ไม่ส่ง category, price number คงเดิม, ค่าแปลก → ค่าเริ่มต้น', async () => {
@@ -132,12 +151,34 @@ describe('exams API — โค้ด Unlock (task 15)', () => {
     });
     const res = await getMockExams();
     expect(res.items.map((i) => [i.id, i.access])).toEqual([
-      ['a', { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z' }],
-      ['b', { status: 'expired', expiresAt: '2026-10-01T00:00:00.000Z' }],
-      ['c', { status: 'free', expiresAt: null }],
-      ['d', { status: 'locked', expiresAt: null }],
-      ['e', { status: 'locked', expiresAt: null }],
+      ['a', { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z', via: null }],
+      ['b', { status: 'expired', expiresAt: '2026-10-01T00:00:00.000Z', via: null }],
+      ['c', { status: 'free', expiresAt: null, via: null }],
+      ['d', { status: 'locked', expiresAt: null, via: null }],
+      ['e', { status: 'locked', expiresAt: null, via: null }],
     ]);
+  });
+
+  it('access.via (task 17): pro/code/purchase/admin คงไว้ / ไม่รู้จัก → null / ชุดฟรีหรือ locked → null', async () => {
+    mockFetch({
+      items: [
+        { ...rawItem, id: 'a', access: { status: 'unlocked', expiresAt: '2026-12-01T00:00:00.000Z', via: 'pro' } },
+        { ...rawItem, id: 'b', accessType: 'code', access: { status: 'unlocked', expiresAt: null, via: 'code' } },
+        { ...rawItem, id: 'c', access: { status: 'expired', expiresAt: '2026-10-01T00:00:00.000Z', via: 'purchase' } },
+        { ...rawItem, id: 'd', access: { status: 'unlocked', expiresAt: null, via: 'admin' } },
+        { ...rawItem, id: 'e', access: { status: 'unlocked', expiresAt: null, via: 'hacker' } },
+        { ...rawItem, id: 'f', access: { status: 'locked', expiresAt: null, via: 'pro' } },
+        { ...rawItem, id: 'g', accessType: 'free', access: { status: 'free', expiresAt: null, via: 'pro' } },
+      ],
+      total: 7,
+      page: 1,
+      limit: 12,
+      totalPages: 1,
+    });
+    const res = await getMockExams();
+    expect(res.items.map((i) => i.access.via)).toEqual(['pro', 'code', 'purchase', 'admin', null, null, null]);
+    mockFetch({ ...rawItem, access: { status: 'unlocked', expiresAt: null, via: 'pro' } });
+    expect((await getMockExam('m1'))?.access.via).toBe('pro');
   });
 
   it('getMockExam: codeInstructions ตามสัญญา (ลิงก์ไม่ใช่ http(s) ไม่แสดง, ขั้นตอนไม่มีหัวข้อทิ้ง) / null → null', async () => {
