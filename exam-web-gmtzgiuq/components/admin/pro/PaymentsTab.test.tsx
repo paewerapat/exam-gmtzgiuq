@@ -26,6 +26,8 @@ const pay = (patch: Partial<ProAdminPayment> = {}): ProAdminPayment => ({
   paidAt: '2026-11-13T03:00:00Z',
   createdAt: '2026-11-13T03:00:00Z',
   refundRequired: false,
+  discountSatang: 0,
+  discountCode: null,
   ...patch,
 });
 
@@ -110,5 +112,53 @@ describe('/admin/pro แท็บการชำระเงิน — PaymentsT
     render(<PaymentsTab venues={venues} />);
     await user.click(await screen.findByRole('button', { name: 'ลองใหม่' }));
     expect(await screen.findByRole('table')).toBeInTheDocument();
+  });
+
+  it('คอลัมน์ส่วนลด (task 19): ยอดลด + โค้ด / ไม่มีส่วนลด → "-"', async () => {
+    (getProAdminPayments as jest.Mock).mockResolvedValue({
+      items: [pay({ discountSatang: 3980, discountCode: 'NEWYEAR20', totalSatang: 17034 }), pay({ id: 'a2' })],
+      total: 2,
+    });
+    render(<PaymentsTab venues={venues} />);
+    const table = await screen.findByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'ส่วนลด' })).toBeInTheDocument();
+    const cells = screen.getAllByTestId('payment-discount');
+    expect(cells[0]).toHaveTextContent('−฿39.80');
+    expect(cells[0]).toHaveTextContent('NEWYEAR20');
+    expect(cells[1]).toHaveTextContent('-');
+    expect(cells[1]).not.toHaveTextContent('฿');
+  });
+
+  it('สถานะ canceled (task 19 รอบ 2): ป้าย "ยกเลิกแล้ว" + เหตุผลสีเทา และกรองด้วยสถานะนี้ได้', async () => {
+    const user = userEvent.setup();
+    (getProAdminPayments as jest.Mock).mockResolvedValue({
+      items: [pay({ status: 'canceled', method: 'promptpay', failureMessage: 'ถูกแทนที่ด้วยรายการชำระใหม่', paidAt: null, omiseChargeId: 'chrg_old' })],
+      total: 1,
+    });
+    render(<PaymentsTab venues={venues} />);
+    const table = await screen.findByRole('table');
+    const row = within(table).getAllByRole('row')[1];
+    const badge = within(row).getByText('ยกเลิกแล้ว');
+    expect(badge.className).toContain('dark:text-gray-300');
+    expect(within(row).getByText('ถูกแทนที่ด้วยรายการชำระใหม่').className).toContain('text-gray-600');
+    await user.selectOptions(screen.getByLabelText('สถานะ'), 'canceled');
+    await waitFor(() => expect(lastParams()).toMatchObject({ status: 'canceled', page: 1 }));
+  });
+
+  it('ต้องคืนเงิน + มีส่วนลด (task 19 รอบ 3) → "(ไม่นับสิทธิ์)" ข้างส่วนลด / แถวปกติไม่มี', async () => {
+    (getProAdminPayments as jest.Mock).mockResolvedValue({
+      items: [
+        pay({ refundRequired: true, discountSatang: 5000, discountCode: 'BAHT50' }),
+        pay({ id: 'a2', discountSatang: 5000, discountCode: 'BAHT50' }),
+      ],
+      total: 2,
+    });
+    render(<PaymentsTab venues={venues} />);
+    await screen.findByRole('table');
+    const cells = screen.getAllByTestId('payment-discount');
+    expect(cells[0]).toHaveTextContent('(ไม่นับสิทธิ์)');
+    expect(within(cells[0]).getByTestId('discount-not-counted').className).toContain('dark:text-amber-300');
+    expect(cells[1]).not.toHaveTextContent('ไม่นับสิทธิ์');
+    expect(screen.getByTestId('refund-required')).toBeInTheDocument();
   });
 });

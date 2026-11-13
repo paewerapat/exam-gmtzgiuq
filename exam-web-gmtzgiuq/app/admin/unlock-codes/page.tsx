@@ -9,6 +9,7 @@ import ToggleSwitch from '@/components/admin/ToggleSwitch';
 import {
   AdminPagination,
   BatchExamsSummary,
+  BatchKindBadge,
   CodeExpiry,
   confirmDisableBatch,
   UsageBar,
@@ -97,7 +98,8 @@ export default function AdminUnlockCodesPage() {
               โค้ด Unlock
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-              สร้างโค้ดเป็นแคมเปญ ผู้ใช้กรอกโค้ดในหน้ารายละเอียดชุด Mock Exam เพื่อ Unlock
+              สร้างโค้ดเป็นแคมเปญ ผู้ใช้กรอกโค้ดในหน้ารายละเอียดชุด Mock Exam เพื่อ Unlock หรือกรอกในหน้า Upgrade
+              เพื่อรับแพ็กเกจ Pro
             </p>
           </div>
           <Link
@@ -166,7 +168,7 @@ export default function AdminUnlockCodesPage() {
                 <table className="w-full min-w-[820px]">
                   <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                     <tr>
-                      {['ชื่อแคมเปญ', 'ชุดที่ Unlock', 'ใช้แล้ว / ทั้งหมด', 'อายุสิทธิ์', 'โค้ดหมดอายุ', 'สถานะ'].map(
+                      {['ชื่อแคมเปญ', 'ประเภท / สิ่งที่ได้', 'ใช้แล้ว / ทั้งหมด', 'อายุสิทธิ์', 'โค้ดหมดอายุ', 'สถานะ'].map(
                         (h) => (
                           <th
                             key={h}
@@ -194,7 +196,10 @@ export default function AdminUnlockCodesPage() {
                           </p>
                         </td>
                         <td className="px-4 py-3 max-w-[16rem]">
-                          <BatchExamsSummary batch={batch} />
+                          <BatchKindBadge kind={batch.kind} />
+                          <div className="mt-1.5">
+                            <BatchExamsSummary batch={batch} />
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <UsageBar used={batch.usedCount} total={batch.codeCount} />

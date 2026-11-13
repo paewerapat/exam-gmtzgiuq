@@ -106,17 +106,95 @@ export const PRO_ERRORS = {
   INVALID_PAYMENT_FILTER: {
     status: 400,
     message:
-      'status ต้องเป็น pending, successful, failed หรือ expired และ method ต้องเป็น card หรือ promptpay',
+      'status ต้องเป็น pending, successful, failed, expired หรือ canceled และ method ต้องเป็น card หรือ promptpay',
+  },
+  // ── codes (task 19) ──
+  // a Pro unlock code: the user already has this plan's rank or higher
+  ALREADY_HIGHER_PLAN: {
+    status: 409,
+    message:
+      'บัญชีนี้มีแพ็กเกจระดับเดียวกันหรือสูงกว่าในสนามนี้อยู่แล้ว จึงใช้โค้ดนี้ไม่ได้ (โค้ดยังไม่ถูกใช้)',
+  },
+  // a Pro unlock campaign must give a visible plan of an active venue
+  PLAN_NOT_OFFERED: {
+    status: 400,
+    message:
+      'แพ็กเกจนี้ถูกซ่อนอยู่ หรือสนามของแพ็กเกจปิดใช้งานอยู่ กรุณาเลือกแพ็กเกจที่แสดงในสนามที่เปิดใช้งาน',
+  },
+  // discount code typed at the checkout (all 400, shown under the code box)
+  DISCOUNT_NOT_FOUND: {
+    status: 400,
+    message: 'ไม่พบโค้ดส่วนลดนี้ กรุณาตรวจสอบอีกครั้ง',
+  },
+  DISCOUNT_INACTIVE: { status: 400, message: 'โค้ดส่วนลดนี้ถูกปิดใช้งานแล้ว' },
+  DISCOUNT_EXPIRED: { status: 400, message: 'โค้ดส่วนลดนี้หมดอายุแล้ว' },
+  DISCOUNT_NOT_STARTED: {
+    status: 400,
+    message: 'โค้ดส่วนลดนี้ยังไม่ถึงเวลาเริ่มใช้งาน',
+  },
+  DISCOUNT_NOT_APPLICABLE: {
+    status: 400,
+    message: 'โค้ดส่วนลดนี้ใช้กับสนามหรือแพ็กเกจนี้ไม่ได้',
+  },
+  DISCOUNT_USED_UP: {
+    status: 400,
+    message: 'โค้ดส่วนลดนี้ถูกใช้ครบจำนวนแล้ว',
+  },
+  DISCOUNT_ALREADY_USED: {
+    status: 400,
+    message: 'บัญชีนี้ใช้โค้ดส่วนลดนี้ครบจำนวนครั้งที่กำหนดแล้ว',
+  },
+  DISCOUNT_TOO_LARGE: {
+    status: 400,
+    message:
+      'โค้ดนี้ลดราคาเต็มจำนวน ใช้ชำระเงินไม่ได้ กรุณาติดต่อผู้ดูแลระบบเพื่อรับโค้ด Unlock แทน',
+  },
+  // admin: discount codes
+  DISCOUNT_CODE_NOT_FOUND: { status: 404, message: 'ไม่พบโค้ดส่วนลดนี้' },
+  DISCOUNT_CODE_TAKEN: {
+    status: 409,
+    message: 'โค้ดส่วนลดนี้มีอยู่แล้ว กรุณาใช้โค้ดอื่น',
+  },
+  DISCOUNT_IN_USE: {
+    status: 409,
+    message:
+      'โค้ดนี้มีการใช้แล้ว แก้ตัวโค้ด ประเภท หรือมูลค่าส่วนลดไม่ได้ (เปิด/ปิด หรือแก้ส่วนอื่นได้)',
+  },
+  DISCOUNT_SCOPE_INVALID: {
+    status: 400,
+    message: 'แพ็กเกจที่เลือกต้องเป็นแพ็กเกจที่เสียเงินของสนามที่เลือก',
+  },
+  DISCOUNT_PERIOD_INVALID: {
+    status: 400,
+    message: 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มใช้งาน',
+  },
+  DISCOUNT_VALUE_INVALID: {
+    status: 400,
+    message:
+      'มูลค่าส่วนลดไม่ถูกต้อง (เปอร์เซ็นต์ 1–100 หรือจำนวนเงินอย่างน้อย 1 บาท)',
+  },
+  INVALID_DISCOUNT_FILTER: {
+    status: 400,
+    message: 'isActive ต้องเป็น true หรือ false',
   },
 } as const;
 
 export type ProErrorCode = keyof typeof PRO_ERRORS;
 
-/** `{ statusCode, message (Thai), errorCode }` like the unlock codes (task 15). */
+/**
+ * `{ statusCode, message (Thai), errorCode }` like the unlock codes (task 15).
+ * `message` replaces the default text of the code (same errorCode).
+ */
 export class ProException extends HttpException {
-  constructor(readonly errorCode: ProErrorCode) {
-    const { status, message } = PRO_ERRORS[errorCode];
-    super({ statusCode: status, message, errorCode }, status);
+  constructor(
+    readonly errorCode: ProErrorCode,
+    message?: string,
+  ) {
+    const { status, message: fallback } = PRO_ERRORS[errorCode];
+    super(
+      { statusCode: status, message: message ?? fallback, errorCode },
+      status,
+    );
   }
 }
 

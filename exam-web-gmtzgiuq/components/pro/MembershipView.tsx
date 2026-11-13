@@ -33,6 +33,7 @@ import {
   formatCardLabel,
   loginHref,
   MEMBERSHIP_PATH,
+  PAYMENT_CANCELED_MESSAGE,
   paymentErrorMessage,
   paymentMethodLabel,
   paymentStatusClass,
@@ -40,6 +41,7 @@ import {
   resultHref,
 } from '@/lib/pro-payments';
 import { daysRemaining, formatThaiDate } from '@/lib/unlock-codes';
+import ProCodeRedeemBox from './ProCodeRedeemBox';
 
 const PAYMENTS_LIMIT = 10;
 
@@ -221,6 +223,9 @@ export default function MembershipView() {
             </div>
           </div>
         )}
+
+        {/* มีโค้ด? (task 19) — ได้แพ็กเกจแล้วโหลดรายการแพ็กเกจใหม่ (กล่องอยู่นอกส่วนที่โหลดใหม่ จึงยังเห็นผลสำเร็จ) */}
+        <ProCodeRedeemBox isLoggedIn loginRedirect={MEMBERSHIP_PATH} onRedeemed={() => setReloadKey((k) => k + 1)} />
 
         {/* แพ็กเกจของฉัน */}
         <section aria-labelledby="my-plans-title" className="space-y-3">
@@ -414,6 +419,12 @@ export default function MembershipView() {
                       </p>
                       {p.status === 'failed' && p.failureMessage && (
                         <p className="mt-0.5 text-xs text-red-700 dark:text-red-300 break-words">{p.failureMessage}</p>
+                      )}
+                      {/* ถูกแทนที่ด้วยรายการชำระใหม่ (task 19 รอบ 2) — ไม่ใช่ error จึงเป็นสีเทา */}
+                      {p.status === 'canceled' && (
+                        <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400 break-words">
+                          {p.failureMessage || PAYMENT_CANCELED_MESSAGE}
+                        </p>
                       )}
                       {p.refundRequired && (
                         <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">รายการนี้อยู่ระหว่างดำเนินการคืนเงิน</p>

@@ -1,5 +1,6 @@
 // สมาชิก Pro (task 17): หน้า Upgrade สาธารณะ + สิทธิ์ของฉัน + หลังบ้าน (สนาม แพ็กเกจ ตารางเปรียบเทียบ สมาชิก)
 // task 18: ชำระเงินผ่าน Opn (quote, checkout, สถานะ payment, ประวัติ, ยกเลิกต่ออายุ, เปลี่ยนบัตร, แท็บการชำระเงินของแอดมิน)
+// task 19: โค้ดส่วนลด (quote/checkout รับโค้ด, แอดมินจัดการโค้ดส่วนลด + รายการที่ใช้)
 // ข้อมูลบัตรไม่ผ่านโค้ดนี้ — ส่งแค่ token (tokn_...) ที่ได้จาก OmiseCard
 // error ของ endpoint กลุ่มนี้: `{ statusCode, message: <ไทย>, errorCode }` → ApiError (lib/api/apiError)
 // ทุก response ผ่าน normalize ก่อนใช้ (ค่าแปลก/ขาด → ค่าปลอดภัย) ข้อความทั้งหมดเป็น plain text แสดงแบบ text เท่านั้น
@@ -129,7 +130,8 @@ export interface ProMeItem {
 
 export type ProPaymentMethod = 'card' | 'promptpay';
 /** ค่าที่ไม่รู้จักเก็บเป็น string เดิม */
-export type ProPaymentStatus = 'pending' | 'successful' | 'failed' | 'expired' | (string & {});
+/** canceled (task 19 รอบ 2) = รายการรอชำระที่ถูกแทนที่ด้วย checkout ใหม่ของแพ็กเกจเดียวกัน (ไม่มี QR) */
+export type ProPaymentStatus = 'pending' | 'successful' | 'failed' | 'expired' | 'canceled' | (string & {});
 
 export interface ProCheckoutQuote {
   plan: {
@@ -148,6 +150,23 @@ export interface ProCheckoutQuote {
   current: { planId: string; currentPeriodEnd: string; autoRenew: boolean; source: string } | null;
   /** ซื้อแล้วจะเปลี่ยนแพ็กเกจ (เริ่มรอบใหม่ทันที) */
   changesPlan: boolean;
+  /** ส่วนลดที่ใช้ได้กับ quote นี้ (task 19) — null = ไม่ได้ส่งโค้ด / โค้ดใช้ไม่ได้ */
+  discount: ProQuoteDiscount | null;
+  /** ส่งโค้ดมาแต่ใช้ไม่ได้ (quote ไม่ล้ม) */
+  discountError: { errorCode: string | null; message: string } | null;
+  /** ยอดรอบต่ออายุอัตโนมัติ (ราคาเต็ม + VAT ของราคาเต็ม — ส่วนลดใช้กับรอบแรกเท่านั้น) */
+  renewalTotalSatang: number;
+}
+
+export type ProDiscountType = 'percent' | 'amount';
+
+export interface ProQuoteDiscount {
+  code: string;
+  type: ProDiscountType;
+  /** percent: 1–100 / amount: สตางค์ */
+  value: number;
+  /** ยอดที่ลดจริง (สตางค์) */
+  discountSatang: number;
 }
 
 export interface ProCheckoutInput {
@@ -155,6 +174,8 @@ export interface ProCheckoutInput {
   method: ProPaymentMethod;
   /** tokn_... เฉพาะ card */
   cardToken?: string;
+  /** โค้ดส่วนลด (task 19) — server ตรวจซ้ำและคิดยอดเอง */
+  discountCode?: string;
 }
 
 export interface ProCheckoutResult {
@@ -181,6 +202,8 @@ export interface ProPaymentDetail {
   plan: { id: string; name: string };
   venue: { name: string };
   subscription: { currentPeriodEnd: string; autoRenew: boolean } | null;
+  /** ตัดเงินแล้วแต่ไม่ได้ให้สิทธิ์จากรายการนี้ (เช่น QR ที่ถูกแทนที่แล้วยังมีคนจ่าย) → ต้องคืนเงิน (ไม่ส่ง = false) */
+  refundRequired: boolean;
 }
 
 /** แถวประวัติการชำระของฉัน (GET /pro/payments/me) */
@@ -225,6 +248,10 @@ export interface ProAdminPayment {
   createdAt: string;
   /** ต้องคืนเงินในแดชบอร์ด Opn (ไม่ส่ง = false) */
   refundRequired: boolean;
+  /** ส่วนลด (สตางค์) จากโค้ดส่วนลด (task 19) — 0 = ไม่มี */
+  discountSatang: number;
+  /** โค้ดส่วนลดที่ใช้ — null = ไม่มี */
+  discountCode: string | null;
 }
 
 export interface ProAdminPaymentPage {
@@ -232,7 +259,7 @@ export interface ProAdminPaymentPage {
   total: number;
 }
 
-export type ProPaymentStatusFilter = 'pending' | 'successful' | 'failed' | 'expired';
+export type ProPaymentStatusFilter = 'pending' | 'successful' | 'failed' | 'expired' | 'canceled';
 
 export interface GetProAdminPaymentsParams {
   page?: number;
@@ -351,6 +378,84 @@ export interface GrantProSubscriptionInput {
   /** 1–3650 */
   days: number;
   note?: string;
+}
+
+// ── โค้ดส่วนลด (task 19) ─────────────────────────────────────
+
+export interface ProDiscountCode {
+  id: string;
+  /** ตัวพิมพ์ใหญ่ A–Z 0–9 - _ (3–40) */
+  code: string;
+  description: string | null;
+  discountType: ProDiscountType;
+  /** percent: 1–100 / amount: สตางค์ (≥100) */
+  discountValue: number;
+  /** null = ทุกสนาม */
+  venueId: string | null;
+  /** null = ทุกแพ็กเกจ (ของสนามนั้น / ทุกสนาม) */
+  planId: string | null;
+  /** ชื่อสนาม/แพ็กเกจ ถ้า API ส่งมา (ไม่ส่ง → หน้าแอดมินหาเองจาก config) */
+  venue: { id: string; key: string; name: string } | null;
+  plan: { id: string; code: string; name: string } | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  /** null = ไม่จำกัด */
+  maxRedemptions: number | null;
+  perUserLimit: number;
+  isActive: boolean;
+  /** ใช้สำเร็จแล้ว (payment successful) */
+  redeemedCount: number;
+  /** จองไว้กับรายการที่ยังรอชำระ (นับรวมในสิทธิ์ที่เหลือ) — รอบ 2 */
+  reservedCount: number;
+  /** สถานะจาก API: active / inactive / scheduled / expired / used_up — '' = API ไม่ส่ง (หน้าเว็บคิดเอง) */
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProDiscountCodePage {
+  items: ProDiscountCode[];
+  total: number;
+}
+
+export interface GetProDiscountCodesParams {
+  page?: number;
+  /** ≤100 */
+  limit?: number;
+  /** ค้นหาโค้ด/คำอธิบาย */
+  search?: string;
+  isActive?: boolean;
+}
+
+/** POST body — PUT ส่งเฉพาะฟิลด์ที่เปลี่ยน (code/ประเภท/มูลค่าแก้ไม่ได้หลังมีการใช้ → 409) */
+export interface ProDiscountCodeInput {
+  code: string;
+  description: string | null;
+  discountType: ProDiscountType;
+  discountValue: number;
+  venueId: string | null;
+  planId: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  maxRedemptions: number | null;
+  perUserLimit: number;
+  isActive: boolean;
+}
+
+export type ProDiscountRedemptionStatus = 'reserved' | 'used' | 'released' | (string & {});
+
+export interface ProDiscountRedemption {
+  /** null = บัญชีผู้ใช้ถูกลบไปแล้ว */
+  user: { id: string; email: string; firstName: string | null; lastName: string | null } | null;
+  paymentId: string;
+  amountSatang: number;
+  status: ProDiscountRedemptionStatus;
+  createdAt: string;
+}
+
+export interface ProDiscountRedemptionPage {
+  items: ProDiscountRedemption[];
+  total: number;
 }
 
 // ── normalize ────────────────────────────────────────────────
@@ -545,11 +650,27 @@ function normalizeMeItem(m: RawRecord): ProMeItem {
 
 const satang = (v: unknown) => Math.max(0, Math.round(num(v)));
 
+const discountType = (v: unknown): ProDiscountType => (v === 'amount' ? 'amount' : 'percent');
+
+function normalizeQuoteDiscount(raw: unknown): ProQuoteDiscount | null {
+  if (!isRecord(raw)) return null;
+  const code = str(raw.code);
+  if (!code) return null;
+  return {
+    code,
+    type: discountType(raw.type),
+    value: Math.max(0, num(raw.value)),
+    discountSatang: satang(raw.discountSatang),
+  };
+}
+
 export function normalizeCheckoutQuote(raw: unknown): ProCheckoutQuote {
   const d = isRecord(raw) ? raw : {};
   const p = isRecord(d.plan) ? d.plan : {};
   const v = isRecord(p.venue) ? p.venue : {};
   const c = isRecord(d.current) ? d.current : null;
+  const de = isRecord(d.discountError) ? d.discountError : null;
+  const totalSatang = satang(d.totalSatang);
   return {
     plan: {
       id: str(p.id),
@@ -560,12 +681,16 @@ export function normalizeCheckoutQuote(raw: unknown): ProCheckoutQuote {
     },
     subtotalSatang: satang(d.subtotalSatang),
     vatSatang: satang(d.vatSatang),
-    totalSatang: satang(d.totalSatang),
+    totalSatang,
     vatEnabled: bool(d.vatEnabled),
     current: c
       ? { planId: str(c.planId), currentPeriodEnd: str(c.currentPeriodEnd), autoRenew: bool(c.autoRenew), source: str(c.source) }
       : null,
     changesPlan: bool(d.changesPlan),
+    discount: normalizeQuoteDiscount(d.discount),
+    discountError: de ? { errorCode: strOrNull(de.errorCode), message: str(de.message) } : null,
+    // API ที่ไม่ส่งค่านี้ = ไม่มีส่วนลด → รอบถัดไปเท่ากับยอดนี้
+    renewalTotalSatang: d.renewalTotalSatang == null ? totalSatang : satang(d.renewalTotalSatang),
   };
 }
 
@@ -584,19 +709,22 @@ export function normalizeCheckoutResult(raw: unknown): ProCheckoutResult {
 export function normalizePaymentDetail(raw: unknown): ProPaymentDetail {
   const d = isRecord(raw) ? raw : {};
   const s = isRecord(d.subscription) ? d.subscription : null;
+  const status = str(d.status);
   return {
     id: str(d.id),
-    status: str(d.status),
+    status,
     method: str(d.method),
     totalSatang: satang(d.totalSatang),
     subtotalSatang: satang(d.subtotalSatang),
     vatSatang: satang(d.vatSatang),
-    qrImageUrl: strOrNull(d.qrImageUrl),
+    // canceled = ถูกแทนที่แล้ว ห้ามแสดง QR เดิมให้สแกน (API ไม่ส่งอยู่แล้ว กันไว้อีกชั้น)
+    qrImageUrl: status === 'canceled' ? null : strOrNull(d.qrImageUrl),
     expiresAt: strOrNull(d.expiresAt),
     failureMessage: strOrNull(d.failureMessage),
     plan: { id: str(isRecord(d.plan) ? d.plan.id : ''), name: str(isRecord(d.plan) ? d.plan.name : '') },
     venue: { name: str(isRecord(d.venue) ? d.venue.name : '') },
     subscription: s ? { currentPeriodEnd: str(s.currentPeriodEnd), autoRenew: bool(s.autoRenew) } : null,
+    refundRequired: bool(d.refundRequired),
   };
 }
 
@@ -640,6 +768,52 @@ export function normalizeAdminPayment(raw: RawRecord): ProAdminPayment {
     paidAt: strOrNull(raw.paidAt),
     createdAt: str(raw.createdAt),
     refundRequired: bool(raw.refundRequired),
+    discountSatang: satang(raw.discountSatang),
+    // รับได้ทั้ง string และ { code }
+    discountCode: isRecord(raw.discountCode) ? strOrNull(raw.discountCode.code) : strOrNull(raw.discountCode),
+  };
+}
+
+const intOrNull = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = num(v, Number.NaN);
+  return Number.isFinite(n) ? Math.floor(n) : null;
+};
+
+export function normalizeDiscountCode(raw: RawRecord): ProDiscountCode {
+  const v = isRecord(raw.venue) ? raw.venue : null;
+  const p = isRecord(raw.plan) ? raw.plan : null;
+  return {
+    id: str(raw.id),
+    code: str(raw.code),
+    description: strOrNull(raw.description),
+    discountType: discountType(raw.discountType),
+    discountValue: Math.max(0, Math.round(num(raw.discountValue))),
+    venueId: strOrNull(raw.venueId) ?? (v ? strOrNull(v.id) : null),
+    planId: strOrNull(raw.planId) ?? (p ? strOrNull(p.id) : null),
+    venue: v ? { id: str(v.id), key: str(v.key), name: str(v.name) } : null,
+    plan: p ? { id: str(p.id), code: str(p.code), name: str(p.name) } : null,
+    startsAt: strOrNull(raw.startsAt),
+    endsAt: strOrNull(raw.endsAt),
+    maxRedemptions: intOrNull(raw.maxRedemptions),
+    perUserLimit: Math.max(1, Math.floor(num(raw.perUserLimit, 1))),
+    isActive: bool(raw.isActive, true),
+    redeemedCount: Math.max(0, Math.floor(num(raw.redeemedCount))),
+    reservedCount: Math.max(0, Math.floor(num(raw.reservedCount))),
+    status: str(raw.status),
+    createdAt: str(raw.createdAt),
+    updatedAt: str(raw.updatedAt),
+  };
+}
+
+export function normalizeDiscountRedemption(raw: RawRecord): ProDiscountRedemption {
+  const u = isRecord(raw.user) ? raw.user : null;
+  return {
+    user: u ? { id: str(u.id), email: str(u.email), firstName: strOrNull(u.firstName), lastName: strOrNull(u.lastName) } : null,
+    paymentId: str(raw.paymentId),
+    amountSatang: satang(raw.amountSatang),
+    status: str(raw.status),
+    createdAt: str(raw.createdAt),
   };
 }
 
@@ -699,9 +873,13 @@ export async function getMyPro(signal?: AbortSignal): Promise<ProMeItem[]> {
   return Array.isArray(data) ? data.filter(isRecord).map(normalizeMeItem) : [];
 }
 
-/** GET /pro/checkout/quote?planId= (JWT) — แพ็กเกจซื้อไม่ได้ → ApiError 400 PLAN_NOT_PURCHASABLE */
-export async function getCheckoutQuote(planId: string, signal?: AbortSignal): Promise<ProCheckoutQuote> {
+/**
+ * GET /pro/checkout/quote?planId=&code= (JWT) — แพ็กเกจซื้อไม่ได้ → ApiError 400 PLAN_NOT_PURCHASABLE
+ * code (task 19): โค้ดใช้ไม่ได้ quote ไม่ล้ม แต่คืน discountError
+ */
+export async function getCheckoutQuote(planId: string, signal?: AbortSignal, code?: string): Promise<ProCheckoutQuote> {
   const query = new URLSearchParams({ planId });
+  if (code?.trim()) query.set('code', code.trim());
   const response = await fetchWithAuth(`${BASE}/checkout/quote?${query.toString()}`, { cache: 'no-store', signal });
   if (!response.ok) throw await toApiError(response, 'Failed to fetch checkout quote');
   return normalizeCheckoutQuote(await response.json());
@@ -711,6 +889,7 @@ export async function getCheckoutQuote(planId: string, signal?: AbortSignal): Pr
 export async function createCheckout(input: ProCheckoutInput): Promise<ProCheckoutResult> {
   const body: ProCheckoutInput = { planId: input.planId, method: input.method };
   if (input.method === 'card' && input.cardToken) body.cardToken = input.cardToken;
+  if (input.discountCode?.trim()) body.discountCode = input.discountCode.trim();
   return normalizeCheckoutResult(await sendJson(`${BASE}/checkout`, 'POST', body, 'Failed to create checkout'));
 }
 
@@ -890,5 +1069,60 @@ export async function getProAdminPayments(
   const data: unknown = await response.json();
   const body = isRecord(data) ? data : {};
   const items = Array.isArray(body.items) ? body.items.filter(isRecord).map(normalizeAdminPayment) : [];
+  return { items, total: num(body.total, items.length) };
+}
+
+// ── โค้ดส่วนลด (task 19) ─────────────────────────────────────
+
+const DISCOUNT_ADMIN = `${ADMIN}/discount-codes`;
+
+/** GET /pro/admin/discount-codes?page&limit&search&isActive — รับได้ทั้ง { items, total } และ array */
+export async function getProDiscountCodes(
+  params: GetProDiscountCodesParams = {},
+  signal?: AbortSignal,
+): Promise<ProDiscountCodePage> {
+  const { page = 1, limit = 20, search, isActive } = params;
+  const query = new URLSearchParams({ page: String(page), limit: String(Math.min(100, limit)) });
+  if (search?.trim()) query.set('search', search.trim());
+  if (isActive !== undefined) query.set('isActive', String(isActive));
+  const response = await fetchWithAuth(`${DISCOUNT_ADMIN}?${query.toString()}`, { cache: 'no-store', signal });
+  if (!response.ok) throw await toApiError(response, 'Failed to fetch discount codes');
+  const data: unknown = await response.json();
+  const list = Array.isArray(data) ? data : isRecord(data) && Array.isArray(data.items) ? data.items : [];
+  const items = list.filter(isRecord).map(normalizeDiscountCode);
+  return { items, total: isRecord(data) ? num(data.total, items.length) : items.length };
+}
+
+/** POST /pro/admin/discount-codes — โค้ดซ้ำ → ApiError 409 */
+export async function createProDiscountCode(input: ProDiscountCodeInput): Promise<ProDiscountCode> {
+  const data = await sendJson(DISCOUNT_ADMIN, 'POST', input, 'Failed to create discount code');
+  return normalizeDiscountCode(isRecord(data) ? data : {});
+}
+
+/**
+ * PUT /pro/admin/discount-codes/:id — ฟิลด์ที่ไม่ส่งคงค่าเดิม (เปิด/ปิด = { isActive })
+ * แก้ code/ประเภท/มูลค่าหลังมีการใช้แล้ว → ApiError 409
+ */
+export async function updateProDiscountCode(id: string, input: Partial<ProDiscountCodeInput>): Promise<ProDiscountCode> {
+  const data = await sendJson(`${DISCOUNT_ADMIN}/${encodeURIComponent(id)}`, 'PUT', input, 'Failed to update discount code');
+  return normalizeDiscountCode(isRecord(data) ? data : {});
+}
+
+/** GET /pro/admin/discount-codes/:id/redemptions?page&limit (≤100) */
+export async function getProDiscountRedemptions(
+  id: string,
+  params: { page?: number; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<ProDiscountRedemptionPage> {
+  const { page = 1, limit = 20 } = params;
+  const query = new URLSearchParams({ page: String(page), limit: String(Math.min(100, limit)) });
+  const response = await fetchWithAuth(`${DISCOUNT_ADMIN}/${encodeURIComponent(id)}/redemptions?${query.toString()}`, {
+    cache: 'no-store',
+    signal,
+  });
+  if (!response.ok) throw await toApiError(response, 'Failed to fetch discount redemptions');
+  const data: unknown = await response.json();
+  const body = isRecord(data) ? data : {};
+  const items = Array.isArray(body.items) ? body.items.filter(isRecord).map(normalizeDiscountRedemption) : [];
   return { items, total: num(body.total, items.length) };
 }

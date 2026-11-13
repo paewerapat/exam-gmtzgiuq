@@ -20,6 +20,8 @@ import {
   formatCodeInput,
   formatThaiDate,
   normalizeCodeForSubmit,
+  PRO_CODE_TEXT,
+  proRedeemSuccessMessage,
   redeemErrorMessage,
   redeemSuccessMessage,
   UNLOCK_TEXT,
@@ -276,6 +278,9 @@ function RedeemCodeFields({
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // โค้ดแบบให้แพ็กเกจ Pro (task 19): บอกผลไว้ใต้ช่อง (ถ้าแพ็กเกจให้สิทธิ์ชุดนี้ กล่องจะเปลี่ยนเป็นปุ่มเริ่มทำหลังโหลดสิทธิ์ใหม่)
+  const [proSuccess, setProSuccess] = useState<string | null>(null);
+  const [proAutoRenewNote, setProAutoRenewNote] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const disabled = isGuest || submitting;
 
@@ -294,8 +299,19 @@ function RedeemCodeFields({
     }
     setSubmitting(true);
     setError(null);
+    setProSuccess(null);
     try {
       const result = await redeemUnlockCode({ code: value, examId });
+      if (result.kind === 'pro') {
+        const message = proRedeemSuccessMessage(result);
+        toast.success(message);
+        setProSuccess(message);
+        setProAutoRenewNote(result.autoRenewDatesDiffer);
+        setCode('');
+        setSubmitting(false);
+        onRedeemed(result);
+        return;
+      }
       toast.success(redeemSuccessMessage(result.unlockedExamIds.length));
       onRedeemed(result);
     } catch (err) {
@@ -358,6 +374,24 @@ function RedeemCodeFields({
         {error && (
           <p id={errorId} role="alert" className="mt-1.5 text-sm text-red-600 dark:text-red-400">
             {error}
+          </p>
+        )}
+        {proSuccess && (
+          <p
+            role="status"
+            className="mt-2 flex items-start gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 px-3 py-2.5 text-sm font-medium text-emerald-800 dark:text-emerald-200"
+          >
+            <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{proSuccess}</span>
+          </p>
+        )}
+        {proSuccess && proAutoRenewNote && (
+          <p
+            role="note"
+            data-testid="auto-renew-dates-note"
+            className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-800/50 dark:bg-amber-900/30 dark:text-amber-200"
+          >
+            {PRO_CODE_TEXT.autoRenewNote}
           </p>
         )}
         <p id={hintId} className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-gray-400">

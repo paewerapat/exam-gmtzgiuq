@@ -19,6 +19,11 @@ import {
 import { ProBillingService } from './pro-billing.service';
 import { ProPaymentsService } from './pro-payments.service';
 import { ProSubscriptionsService } from './pro-subscriptions.service';
+import { ProDiscountCode } from './pro-discount-code.entity';
+import { ProDiscountRedemption } from './pro-discount-redemption.entity';
+import { ProDiscountsService } from './pro-discounts.service';
+import { RedeemThrottleService } from '../unlock-codes/redeem-throttle.service';
+import { RedeemException } from '../unlock-codes/unlock-code-format';
 
 type Row = Record<string, any>;
 
@@ -36,11 +41,17 @@ function matches(row: Row, where: Row): boolean {
       if (value.type === 'moreThan') {
         return (row[key] as Date).getTime() > (value.value as Date).getTime();
       }
+      if (value.type === 'in') {
+        return (value.value as unknown as unknown[]).includes(row[key]);
+      }
       throw new Error(`operator ${value.type} not mocked`);
     }
     return row[key] === value;
   });
 }
+
+/** Yield to the event loop so concurrent checkouts interleave. */
+const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 function charge(extra: Partial<OmiseCharge> = {}): OmiseCharge {
   return {
@@ -81,6 +92,9 @@ describe('ProPaymentsService (task 18)', () => {
   let findMineOne: jest.Mock;
   let configured: boolean;
   let env: Record<string, string | undefined>;
+  let throttle: { begin: jest.Mock; settle: jest.Mock };
+  // row locks taken with lock: pessimistic_write (the discount code row)
+  let rowLocks: Map<string, Promise<void>>;
 
   const tableOf = (entity: unknown) =>
     new Map<unknown, string>([
@@ -90,6 +104,8 @@ describe('ProPaymentsService (task 18)', () => {
       [ProPlan, 'plans'],
       [ProVenue, 'venues'],
       [ProPage, 'page'],
+      [ProDiscountCode, 'codes'],
+      [ProDiscountRedemption, 'redemptions'],
     ]).get(entity) as string;
 
   const withVenue = (row: Row | undefined) =>
@@ -118,16 +134,59 @@ describe('ProPaymentsService (task 18)', () => {
       ),
     ),
     update: jest.fn((entity: unknown, where: Row, changes: Row) => {
+      let affected = 0;
       for (const row of db[tableOf(entity)]) {
-        if (matches(row, where)) Object.assign(row, changes);
+        if (matches(row, where)) {
+          Object.assign(row, changes);
+          affected++;
+        }
       }
-      return Promise.resolve({ affected: 1 });
+      return Promise.resolve({ affected });
     }),
     insert: jest.fn((entity: unknown, row: Row) => {
       db[tableOf(entity)].push({ createdAt: NOW, ...row });
       return Promise.resolve();
     }),
+    count: jest.fn((entity: unknown, { where }: { where: Row }) =>
+      Promise.resolve(
+        db[tableOf(entity)].filter((r) => matches(r, where)).length,
+      ),
+    ),
   };
+
+  /**
+   * The manager of one transaction: a findOne with lock pessimistic_write
+   * waits for the row like InnoDB and holds it until the transaction ends.
+   */
+  const transactionManager = (held: (() => void)[]) => ({
+    ...ops,
+    findOne: async (
+      entity: unknown,
+      options: { where: Row; lock?: { mode: string } },
+    ) => {
+      if (options.lock?.mode === 'pessimistic_write') {
+        const row = db[tableOf(entity)].find((r) => matches(r, options.where));
+        const key = row ? `${tableOf(entity)}:${String(row.id)}` : null;
+        if (key) {
+          while (rowLocks.has(key)) await rowLocks.get(key);
+          let done = () => {};
+          rowLocks.set(key, new Promise<void>((r) => (done = r)));
+          held.push(() => {
+            rowLocks.delete(key);
+            done();
+          });
+        }
+      }
+      await tick();
+      return ops.findOne(entity, options);
+    },
+    query: jest.fn((sql: string, params?: unknown[]) => {
+      if (sql.startsWith('SELECT @@SESSION'))
+        return Promise.resolve([{ t: 50 }]);
+      if (sql.startsWith('SET SESSION')) return Promise.resolve();
+      return Promise.resolve([{ id: params?.[0] }]);
+    }),
+  });
 
   /** The two conditional UPDATEs made with the query builder. */
   const queryBuilder = () => {
@@ -210,6 +269,14 @@ describe('ProPaymentsService (task 18)', () => {
       subs: [],
       payments: [],
       customers: [],
+      codes: [],
+      redemptions: [],
+    };
+    rowLocks = new Map();
+    let attempts = 0;
+    throttle = {
+      begin: jest.fn(() => Promise.resolve(`attempt-${++attempts}`)),
+      settle: jest.fn(() => Promise.resolve()),
     };
     omise = {
       isConfigured: jest.fn(() => configured),
@@ -255,27 +322,38 @@ describe('ProPaymentsService (task 18)', () => {
       update: (w: Row, c: Row) => ops.update(entity, w, c),
       createQueryBuilder: queryBuilder,
     });
-    const transaction = jest.fn((work: (m: unknown) => Promise<unknown>) =>
-      work({
-        ...ops,
-        query: jest.fn((sql: string, params?: unknown[]) => {
-          if (sql.startsWith('SELECT @@SESSION'))
-            return Promise.resolve([{ t: 50 }]);
-          if (sql.startsWith('SET SESSION')) return Promise.resolve();
-          return Promise.resolve([{ id: params?.[0] }]);
-        }),
-      }),
+    const transaction = jest.fn(
+      async (work: (m: unknown) => Promise<unknown>) => {
+        const held: (() => void)[] = [];
+        try {
+          return await work(transactionManager(held));
+        } finally {
+          for (const release of held) release();
+        }
+      },
     );
     const module = await Test.createTestingModule({
       providers: [
         ProPaymentsService,
-        ...[ProPayment, ProPlan, ProPage, ProSubscription, ProCustomer].map(
-          (e) => ({
-            provide: getRepositoryToken(e),
-            useValue: repo(e),
-          }),
-        ),
-        { provide: DataSource, useValue: { transaction } },
+        ProDiscountsService,
+        ...[
+          ProPayment,
+          ProPlan,
+          ProPage,
+          ProSubscription,
+          ProCustomer,
+          ProVenue,
+          ProDiscountCode,
+          ProDiscountRedemption,
+        ].map((e) => ({
+          provide: getRepositoryToken(e),
+          useValue: repo(e),
+        })),
+        {
+          provide: DataSource,
+          useValue: { transaction, manager: transactionManager([]) },
+        },
+        { provide: RedeemThrottleService, useValue: throttle },
         { provide: OmiseClient, useValue: omise },
         { provide: ProBillingService, useValue: billing },
         { provide: ProSubscriptionsService, useValue: { findMineOne } },
@@ -995,6 +1073,59 @@ describe('ProPaymentsService (task 18)', () => {
       });
     });
 
+    it('round 3: the schedule was moved (Pro code) while canceling → the new one is deleted too, row left without a schedule', async () => {
+      db.subs.push(cardSub());
+      // moveRenewalSchedule saves schd_test_2 on the row between our Opn
+      // delete of schd_test_1 and our conditional update
+      billing.deleteSchedule.mockImplementation((id: string) => {
+        if (id === 'schd_test_1') db.subs[0].omiseScheduleId = 'schd_test_2';
+        return Promise.resolve();
+      });
+      await expect(service.cancelRenewal('user-a', SUB, NOW)).resolves.toEqual({
+        id: SUB,
+      });
+      expect(billing.deleteSchedule.mock.calls).toEqual([
+        ['schd_test_1'],
+        ['schd_test_2'],
+      ]);
+      expect(db.subs[0]).toMatchObject({
+        autoRenew: false,
+        omiseScheduleId: null,
+        canceledAt: new Date('2026-11-13T05:00:00.000Z'),
+      });
+    });
+
+    it('round 3: the schedule keeps changing → 409 USER_BUSY, never success while a schedule remains', async () => {
+      db.subs.push(cardSub());
+      let n = 1;
+      billing.deleteSchedule.mockImplementation(() => {
+        db.subs[0].omiseScheduleId = `schd_test_new${n++}`;
+        return Promise.resolve();
+      });
+      expect(
+        (await errorOf(service.cancelRenewal('user-a', SUB, NOW))).body
+          .errorCode,
+      ).toBe('USER_BUSY');
+      expect(db.subs[0].omiseScheduleId).toMatch(/^schd_test_new/);
+      expect(findMineOne).not.toHaveBeenCalled();
+    });
+
+    it('round 3: the schedule was removed meanwhile (moved then canceled elsewhere) → auto renewal off, success', async () => {
+      db.subs.push(cardSub());
+      billing.deleteSchedule.mockImplementation(() => {
+        db.subs[0].omiseScheduleId = null;
+        return Promise.resolve();
+      });
+      await service.cancelRenewal('user-a', SUB, NOW);
+      expect(db.subs[0]).toMatchObject({
+        autoRenew: false,
+        omiseScheduleId: null,
+      });
+      expect(db.subs[0].canceledAt).toEqual(
+        new Date('2026-11-13T05:00:00.000Z'),
+      );
+    });
+
     it("someone else's → 404; not renewing → 409 NOT_RENEWABLE; Opn down → 503 and nothing changes", async () => {
       db.subs.push(cardSub());
       expect(
@@ -1080,5 +1211,648 @@ describe('ProPaymentsService (task 18)', () => {
     expect(
       (await errorOf(service.listForAdmin({ method: 'cash' }))).status,
     ).toBe(400);
+  });
+
+  // ── discount codes (task 19) ────────────────────────────────────────
+
+  describe('discount codes (task 19)', () => {
+    const qrCharge = (id: string, extra: Partial<OmiseCharge> = {}) =>
+      charge({
+        id,
+        status: 'pending',
+        expires_at: '2026-11-14T05:00:00Z',
+        source: {
+          type: 'promptpay',
+          scannable_code: { image: { download_uri: `https://qr/${id}` } },
+        },
+        ...extra,
+      });
+
+    function addCode(fields: Row = {}) {
+      const row = {
+        id: `dc-${db.codes.length + 1}`,
+        code: 'NEWYEAR20',
+        description: null,
+        discountType: 'percent',
+        discountValue: 20,
+        venueId: null,
+        planId: null,
+        startsAt: null,
+        endsAt: null,
+        maxRedemptions: null,
+        perUserLimit: 1,
+        isActive: 1,
+        redeemedCount: 0,
+        ...fields,
+      };
+      db.codes.push(row);
+      return row;
+    }
+
+    const quoteErr = async (code: string, now = NOW) =>
+      (await service.quote('user-a', PLAN, now, code)).discountError?.errorCode;
+
+    it('quote: 20% → discount line, VAT on the price after it, renewal = full price + VAT (AC4)', async () => {
+      db.page[0].vatEnabled = 1;
+      addCode();
+      const q = await service.quote('user-a', PLAN, NOW, ' newyear20 ');
+      expect(q).toMatchObject({
+        subtotalSatang: 19900,
+        discountSatang: 3980,
+        vatSatang: 1114, // round(15920 × 7%)
+        totalSatang: 17034,
+        renewalTotalSatang: 21293,
+        discount: {
+          code: 'NEWYEAR20',
+          type: 'percent',
+          value: 20,
+          discountSatang: 3980,
+        },
+      });
+      expect(q.discountError).toBeUndefined();
+      expect(throttle.settle).toHaveBeenCalledWith('attempt-1', null);
+      // no code: no discount, renewal = total
+      await expect(service.quote('user-a', PLAN, NOW)).resolves.toMatchObject({
+        discountSatang: 0,
+        discount: null,
+        totalSatang: 21293,
+        renewalTotalSatang: 21293,
+      });
+      expect(throttle.begin).toHaveBeenCalledTimes(1);
+    });
+
+    it('quote: a code that cannot be used → discountError (Thai), full amounts, counted as a guess', async () => {
+      const q = await service.quote('user-a', PLAN, NOW, 'NOPE-CODE');
+      expect(q).toMatchObject({
+        totalSatang: 19900,
+        discountSatang: 0,
+        discount: null,
+        discountError: {
+          errorCode: 'DISCOUNT_NOT_FOUND',
+          message: 'ไม่พบโค้ดส่วนลดนี้ กรุณาตรวจสอบอีกครั้ง',
+        },
+      });
+      expect(throttle.settle).toHaveBeenCalledWith(
+        'attempt-1',
+        'DISCOUNT_NOT_FOUND',
+      );
+      // bad format: never looked up, still counted
+      expect(await quoteErr('ab')).toBe('DISCOUNT_NOT_FOUND');
+      expect(await quoteErr('NEW YEAR#20')).toBe('DISCOUNT_NOT_FOUND');
+    });
+
+    it('quote over the redeem limit → discountError TOO_MANY_ATTEMPTS (the quote itself works)', async () => {
+      addCode();
+      throttle.begin.mockRejectedValueOnce(
+        new RedeemException('TOO_MANY_ATTEMPTS'),
+      );
+      const q = await service.quote('user-a', PLAN, NOW, 'NEWYEAR20');
+      expect(q.discount).toBeNull();
+      expect(q.discountError).toEqual({
+        errorCode: 'TOO_MANY_ATTEMPTS',
+        message: 'กรอกโค้ดผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่',
+      });
+      expect(q.totalSatang).toBe(19900);
+    });
+
+    it('rules: off / not started / ended / other venue or plan → each errorCode (AC6)', async () => {
+      addCode({ code: 'OFFCODE', isActive: 0 });
+      addCode({ code: 'LATER', startsAt: new Date(NOW.getTime() + 1000) });
+      addCode({ code: 'OVER', endsAt: new Date(NOW.getTime() - 1000) });
+      addCode({ code: 'LASTSEC', endsAt: new Date(NOW.getTime()) });
+      addCode({ code: 'ALEVEL', venueId: 'alevel' });
+      addCode({ code: 'MAXONLY', planId: PLAN_MAX });
+      addCode({ code: 'NETSATPRO', venueId: 'netsat', planId: PLAN });
+      expect(await quoteErr('OFFCODE')).toBe('DISCOUNT_INACTIVE');
+      expect(await quoteErr('LATER')).toBe('DISCOUNT_NOT_STARTED');
+      expect(await quoteErr('OVER')).toBe('DISCOUNT_EXPIRED');
+      expect(await quoteErr('LASTSEC')).toBeUndefined();
+      expect(await quoteErr('ALEVEL')).toBe('DISCOUNT_NOT_APPLICABLE');
+      expect(await quoteErr('MAXONLY')).toBe('DISCOUNT_NOT_APPLICABLE');
+      expect(await quoteErr('NETSATPRO')).toBeUndefined();
+    });
+
+    it('limits: used + reserved of pending payments count; failed / expired / released do not (AC6)', async () => {
+      const code = addCode({ maxRedemptions: 2, perUserLimit: 1 });
+      const pay = (id: string, userId: string, status: string, extra = {}) =>
+        db.payments.push({
+          id,
+          userId,
+          planId: PLAN_MAX,
+          status,
+          isRenewal: false,
+          expiresAt: null,
+          createdAt: NOW,
+          ...extra,
+        });
+      const use = (paymentId: string, userId: string, status: string) =>
+        db.redemptions.push({
+          id: `r-${paymentId}`,
+          codeId: code.id,
+          paymentId,
+          userId,
+          status,
+        });
+
+      pay('p1', 'user-b', 'successful');
+      use('p1', 'user-b', 'used');
+      pay('p2', 'user-c', 'failed');
+      use('p2', 'user-c', 'reserved'); // release missed: still not counted
+      pay('p3', 'user-d', 'pending', {
+        expiresAt: new Date(NOW.getTime() - 1000),
+      });
+      use('p3', 'user-d', 'reserved'); // QR expired
+      pay('p4', 'user-e', 'pending', {
+        createdAt: new Date(NOW.getTime() - 25 * 3600 * 1000),
+      });
+      use('p4', 'user-e', 'reserved'); // abandoned > 24 h
+      use('p5', 'user-f', 'released');
+      expect(await quoteErr('NEWYEAR20')).toBeUndefined();
+
+      pay('p6', 'user-g', 'pending');
+      use('p6', 'user-g', 'reserved'); // live → 2 of 2
+      expect(await quoteErr('NEWYEAR20')).toBe('DISCOUNT_USED_UP');
+
+      code.maxRedemptions = null;
+      use('p7', 'user-a', 'used');
+      expect(await quoteErr('NEWYEAR20')).toBe('DISCOUNT_ALREADY_USED');
+      code.perUserLimit = 2;
+      expect(await quoteErr('NEWYEAR20')).toBeUndefined();
+    });
+
+    it('amount codes: min(value, price); under 20 baht after the discount → AMOUNT_TOO_LOW; 100% → DISCOUNT_TOO_LARGE (AC6)', async () => {
+      addCode({ code: 'BAHT50', discountType: 'amount', discountValue: 5000 });
+      addCode({
+        code: 'BAHT190',
+        discountType: 'amount',
+        discountValue: 19000,
+      });
+      addCode({
+        code: 'BAHT999',
+        discountType: 'amount',
+        discountValue: 99900,
+      });
+      addCode({ code: 'FREE100', discountType: 'percent', discountValue: 100 });
+      await expect(
+        service.quote('user-a', PLAN, NOW, 'BAHT50'),
+      ).resolves.toMatchObject({ discountSatang: 5000, totalSatang: 14900 });
+      const low = await service.quote('user-a', PLAN, NOW, 'BAHT190');
+      expect(low.discountError).toEqual({
+        errorCode: 'AMOUNT_TOO_LOW',
+        message: expect.stringContaining('20 บาท') as string,
+      });
+      expect(await quoteErr('BAHT999')).toBe('DISCOUNT_TOO_LARGE');
+      expect(await quoteErr('FREE100')).toBe('DISCOUNT_TOO_LARGE');
+    });
+
+    it('card checkout: amounts from the server with the code; payment + reservation in the lock; charge = discounted total (AC4, AC9)', async () => {
+      db.page[0].vatEnabled = 1;
+      const code = addCode();
+      const result = await service.checkout(
+        user,
+        {
+          planId: PLAN,
+          method: 'card',
+          cardToken: 'tokn_test_1',
+          discountCode: 'newyear20',
+        },
+        NOW,
+      );
+      expect(
+        (omise.createCharge.mock.calls[0] as [CreateChargeParams])[0].amount,
+      ).toBe(17034);
+      expect(db.payments[0]).toMatchObject({
+        id: result.paymentId,
+        subtotalSatang: 19900,
+        discountSatang: 3980,
+        vatSatang: 1114,
+        totalSatang: 17034,
+        discountCodeId: code.id,
+      });
+      expect(db.redemptions).toEqual([
+        expect.objectContaining({
+          codeId: code.id,
+          userId: 'user-a',
+          paymentId: result.paymentId,
+          amountSatang: 3980,
+          status: 'reserved',
+        }),
+      ]);
+      expect(throttle.settle).toHaveBeenCalledWith('attempt-1', null);
+    });
+
+    it('checkout: a wrong code → 400 with its errorCode (counted), nothing made; over the limit → 429', async () => {
+      addCode({ code: 'OLDCODE', endsAt: new Date(NOW.getTime() - 1) });
+      const err = await errorOf(
+        service.checkout(
+          user,
+          { planId: PLAN, method: 'promptpay', discountCode: 'OLDCODE' },
+          NOW,
+        ),
+      );
+      expect(err).toMatchObject({
+        status: 400,
+        body: {
+          errorCode: 'DISCOUNT_EXPIRED',
+          message: 'โค้ดส่วนลดนี้หมดอายุแล้ว',
+        },
+      });
+      expect(throttle.settle).toHaveBeenCalledWith(
+        'attempt-1',
+        'DISCOUNT_EXPIRED',
+      );
+      throttle.begin.mockRejectedValueOnce(
+        new RedeemException('TOO_MANY_ATTEMPTS'),
+      );
+      expect(
+        (
+          await errorOf(
+            service.checkout(
+              user,
+              { planId: PLAN, method: 'promptpay', discountCode: 'X' },
+              NOW,
+            ),
+          )
+        ).status,
+      ).toBe(429);
+      expect(db.payments).toHaveLength(0);
+      expect(omise.createCharge).not.toHaveBeenCalled();
+      // other errors are not counted as guesses
+      configured = true;
+      db.plans[0].isPurchasable = false;
+      await errorOf(
+        service.checkout(
+          user,
+          { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+          NOW,
+        ),
+      );
+      expect(throttle.begin).toHaveBeenCalledTimes(2);
+    });
+
+    it('PromptPay: same code → same QR; other code / no code → new QR, the old reservation released (AC5)', async () => {
+      const a = addCode({
+        code: 'BAHT50',
+        discountType: 'amount',
+        discountValue: 5000,
+      });
+      const b = addCode({
+        code: 'BAHT30',
+        discountType: 'amount',
+        discountValue: 3000,
+      });
+      omise.createCharge
+        .mockResolvedValueOnce(qrCharge('chrg_test_q1'))
+        .mockResolvedValueOnce(qrCharge('chrg_test_q2', { amount: 16900 }))
+        .mockResolvedValueOnce(qrCharge('chrg_test_q3', { amount: 19900 }));
+      const first = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'BAHT50' },
+        NOW,
+      );
+      expect(first).toMatchObject({
+        status: 'pending',
+        qrImageUrl: 'https://qr/chrg_test_q1',
+      });
+      expect(
+        (omise.createCharge.mock.calls[0] as [CreateChargeParams])[0].amount,
+      ).toBe(14900);
+      const again = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'baht50' },
+        new Date(NOW.getTime() + 60_000),
+      );
+      expect(again.paymentId).toBe(first.paymentId);
+      expect(db.redemptions).toHaveLength(1);
+
+      const other = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'BAHT30' },
+        new Date(NOW.getTime() + 120_000),
+      );
+      expect(other.paymentId).not.toBe(first.paymentId);
+      expect(db.payments.find((p) => p.id === first.paymentId)!.status).toBe(
+        'canceled',
+      );
+      expect(
+        db.redemptions.map(
+          (r) => [r.codeId, r.paymentId, r.status] as unknown[],
+        ),
+      ).toEqual([
+        [a.id, first.paymentId, 'released'],
+        [b.id, other.paymentId, 'reserved'],
+      ]);
+
+      const plain = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay' },
+        new Date(NOW.getTime() + 180_000),
+      );
+      expect(plain.paymentId).not.toBe(other.paymentId);
+      expect(db.redemptions.map((r) => String(r.status))).toEqual([
+        'released',
+        'released',
+      ]);
+      expect(db.payments.find((p) => p.id === plain.paymentId)).toMatchObject({
+        discountSatang: 0,
+        discountCodeId: null,
+        totalSatang: 19900,
+      });
+    });
+
+    it("perUserLimit 1: the user's own pending QR of the plan does not block a new checkout with the code", async () => {
+      addCode({ code: 'BAHT50', discountType: 'amount', discountValue: 5000 });
+      omise.createCharge
+        .mockResolvedValueOnce(qrCharge('chrg_test_q1', { amount: 14900 }))
+        .mockResolvedValueOnce(charge({ id: 'chrg_test_c1', amount: 14900 }));
+      await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'BAHT50' },
+        NOW,
+      );
+      // the card path of the same plan with the same code
+      await expect(
+        service.checkout(
+          user,
+          {
+            planId: PLAN,
+            method: 'card',
+            cardToken: 'tokn_test_1',
+            discountCode: 'BAHT50',
+          },
+          new Date(NOW.getTime() + 60_000),
+        ),
+      ).resolves.toMatchObject({ status: 'successful' });
+      expect(db.redemptions.map((r) => String(r.status))).toEqual([
+        'released',
+        'reserved',
+      ]);
+    });
+
+    it('Opn refuses / is down → payment failed and its reservation released', async () => {
+      addCode();
+      omise.createCharge.mockRejectedValueOnce(
+        new OmiseError(false, 400, 'invalid_charge'),
+      );
+      await expect(
+        service.checkout(
+          user,
+          { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+          NOW,
+        ),
+      ).resolves.toMatchObject({ status: 'failed' });
+      expect(db.redemptions[0].status).toBe('released');
+
+      omise.createCharge.mockRejectedValueOnce(
+        new OmiseError(true, 503, 'timeout'),
+      );
+      expect(
+        (
+          await errorOf(
+            service.checkout(
+              user,
+              { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+              new Date(NOW.getTime() + 60_000),
+            ),
+          )
+        ).status,
+      ).toBe(503);
+      expect(db.redemptions.map((r) => String(r.status))).toEqual([
+        'released',
+        'released',
+      ]);
+      // released uses do not count: the code still works for this user
+      expect(await quoteErr('NEWYEAR20')).toBeUndefined();
+    });
+
+    it('race: maxRedemptions 1, two users at once → one payment, the other DISCOUNT_USED_UP (AC7)', async () => {
+      addCode({ maxRedemptions: 1 });
+      omise.createCharge.mockImplementation(() =>
+        Promise.resolve(qrCharge(`chrg_test_${db.payments.length}`)),
+      );
+      const results = await Promise.allSettled([
+        service.checkout(
+          user,
+          { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+          NOW,
+        ),
+        service.checkout(
+          { id: 'user-b', email: 'b@example.test' },
+          { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+          NOW,
+        ),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const failed = results.find(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      )!;
+      expect((failed.reason as ProException).errorCode).toBe(
+        'DISCOUNT_USED_UP',
+      );
+      expect(db.payments).toHaveLength(1);
+      expect(db.redemptions).toHaveLength(1);
+    });
+
+    it("round 2: a new checkout cancels the user's other pending payments of the plan (both methods) and releases their uses", async () => {
+      addCode({ code: 'BAHT50', discountType: 'amount', discountValue: 5000 });
+      omise.createCharge
+        .mockResolvedValueOnce(qrCharge('chrg_test_q1', { amount: 14900 }))
+        .mockResolvedValueOnce(
+          charge({
+            id: 'chrg_test_3ds',
+            status: 'pending',
+            authorize_uri: 'https://pay.example/3ds',
+          }),
+        )
+        .mockResolvedValueOnce(qrCharge('chrg_test_q3'));
+      const qr = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'BAHT50' },
+        NOW,
+      );
+      const card = await service.checkout(
+        user,
+        { planId: PLAN, method: 'card', cardToken: 'tokn_test_1' },
+        new Date(NOW.getTime() + 60_000),
+      );
+      expect(db.payments.find((p) => p.id === qr.paymentId)).toMatchObject({
+        status: 'canceled',
+        failureCode: 'replaced',
+        failureMessage: 'ถูกแทนที่ด้วยรายการชำระใหม่',
+      });
+      expect(String(db.redemptions[0].status)).toBe('released');
+      const last = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay' },
+        new Date(NOW.getTime() + 120_000),
+      );
+      expect(db.payments.find((p) => p.id === card.paymentId)).toMatchObject({
+        status: 'canceled',
+      });
+      expect(
+        db.payments
+          .filter((p) => p.status === 'pending')
+          .map((p) => String(p.id)),
+      ).toEqual([last.paymentId]);
+      // payments of another plan / user are not touched
+      expect(db.payments).toHaveLength(3);
+    });
+
+    it('round 2 (QA bug 1): a replaced QR is never reused, so the code cannot be used twice past maxRedemptions 1', async () => {
+      const code = addCode({ maxRedemptions: 1 });
+      omise.createCharge.mockImplementation(() =>
+        Promise.resolve(qrCharge(`chrg_test_${db.payments.length + 1}`)),
+      );
+      // 1. A: QR with the code (reserved)
+      const a1 = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+        NOW,
+      );
+      // 2. A: QR without the code → the first one is canceled + released
+      await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay' },
+        new Date(NOW.getTime() + 60_000),
+      );
+      // 3. B takes the free use
+      const b = await service.checkout(
+        { id: 'user-b', email: 'b@example.test' },
+        { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+        new Date(NOW.getTime() + 90_000),
+      );
+      expect(b.status).toBe('pending');
+      // 4. A with the code again: the old QR is not reused → limit checked
+      const err = await errorOf(
+        service.checkout(
+          user,
+          { planId: PLAN, method: 'promptpay', discountCode: 'NEWYEAR20' },
+          new Date(NOW.getTime() + 120_000),
+        ),
+      );
+      expect(err.body.errorCode).toBe('DISCOUNT_USED_UP');
+      const a1Row = db.payments.find((p) => p.id === a1.paymentId)!;
+      expect(a1Row.status).toBe('canceled');
+      // live uses of the code: B only
+      expect(
+        db.redemptions
+          .filter((r) => r.codeId === code.id && r.status === 'reserved')
+          .map((r) => r.userId as string),
+      ).toEqual(['user-b']);
+    });
+
+    it('round 2: a pending QR with the code whose use is no longer reserved is not reused', async () => {
+      const code = addCode({
+        code: 'BAHT50',
+        discountType: 'amount',
+        discountValue: 5000,
+      });
+      omise.createCharge
+        .mockResolvedValueOnce(qrCharge('chrg_test_q1', { amount: 14900 }))
+        .mockResolvedValueOnce(qrCharge('chrg_test_q2', { amount: 14900 }));
+      const first = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'BAHT50' },
+        NOW,
+      );
+      // e.g. released before round 2 (old data)
+      db.redemptions[0].status = 'released';
+      const again = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay', discountCode: 'BAHT50' },
+        new Date(NOW.getTime() + 60_000),
+      );
+      expect(again.paymentId).not.toBe(first.paymentId);
+      expect(
+        db.redemptions
+          .filter((r) => r.codeId === code.id)
+          .map((r) => [r.paymentId, String(r.status)] as unknown[]),
+      ).toEqual([
+        [first.paymentId, 'released'],
+        [again.paymentId, 'reserved'],
+      ]);
+    });
+
+    it('round 2/3: GET of a canceled payment → status canceled, no QR; asked from Opn under the 5 s throttle, paid anyway → successful + refundRequired', async () => {
+      omise.createCharge
+        .mockResolvedValueOnce(qrCharge('chrg_test_q1'))
+        .mockResolvedValueOnce(qrCharge('chrg_test_q2'));
+      const first = await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay' },
+        NOW,
+      );
+      // amount changed (VAT on) → a new QR replaces the first
+      db.page[0].vatEnabled = 1;
+      await service.checkout(
+        user,
+        { planId: PLAN, method: 'promptpay' },
+        new Date(NOW.getTime() + 60_000),
+      );
+      // Opn: still pending
+      billing.syncCharge.mockResolvedValue({
+        handled: true,
+        status: 'canceled',
+      });
+      const at = (ms: number) => new Date(NOW.getTime() + ms);
+      const view = await service.getMine(
+        'user-a',
+        first.paymentId,
+        at(120_000),
+      );
+      expect(view).toMatchObject({
+        status: 'canceled',
+        qrImageUrl: null,
+        failureMessage: 'ถูกแทนที่ด้วยรายการชำระใหม่',
+      });
+      expect(billing.syncCharge).toHaveBeenCalledWith(
+        'chrg_test_q1',
+        first.paymentId,
+      );
+      // within 5 s: not asked again
+      await service.getMine('user-a', first.paymentId, at(123_000));
+      expect(billing.syncCharge).toHaveBeenCalledTimes(1);
+      // paid anyway: the single charge path records it for a refund
+      billing.syncCharge.mockImplementation(() => {
+        Object.assign(db.payments.find((p) => p.id === first.paymentId)!, {
+          status: 'successful',
+          refundRequired: true,
+        });
+        return Promise.resolve({ handled: true, status: 'successful' });
+      });
+      await expect(
+        service.getMine('user-a', first.paymentId, at(126_000)),
+      ).resolves.toMatchObject({
+        status: 'successful',
+        refundRequired: true,
+        subscription: null,
+      });
+      expect(billing.syncCharge).toHaveBeenCalledTimes(2);
+    });
+
+    it('GET /pro/payments/:id shows the discount and its code', async () => {
+      const code = addCode();
+      db.payments.push({
+        id: '44444444-4444-4444-8444-444444444444',
+        userId: 'user-a',
+        planId: PLAN,
+        status: 'successful',
+        method: 'card',
+        isRenewal: false,
+        subtotalSatang: 19900,
+        discountSatang: 3980,
+        vatSatang: 0,
+        totalSatang: 15920,
+        discountCodeId: code.id,
+        createdAt: NOW,
+      });
+      await expect(
+        service.getMine('user-a', '44444444-4444-4444-8444-444444444444', NOW),
+      ).resolves.toMatchObject({
+        discountSatang: 3980,
+        discountCode: 'NEWYEAR20',
+        totalSatang: 15920,
+      });
+    });
   });
 });

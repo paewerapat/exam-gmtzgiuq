@@ -23,6 +23,7 @@ import {
   ADMIN_SECONDARY_BUTTON,
   AdminPagination,
   BatchExamsSummary,
+  BatchKindBadge,
   CodeExpiry,
   confirmDisableBatch,
 } from './shared';
@@ -161,7 +162,10 @@ export default function UnlockBatchDetail({ id }: { id: string }) {
     { label: 'โค้ดทั้งหมด', value: batch.codeCount.toLocaleString('th-TH') },
     { label: 'ใช้แล้ว', value: batch.usedCount.toLocaleString('th-TH') },
     { label: 'ยังไม่ใช้', value: unused.toLocaleString('th-TH') },
-    { label: 'อายุสิทธิ์', value: `${batch.accessDays.toLocaleString('th-TH')} วัน` },
+    {
+      label: batch.kind === 'pro' ? 'จำนวนวันของแพ็กเกจ' : 'อายุสิทธิ์',
+      value: `${batch.accessDays.toLocaleString('th-TH')} วัน`,
+    },
   ];
 
   return (
@@ -186,7 +190,10 @@ export default function UnlockBatchDetail({ id }: { id: string }) {
                 <KeyRound className="w-6 h-6 flex-shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
                 {batch.name}
               </h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">สร้างเมื่อ {formatReleaseDate(batch.createdAt)}</p>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <BatchKindBadge kind={batch.kind} />
+                สร้างเมื่อ {formatReleaseDate(batch.createdAt)}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
@@ -229,7 +236,9 @@ export default function UnlockBatchDetail({ id }: { id: string }) {
 
           <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">ชุดที่ Unlock</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                {batch.kind === 'pro' ? 'แพ็กเกจที่ได้' : 'ชุดที่ Unlock'}
+              </p>
               <BatchExamsSummary batch={batch} max={20} linkExams />
             </div>
             <div>
@@ -237,7 +246,11 @@ export default function UnlockBatchDetail({ id }: { id: string }) {
               <CodeExpiry value={batch.codeExpiresAt} />
             </div>
           </div>
-          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">ชุดที่ผูกและอายุสิทธิ์แก้ไม่ได้หลังสร้าง</p>
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            {batch.kind === 'pro'
+              ? 'แพ็กเกจและจำนวนวันแก้ไม่ได้หลังสร้าง · ผู้ใช้กรอกโค้ดในหน้า Upgrade หรือสมาชิกของฉัน'
+              : 'ชุดที่ผูกและอายุสิทธิ์แก้ไม่ได้หลังสร้าง'}
+          </p>
         </section>
 
         <BatchEditForm key={`${batch.id}|${batch.name}|${batch.codeExpiresAt ?? ''}`} batch={batch} onSaved={setBatch} />

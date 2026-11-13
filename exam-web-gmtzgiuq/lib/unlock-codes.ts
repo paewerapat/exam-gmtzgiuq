@@ -37,6 +37,12 @@ export function redeemSuccessMessage(unlockedCount: number): string {
 
 // ── error ของ POST /unlock-codes/redeem ─────────────────────
 
+/** ชื่อประเภทแคมเปญ (task 19) — ห้ามใช้คำว่า "ปลดล็อก" */
+export const BATCH_KIND_LABELS: Record<'exam' | 'pro', string> = {
+  exam: `${UNLOCK_WORD} ชุดข้อสอบ`,
+  pro: 'ให้แพ็กเกจ Pro',
+};
+
 export const REDEEM_ERROR_MESSAGES: Record<string, string> = {
   INVALID_FORMAT: 'รูปแบบโค้ดไม่ถูกต้อง',
   NOT_FOUND: 'ไม่พบโค้ดนี้ กรุณาตรวจสอบอีกครั้ง',
@@ -47,7 +53,50 @@ export const REDEEM_ERROR_MESSAGES: Record<string, string> = {
   BATCH_ALREADY_USED: 'บัญชีนี้ใช้โค้ดของแคมเปญนี้ไปแล้ว',
   NOT_FOR_THIS_EXAM: 'โค้ดนี้ใช้กับชุดข้อสอบนี้ไม่ได้',
   TOO_MANY_ATTEMPTS: 'กรอกโค้ดผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่',
+  // task 19: โค้ดแบบให้แพ็กเกจ Pro
+  ALREADY_HIGHER_PLAN: 'คุณมีแพ็กเกจของสนามนี้ที่ระดับสูงกว่าหรือเท่ากันอยู่แล้ว โค้ดนี้จึงยังไม่ถูกใช้',
 };
+
+/**
+ * ข้อความเมื่อกรอกโค้ดในหน้า /upgrade หรือสมาชิกของฉัน (ไม่ได้อยู่ในหน้าชุดข้อสอบ — ไม่ส่ง examId)
+ * โค้ดแบบ Unlock ชุดข้อสอบ → API ตอบ NOT_FOR_THIS_EXAM → บอกให้ไปกรอกที่หน้าชุด
+ */
+export const PRO_REDEEM_ERROR_MESSAGES: Record<string, string> = {
+  ...REDEEM_ERROR_MESSAGES,
+  NOT_FOR_THIS_EXAM: 'โค้ดนี้ใช้กับชุดข้อสอบ กรุณากรอกที่หน้าชุดข้อสอบ',
+};
+
+export const PRO_CODE_TEXT = {
+  toggle: 'มีโค้ด?',
+  title: 'มีโค้ด? กรอกเพื่อรับแพ็กเกจ',
+  subtitle: 'โค้ดที่ได้จากกิจกรรมหรือโปรโมชัน ใช้ได้ 1 ครั้งต่อบัญชี',
+  inputLabel: 'โค้ด',
+  submit: 'ใช้โค้ด',
+  submitting: 'กำลังตรวจโค้ด...',
+  guestNote: 'ต้องเข้าสู่ระบบก่อนกรอกโค้ด',
+  /** ต่อแพ็กเกจที่ตัดบัตรอัตโนมัติแล้ว แต่รอบตัดบัตรถัดไปยังไม่เลื่อน (autoRenewDatesDiffer) */
+  autoRenewNote: 'ต่ออายุสิทธิ์แล้ว แต่วันตัดบัตรรอบถัดไปยังเป็นวันเดิม',
+} as const;
+
+/** "ได้รับแพ็กเกจ PRO NETSAT ถึง 30 พ.ย. 2569" (ชื่อแพ็กเกจมีชื่อสนามอยู่แล้ว → ไม่ต่อชื่อสนามซ้ำ) */
+export function proRedeemSuccessMessage(result: {
+  venue: { name: string };
+  plan: { name: string };
+  currentPeriodEnd: string;
+}): string {
+  const plan = result.plan.name.trim();
+  const venue = result.venue.name.trim();
+  const name =
+    venue && !plan.toLowerCase().includes(venue.toLowerCase()) ? [plan, venue].filter(Boolean).join(' ') : plan;
+  const until = formatThaiDate(result.currentPeriodEnd);
+  return `ได้รับแพ็กเกจ${name ? ` ${name}` : ''}${until ? ` ถึง ${until}` : ''}`;
+}
+
+/** ข้อความ error ของกล่อง "มีโค้ด?" (หน้า /upgrade, สมาชิกของฉัน) */
+export function proRedeemErrorMessage(errorCode: string | null | undefined, apiMessage?: string | null): string {
+  if (errorCode && PRO_REDEEM_ERROR_MESSAGES[errorCode]) return PRO_REDEEM_ERROR_MESSAGES[errorCode];
+  return redeemErrorMessage(null, apiMessage);
+}
 
 const REDEEM_FALLBACK = 'ใช้โค้ดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
 
@@ -120,8 +169,16 @@ export const MAX_BATCH_NAME = 150;
 export const MAX_BATCH_CODES = 5000;
 export const MAX_BATCH_ACCESS_DAYS = 3650;
 
+export type UnlockBatchFormKind = 'exam' | 'pro';
+
 export interface UnlockBatchForm {
   name: string;
+  /** exam = Unlock ชุดข้อสอบ, pro = ให้แพ็กเกจ Pro (task 19) */
+  kind: UnlockBatchFormKind;
+  /** kind pro: สนามที่เลือก (ใช้กรอง dropdown แพ็กเกจ) */
+  venueId: string;
+  /** kind pro: แพ็กเกจที่ให้ */
+  proPlanId: string;
   allMock: boolean;
   examIds: string[];
   /** ช่องกรอก (string) แปลงเป็น number ตอนส่ง */
@@ -131,11 +188,21 @@ export interface UnlockBatchForm {
   codeExpiresAt: string;
 }
 
-export type UnlockBatchField = 'name' | 'exams' | 'count' | 'accessDays' | 'codeExpiresAt';
+export type UnlockBatchField = 'name' | 'exams' | 'proPlan' | 'count' | 'accessDays' | 'codeExpiresAt';
 export type UnlockBatchErrors = Partial<Record<UnlockBatchField, string>>;
 
 export function createUnlockBatchForm(): UnlockBatchForm {
-  return { name: '', allMock: false, examIds: [], count: '100', accessDays: '30', codeExpiresAt: '' };
+  return {
+    name: '',
+    kind: 'exam',
+    venueId: '',
+    proPlanId: '',
+    allMock: false,
+    examIds: [],
+    count: '100',
+    accessDays: '30',
+    codeExpiresAt: '',
+  };
 }
 
 const INT_PATTERN = /^\d+$/;
@@ -154,7 +221,12 @@ export function validateUnlockBatchForm(
   if (!name) errors.name = 'กรุณาตั้งชื่อแคมเปญ';
   else if (name.length > MAX_BATCH_NAME) errors.name = `ชื่อแคมเปญยาวได้ไม่เกิน ${MAX_BATCH_NAME} ตัวอักษร`;
 
-  if (!form.allMock && form.examIds.length === 0) errors.exams = 'กรุณาเลือกชุดข้อสอบอย่างน้อย 1 ชุด';
+  // ฟอร์มเก่าที่ไม่มี kind = exam
+  if (form.kind === 'pro') {
+    if (!form.proPlanId) errors.proPlan = 'กรุณาเลือกแพ็กเกจ';
+  } else if (!form.allMock && form.examIds.length === 0) {
+    errors.exams = 'กรุณาเลือกชุดข้อสอบอย่างน้อย 1 ชุด';
+  }
 
   const count = form.count.trim();
   if (!INT_PATTERN.test(count) || Number(count) < 1 || Number(count) > MAX_BATCH_CODES) {
@@ -163,7 +235,10 @@ export function validateUnlockBatchForm(
 
   const days = form.accessDays.trim();
   if (!INT_PATTERN.test(days) || Number(days) < 1 || Number(days) > MAX_BATCH_ACCESS_DAYS) {
-    errors.accessDays = `อายุการเข้าถึงต้องเป็นจำนวนวัน 1–${MAX_BATCH_ACCESS_DAYS.toLocaleString('th-TH')}`;
+    errors.accessDays =
+      form.kind === 'pro'
+        ? `จำนวนวันของแพ็กเกจต้องเป็น 1–${MAX_BATCH_ACCESS_DAYS.toLocaleString('th-TH')}`
+        : `อายุการเข้าถึงต้องเป็นจำนวนวัน 1–${MAX_BATCH_ACCESS_DAYS.toLocaleString('th-TH')}`;
   }
 
   const expires = form.codeExpiresAt.trim();
@@ -177,7 +252,7 @@ export function validateUnlockBatchForm(
 
 /** ช่องแรกที่ผิด (เรียงตามลำดับในฟอร์ม) ใช้ย้าย focus หลังกดสร้าง */
 export function firstBatchErrorField(errors: UnlockBatchErrors): UnlockBatchField | null {
-  const order: UnlockBatchField[] = ['name', 'exams', 'count', 'accessDays', 'codeExpiresAt'];
+  const order: UnlockBatchField[] = ['name', 'exams', 'proPlan', 'count', 'accessDays', 'codeExpiresAt'];
   return order.find((f) => !!errors[f]) ?? null;
 }
 

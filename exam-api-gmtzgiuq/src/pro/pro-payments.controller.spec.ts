@@ -119,7 +119,54 @@ describe('ProPaymentsController (task 18)', () => {
       .get(`/pro/checkout/quote?planId=${PLAN}`)
       .set('x-test-user', 'u')
       .expect(200);
-    expect(payments.quote).toHaveBeenCalledWith('u', PLAN);
+    expect(payments.quote).toHaveBeenCalledWith(
+      'u',
+      PLAN,
+      undefined,
+      undefined,
+    );
+  });
+
+  it('quote ?code= reaches the service as typed (task 19); too long → 400', async () => {
+    await server()
+      .get(`/pro/checkout/quote?planId=${PLAN}&code=newyear20`)
+      .set('x-test-user', 'u')
+      .expect(200);
+    expect(payments.quote).toHaveBeenCalledWith(
+      'u',
+      PLAN,
+      undefined,
+      'newyear20',
+    );
+    await server()
+      .get(`/pro/checkout/quote?planId=${PLAN}&code=${'A'.repeat(101)}`)
+      .set('x-test-user', 'u')
+      .expect(400);
+  });
+
+  it('checkout discountCode is passed; discountSatang / amounts from the client are dropped (task 19 AC9)', async () => {
+    await server()
+      .post('/pro/checkout')
+      .set('x-test-user', 'u')
+      .send({
+        planId: PLAN,
+        method: 'promptpay',
+        discountCode: 'NEWYEAR20',
+        discountSatang: 19900,
+        totalSatang: 1,
+        discountCodeId: PLAN,
+      })
+      .expect(200);
+    expect((payments.checkout.mock.calls[0] as unknown[])[1]).toEqual({
+      planId: PLAN,
+      method: 'promptpay',
+      discountCode: 'NEWYEAR20',
+    });
+    await server()
+      .post('/pro/checkout')
+      .set('x-test-user', 'u')
+      .send({ planId: PLAN, method: 'promptpay', discountCode: 5 })
+      .expect(400);
   });
 
   it('checkout: card needs a tokn_ token; amount from the client is dropped (AC13)', async () => {

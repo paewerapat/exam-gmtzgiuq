@@ -78,10 +78,16 @@ describe('ProSubscriptionsService (task 17)', () => {
   // [table, lock] of every findOne in the grant transaction
   let reads: [string, unknown][];
   let venues: string[];
-  let billing: { cancelScheduleQuietly: jest.Mock };
+  let billing: {
+    cancelScheduleQuietly: jest.Mock;
+    moveRenewalSchedule: jest.Mock;
+  };
 
   beforeEach(async () => {
-    billing = { cancelScheduleQuietly: jest.fn().mockResolvedValue(true) };
+    billing = {
+      cancelScheduleQuietly: jest.fn().mockResolvedValue(true),
+      moveRenewalSchedule: jest.fn().mockResolvedValue(true),
+    };
     store = [];
     queries = [];
     locks = new Map();
@@ -132,16 +138,21 @@ describe('ProSubscriptionsService (task 17)', () => {
             reads.push([isVenue ? 'venue' : 'plan', options.lock]);
             if (isVenue) {
               const id = options.where.id as string;
-              return Promise.resolve(venues.includes(id) ? { id } : null);
+              return Promise.resolve(
+                venues.includes(id)
+                  ? { id, key: id, name: id.toUpperCase() }
+                  : null,
+              );
             }
             return Promise.resolve(
               plans.find((p) => p.id === options.where.id) ?? null,
             );
           },
         ),
-        find: jest.fn(async (_entity: unknown, { where }: { where: Row }) => {
+        find: jest.fn(async (entity: unknown, { where }: { where: Row }) => {
           await tick();
-          return store.filter((r) => matches(r, where)).map((r) => ({ ...r }));
+          const rows: Row[] = entity === ProPlan ? plans : store;
+          return rows.filter((r) => matches(r, where)).map((r) => ({ ...r }));
         }),
         update: jest.fn(
           async (_entity: unknown, criteria: Row, changes: Row) => {
@@ -636,6 +647,219 @@ describe('ProSubscriptionsService (task 17)', () => {
     ).toMatchObject({
       status: 400,
       body: { errorCode: 'INVALID_STATUS_FILTER' },
+    });
+  });
+
+  // ── Pro unlock codes (task 19) ──────────────────────────────────────
+
+  describe('grantFromCode (task 19)', () => {
+    let consume: jest.Mock;
+    const fromCode = (planId: string, days = 7, userId = 'user-a') =>
+      service.grantFromCode(
+        { userId, planId, days, note: 'PRO NETSAT 7 วัน' },
+        consume,
+        NOW,
+      );
+    const row = (planId: string, extra: Row = {}) => {
+      const r = {
+        id: `sub-${store.length + 1}`,
+        userId: 'user-a',
+        venueId: 'netsat',
+        planId,
+        status: 'active',
+        source: 'admin',
+        currentPeriodStart: new Date(NOW_S.getTime() - 10 * DAY),
+        currentPeriodEnd: new Date(NOW_S.getTime() + 20 * DAY),
+        autoRenew: false,
+        omiseScheduleId: null,
+        note: null,
+        ...extra,
+      };
+      store.push(r);
+      return r;
+    };
+
+    beforeEach(() => {
+      consume = jest.fn().mockResolvedValue(undefined);
+    });
+
+    it('no plan of the venue → new row from now for the days, source code, note = campaign, code consumed in the same lock', async () => {
+      const result = await fromCode('netsat-pro');
+      expect(consume).toHaveBeenCalledTimes(1);
+      expect(store).toHaveLength(1);
+      expect(store[0]).toMatchObject({
+        id: result.subscriptionId,
+        userId: 'user-a',
+        planId: 'netsat-pro',
+        status: 'active',
+        source: 'code',
+        note: 'PRO NETSAT 7 วัน',
+        grantedById: null,
+        currentPeriodStart: NOW_S,
+        currentPeriodEnd: new Date(NOW_S.getTime() + 7 * DAY),
+        autoRenew: false,
+      });
+      expect(result).toMatchObject({
+        extended: false,
+        currentPeriodEnd: new Date(NOW_S.getTime() + 7 * DAY),
+        venue: { id: 'netsat', key: 'netsat' },
+        plan: { id: 'netsat-pro', code: 'pro' },
+      });
+      // consume ran inside the transaction, after the user lock
+      expect(transactions).toHaveBeenCalledTimes(1);
+      expect(reads.map((r) => r[0])).toEqual(['plan', 'venue', 'plan']);
+    });
+
+    it('same plan running (a card row with autoRenew) → +days from its end, source kept, its schedule moved to the new end after the commit (AC2, round 2)', async () => {
+      const card = row('netsat-pro', {
+        source: 'card',
+        autoRenew: true,
+        omiseScheduleId: 'schd_test_1',
+      });
+      billing.moveRenewalSchedule.mockImplementationOnce(() => {
+        // runs after the commit: the row already has the new end
+        expect(store[0].currentPeriodEnd).toEqual(
+          new Date(NOW_S.getTime() + 27 * DAY),
+        );
+        return Promise.resolve(true);
+      });
+      const result = await fromCode('netsat-pro');
+      expect(result).toMatchObject({
+        subscriptionId: card.id,
+        extended: true,
+        currentPeriodEnd: new Date(NOW_S.getTime() + 27 * DAY),
+        autoRenewDatesDiffer: false,
+      });
+      expect(store).toHaveLength(1);
+      expect(store[0]).toMatchObject({
+        status: 'active',
+        source: 'card',
+        autoRenew: true,
+        currentPeriodEnd: new Date(NOW_S.getTime() + 27 * DAY),
+      });
+      expect(billing.moveRenewalSchedule).toHaveBeenCalledWith(
+        card.id,
+        'schd_test_1',
+      );
+      expect(billing.cancelScheduleQuietly).not.toHaveBeenCalled();
+      expect(consume).toHaveBeenCalledTimes(1);
+    });
+
+    it('schedule could not be moved → still extended (code used), autoRenewDatesDiffer true', async () => {
+      row('netsat-pro', {
+        source: 'card',
+        autoRenew: true,
+        omiseScheduleId: 'schd_test_1',
+      });
+      billing.moveRenewalSchedule.mockResolvedValueOnce(false);
+      await expect(fromCode('netsat-pro')).resolves.toMatchObject({
+        extended: true,
+        autoRenewDatesDiffer: true,
+      });
+      expect(consume).toHaveBeenCalledTimes(1);
+      expect(store[0].currentPeriodEnd).toEqual(
+        new Date(NOW_S.getTime() + 27 * DAY),
+      );
+    });
+
+    it('no schedule / auto renewal off → nothing to move', async () => {
+      row('netsat-pro', { omiseScheduleId: 'schd_test_off', autoRenew: false });
+      await fromCode('netsat-pro');
+      expect(billing.moveRenewalSchedule).not.toHaveBeenCalled();
+    });
+
+    it('a lower plan running → replaced (revoked, its schedule deleted after the commit), new row from now', async () => {
+      // pretend PRO is "lower": a code for MAX over a running PRO card row
+      const old = row('netsat-pro', {
+        source: 'card',
+        autoRenew: true,
+        omiseScheduleId: 'schd_test_old',
+      });
+      const result = await fromCode('netsat-max', 7);
+      expect(result.extended).toBe(false);
+      expect(store.find((r) => r.id === old.id)).toMatchObject({
+        status: 'revoked',
+        revokedAt: NOW_S,
+        revokedById: null,
+        autoRenew: false,
+      });
+      expect(activeOf('user-a', 'netsat')).toEqual([
+        expect.objectContaining({ planId: 'netsat-max', source: 'code' }),
+      ]);
+      expect(billing.cancelScheduleQuietly).toHaveBeenCalledWith(
+        'schd_test_old',
+      );
+    });
+
+    it('same or higher rank of another plan running → 409 ALREADY_HIGHER_PLAN, code not consumed, nothing written (AC2)', async () => {
+      row('netsat-max');
+      expect(await errorOf(fromCode('netsat-pro'))).toMatchObject({
+        status: 409,
+        body: { errorCode: 'ALREADY_HIGHER_PLAN' },
+      });
+      expect(consume).not.toHaveBeenCalled();
+      expect(store).toHaveLength(1);
+      expect(store[0].status).toBe('active');
+
+      // equal rank, other plan: tgat has its own rows; add an equal-rank plan
+      plans.push({
+        id: 'netsat-pro2',
+        venueId: 'netsat',
+        code: 'pro2',
+        rank: 2,
+      });
+      try {
+        expect((await errorOf(fromCode('netsat-pro2'))).body.errorCode).toBe(
+          'ALREADY_HIGHER_PLAN',
+        );
+      } finally {
+        plans.pop();
+      }
+    });
+
+    it('a row of the venue already past its end does not block: it is expired, a new row starts', async () => {
+      const past = row('netsat-max', {
+        currentPeriodEnd: new Date(NOW_S.getTime() - DAY),
+      });
+      await fromCode('netsat-pro');
+      expect(store.find((r) => r.id === past.id)!.status).toBe('expired');
+      expect(activeOf('user-a', 'netsat')).toHaveLength(1);
+    });
+
+    it('another venue is separate', async () => {
+      row('netsat-max');
+      await expect(fromCode('tgat-pro')).resolves.toMatchObject({
+        extended: false,
+      });
+      expect(activeOf('user-a', 'tgat')).toHaveLength(1);
+    });
+
+    it('consume fails (code used meanwhile) → the error passes, nothing written', async () => {
+      row('netsat-pro');
+      consume.mockRejectedValueOnce(new Error('USED'));
+      await expect(fromCode('netsat-pro')).rejects.toThrow('USED');
+      expect(store).toHaveLength(1);
+      expect(store[0].currentPeriodEnd).toEqual(
+        new Date(NOW_S.getTime() + 20 * DAY),
+      );
+    });
+
+    it('plan missing → 404 PLAN_NOT_FOUND; free plan → 400 FREE_PLAN_GRANT; nothing consumed', async () => {
+      expect((await errorOf(fromCode('nope'))).body.errorCode).toBe(
+        'PLAN_NOT_FOUND',
+      );
+      expect((await errorOf(fromCode('netsat-free'))).body.errorCode).toBe(
+        'FREE_PLAN_GRANT',
+      );
+      expect(consume).not.toHaveBeenCalled();
+    });
+
+    it('two codes at once for one user → run one after the other under the user lock', async () => {
+      await Promise.all([fromCode('netsat-pro'), fromCode('netsat-pro')]);
+      expect(activeOf('user-a', 'netsat')).toHaveLength(1);
+      expect(activeOf('user-a', 'netsat')[0].currentPeriodEnd).toEqual(
+        new Date(NOW_S.getTime() + 14 * DAY),
+      );
     });
   });
 });

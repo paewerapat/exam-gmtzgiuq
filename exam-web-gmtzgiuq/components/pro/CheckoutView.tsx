@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -14,6 +14,8 @@ import {
   QrCode,
   RotateCcw,
   ShieldCheck,
+  Tag,
+  X,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +23,13 @@ import { ApiError } from '@/lib/api/apiError';
 import { createCheckout, getCheckoutQuote, type ProCheckoutQuote, type ProPaymentMethod } from '@/lib/api/pro';
 import { getOmisePublicKey, loadOmiseCard, omiseErrorMessage, OMISE_NOT_READY_MESSAGE, requestCardToken } from '@/lib/omise';
 import { formatSatang } from '@/lib/pro';
+import {
+  DISCOUNT_EMPTY_CODE,
+  discountErrorMessage,
+  formatDiscountCodeInput,
+  formatDiscountValue,
+  isDiscountErrorCode,
+} from '@/lib/pro-discounts';
 import { checkoutHref, loginHref, MEMBERSHIP_PATH, paymentErrorMessage, redirectToAuthorize, resultHref } from '@/lib/pro-payments';
 import { formatThaiDate } from '@/lib/unlock-codes';
 
@@ -63,6 +72,13 @@ export default function CheckoutView() {
   const [payError, setPayError] = useState<string | null>(null);
   const publicKey = getOmisePublicKey();
 
+  // โค้ดส่วนลด (task 19): โค้ดที่ใช้อยู่ = quote.discount (quote ใหม่จาก server ทุกครั้ง ไม่คิดยอดเอง)
+  const [codeInput, setCodeInput] = useState('');
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [applyingCode, setApplyingCode] = useState(false);
+  const applyingRef = useRef(false);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+
   // ยังไม่ login → /login แล้วกลับมาหน้านี้ (layout รอ auth โหลดเสร็จก่อน render หน้านี้)
   useEffect(() => {
     if (!userId) router.replace(loginHref(planId ? checkoutHref(planId) : '/upgrade'));
@@ -103,14 +119,83 @@ export default function CheckoutView() {
     setSubmitting(false);
   }
 
+  /** ขอ quote ใหม่ (มี/ไม่มีโค้ด) แล้วแทน quote เดิมโดยไม่ขึ้นหน้าโหลด — ผลของคำขอเก่า (เปลี่ยนแพ็กเกจ/บัญชีระหว่างรอ) ทิ้ง */
+  async function requote(code: string | null): Promise<ProCheckoutQuote> {
+    const key = requestKey;
+    const res = await getCheckoutQuote(planId, undefined, code ?? undefined);
+    setResult((prev) => (prev?.key === key ? { key, quote: res, error: null } : prev));
+    return res;
+  }
+
+  async function handleApplyCode(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (applyingRef.current || submittingRef.current) return;
+    const code = formatDiscountCodeInput(codeInput);
+    if (!code) {
+      setCodeError(DISCOUNT_EMPTY_CODE);
+      codeInputRef.current?.focus();
+      return;
+    }
+    applyingRef.current = true;
+    setApplyingCode(true);
+    setCodeError(null);
+    setPayError(null);
+    try {
+      const res = await requote(code);
+      if (res.discount) {
+        setCodeInput('');
+      } else {
+        setCodeError(discountErrorMessage(res.discountError?.errorCode, res.discountError?.message));
+        codeInputRef.current?.focus();
+      }
+    } catch (err) {
+      // เช่น 429 กรอกผิดหลายครั้ง / เน็ตหลุด — quote เดิมยังใช้ได้
+      setCodeError(
+        err instanceof ApiError
+          ? discountErrorMessage(err.errorCode, err.message)
+          : paymentErrorMessage(err, 'ตรวจสอบโค้ดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'),
+      );
+      codeInputRef.current?.focus();
+    } finally {
+      applyingRef.current = false;
+      setApplyingCode(false);
+    }
+  }
+
+  async function handleRemoveCode() {
+    if (applyingRef.current || submittingRef.current) return;
+    applyingRef.current = true;
+    setApplyingCode(true);
+    setCodeError(null);
+    setPayError(null);
+    try {
+      await requote(null);
+      codeInputRef.current?.focus();
+    } catch (err) {
+      setCodeError(paymentErrorMessage(err, 'เอาโค้ดออกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'));
+    } finally {
+      applyingRef.current = false;
+      setApplyingCode(false);
+    }
+  }
+
+  /** checkout ตอบว่าโค้ดใช้ไม่ได้แล้ว (เช่นถูกใช้ครบระหว่างนั้น) → บอกเหตุผลและคิดยอดใหม่แบบไม่มีโค้ด */
+  function handleDiscountRejected(err: ApiError) {
+    const message = discountErrorMessage(err.errorCode, err.message);
+    setPayError(message);
+    setCodeError(message);
+    requote(null).catch(() => {});
+  }
+
   async function handlePay() {
-    if (!quote || submittingRef.current || isAlreadyAutoRenewing(quote)) return;
+    if (!quote || submittingRef.current || applyingRef.current || isAlreadyAutoRenewing(quote)) return;
     submittingRef.current = true;
     setSubmitting(true);
     setPayError(null);
+    const discountCode = quote.discount?.code;
     try {
       if (method === 'promptpay') {
-        const res = await createCheckout({ planId: quote.plan.id, method: 'promptpay' });
+        const res = await createCheckout({ planId: quote.plan.id, method: 'promptpay', discountCode });
         if (!res.paymentId) throw new Error('missing paymentId');
         router.push(resultHref(res.paymentId, quote.plan.id));
         return;
@@ -126,7 +211,7 @@ export default function CheckoutView() {
         stopSubmitting();
         return;
       }
-      const res = await createCheckout({ planId: quote.plan.id, method: 'card', cardToken: token });
+      const res = await createCheckout({ planId: quote.plan.id, method: 'card', cardToken: token, discountCode });
       if (res.status === 'failed') {
         setPayError(res.failureMessage || CARD_FAILED_FALLBACK);
         stopSubmitting();
@@ -140,7 +225,11 @@ export default function CheckoutView() {
       if (!res.paymentId) throw new Error('missing paymentId');
       router.push(resultHref(res.paymentId, quote.plan.id));
     } catch (err) {
-      setPayError(omiseErrorMessage(err) ?? paymentErrorMessage(err, 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'));
+      if (discountCode && err instanceof ApiError && isDiscountErrorCode(err.errorCode)) {
+        handleDiscountRejected(err);
+      } else {
+        setPayError(omiseErrorMessage(err) ?? paymentErrorMessage(err, 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'));
+      }
       stopSubmitting();
     }
   }
@@ -193,7 +282,9 @@ export default function CheckoutView() {
   const alreadyAutoRenew = isAlreadyAutoRenewing(quote);
   const renewSamePlan = !!current && !quote.changesPlan && !alreadyAutoRenew;
   const cardUnavailable = method === 'card' && !publicKey;
-  const payDisabled = submitting || cardUnavailable || alreadyAutoRenew;
+  const payDisabled = submitting || applyingCode || cardUnavailable || alreadyAutoRenew;
+  const discount = quote.discount;
+  const codeErrorId = 'checkout-code-error';
   const renewEvery = plan.periodDays > 0 ? `ทุก ${plan.periodDays.toLocaleString('th-TH')} วัน` : 'ทุกรอบ';
 
   const methods: { id: ProPaymentMethod; label: string; desc: string; icon: typeof CreditCard }[] = [
@@ -229,9 +320,23 @@ export default function CheckoutView() {
               <dt className="text-gray-600 dark:text-gray-400">ราคา</dt>
               <dd className="text-gray-900 dark:text-gray-100 tabular-nums">{formatSatang(quote.subtotalSatang)}</dd>
             </div>
+            {discount && (
+              <div className="flex items-start justify-between gap-4 py-2.5" data-testid="checkout-discount">
+                <dt className="min-w-0 text-emerald-700 dark:text-emerald-300">
+                  ส่วนลด{' '}
+                  <span className="font-mono font-semibold break-all">{discount.code}</span>
+                  {discount.type === 'percent' && <span> ({formatDiscountValue('percent', discount.value)})</span>}
+                </dt>
+                <dd className="flex-shrink-0 font-medium text-emerald-700 dark:text-emerald-300 tabular-nums">
+                  −{formatSatang(discount.discountSatang)}
+                </dd>
+              </div>
+            )}
             {quote.vatEnabled && (
               <div className="flex items-start justify-between gap-4 py-2.5">
-                <dt className="text-gray-600 dark:text-gray-400">VAT 7%</dt>
+                <dt className="text-gray-600 dark:text-gray-400">
+                  VAT 7%{discount && <span className="block text-xs">คิดจากยอดหลังหักส่วนลด</span>}
+                </dt>
                 <dd className="text-gray-900 dark:text-gray-100 tabular-nums">{formatSatang(quote.vatSatang)}</dd>
               </div>
             )}
@@ -242,6 +347,94 @@ export default function CheckoutView() {
               </dd>
             </div>
           </dl>
+          {discount && (
+            <p data-testid="checkout-renewal" className="mt-1 text-xs text-gray-600 dark:text-gray-400 text-right">
+              {method === 'card'
+                ? `ส่วนลดใช้กับการชำระครั้งนี้เท่านั้น · รอบถัดไปตัด ${formatSatang(quote.renewalTotalSatang)}`
+                : 'ส่วนลดใช้กับการชำระครั้งนี้เท่านั้น'}
+            </p>
+          )}
+
+          {/* โค้ดส่วนลด (task 19) — แพ็กเกจที่ต่ออายุอัตโนมัติอยู่แล้วชำระไม่ได้ จึงไม่แสดง */}
+          {!alreadyAutoRenew && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+              {discount ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/30 dark:text-emerald-200">
+                  <p className="flex items-center gap-2 min-w-0" role="status">
+                    <Tag className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 break-words">
+                      ใช้โค้ด <span className="font-mono font-semibold break-all">{discount.code}</span> ลด{' '}
+                      {formatSatang(discount.discountSatang)}
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCode}
+                    disabled={applyingCode || submitting}
+                    className={`inline-flex items-center gap-1 min-h-11 px-3 rounded-lg font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed dark:text-emerald-200 dark:hover:bg-emerald-800/40 ${FOCUS_RING}`}
+                  >
+                    {applyingCode ? (
+                      <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                    ) : (
+                      <X className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    เอาโค้ดออก
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleApplyCode} noValidate>
+                  <label htmlFor="checkout-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    โค้ดส่วนลด
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1 min-w-0">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Tag className="h-4 w-4 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+                      </div>
+                      <input
+                        ref={codeInputRef}
+                        id="checkout-code"
+                        type="text"
+                        value={codeInput}
+                        onChange={(e) => {
+                          setCodeInput(formatDiscountCodeInput(e.target.value));
+                          if (codeError) setCodeError(null);
+                        }}
+                        // readOnly (ไม่ใช่ disabled) ระหว่างตรวจโค้ด เพื่อคืน focus ให้ช่องได้ทันทีเมื่อโค้ดผิด
+                        readOnly={applyingCode || submitting}
+                        placeholder="เช่น NEWYEAR20"
+                        autoComplete="off"
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        maxLength={40}
+                        aria-invalid={codeError ? true : undefined}
+                        aria-describedby={codeError ? codeErrorId : undefined}
+                        className={`block w-full min-h-11 pl-9 pr-3 py-2.5 rounded-lg border bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-mono tracking-wider uppercase placeholder:normal-case placeholder:tracking-normal placeholder:font-sans placeholder:text-gray-400 dark:placeholder:text-gray-500 disabled:opacity-60 focus:outline-none focus:ring-2 ${
+                          codeError
+                            ? 'border-red-500 dark:border-red-400 focus:ring-red-500 dark:focus:ring-red-400'
+                            : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+                        }`}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={applyingCode || submitting}
+                      className={`flex-shrink-0 inline-flex items-center justify-center gap-2 min-h-11 px-4 rounded-lg border border-indigo-600 text-indigo-700 font-semibold hover:bg-indigo-50 disabled:opacity-60 disabled:cursor-not-allowed dark:border-indigo-400 dark:text-indigo-300 dark:hover:bg-indigo-900/30 ${FOCUS_RING}`}
+                    >
+                      {applyingCode && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+                      ใช้โค้ด
+                    </button>
+                  </div>
+                </form>
+              )}
+              {codeError && (
+                <p id={codeErrorId} role="alert" className="mt-1.5 text-sm text-red-600 dark:text-red-400 break-words">
+                  {codeError}
+                </p>
+              )}
+            </div>
+          )}
 
           {quote.changesPlan && current && (
             <div
@@ -348,7 +541,7 @@ export default function CheckoutView() {
               <p className="mt-4 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
                 <ShieldCheck className="w-4 h-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                 กรอกข้อมูลบัตรในหน้าต่างของ Opn Payments โดยตรง LUMO ไม่เห็นและไม่เก็บเลขบัตร · ต่ออายุอัตโนมัติ{renewEvery}
-                ด้วยยอด {formatSatang(quote.totalSatang)} ยกเลิกได้ตลอดในหน้าสมาชิกของฉัน
+                ด้วยยอด {formatSatang(quote.renewalTotalSatang)} ยกเลิกได้ตลอดในหน้าสมาชิกของฉัน
               </p>
             )
           ) : (

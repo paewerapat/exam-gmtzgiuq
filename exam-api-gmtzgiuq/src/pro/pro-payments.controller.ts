@@ -37,7 +37,12 @@ export class ProPaymentsController {
     @Query() query: CheckoutQuoteQueryDto,
     @CurrentUser() user: User,
   ) {
-    return this.paymentsService.quote(user.id, query.planId);
+    return this.paymentsService.quote(
+      user.id,
+      query.planId,
+      undefined,
+      query.code,
+    );
   }
 
   @Post('checkout')

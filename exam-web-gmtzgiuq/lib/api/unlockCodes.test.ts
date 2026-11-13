@@ -56,7 +56,7 @@ describe('unlockCodes API (task 15 สัญญา)', () => {
     expect(init.method).toBe('POST');
     expect(init.headers.Authorization).toBe('Bearer tok');
     expect(body).toEqual({ code: 'LUMO-ABCD', examId: 'e1' });
-    expect(res).toEqual({ unlockedExamIds: ['e1', 'e2'], expiresAt: '2026-12-10T00:00:00.000Z' });
+    expect(res).toEqual({ kind: 'exam', unlockedExamIds: ['e1', 'e2'], expiresAt: '2026-12-10T00:00:00.000Z' });
   });
 
   it('redeemUnlockCode: error → ApiError มี status/errorCode/message จาก API', async () => {
@@ -74,7 +74,7 @@ describe('unlockCodes API (task 15 สัญญา)', () => {
     expect(url.searchParams.get('page')).toBe('2');
     expect(url.searchParams.get('limit')).toBe('20');
     expect(url.searchParams.get('search')).toBe('net');
-    expect(res.items[0]).toEqual({ ...rawBatch, codeCount: 5000 });
+    expect(res.items[0]).toEqual({ ...rawBatch, codeCount: 5000, kind: 'exam', proPlan: null });
     expect(res).toMatchObject({ total: 1, page: 2, totalPages: 3 });
   });
 

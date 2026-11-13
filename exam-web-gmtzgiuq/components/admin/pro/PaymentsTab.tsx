@@ -23,7 +23,7 @@ function isAbortError(err: unknown) {
 const SELECT = `${ADMIN_INPUT} dark:[color-scheme:dark]`;
 const LABEL = 'block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1';
 
-/** แท็บ "การชำระเงิน" (task 18): ทุก payment + ตัวกรอง (สถานะ วิธี สนาม ค้นหา) ยอด VAT รหัสอ้างอิงของ Opn */
+/** แท็บ "การชำระเงิน" (task 18): ทุก payment + ตัวกรอง (สถานะ วิธี สนาม ค้นหา) ยอด VAT ส่วนลด/โค้ด (task 19) รหัสอ้างอิงของ Opn */
 export default function PaymentsTab({ venues }: { venues: ProAdminVenue[] }) {
   const [status, setStatus] = useState<'' | ProPaymentStatusFilter>('');
   const [method, setMethod] = useState<'' | ProPaymentMethod>('');
@@ -96,6 +96,7 @@ export default function PaymentsTab({ venues }: { venues: ProAdminVenue[] }) {
               <option value="pending">รอชำระ</option>
               <option value="failed">ไม่สำเร็จ</option>
               <option value="expired">หมดอายุ</option>
+              <option value="canceled">ยกเลิกแล้ว</option>
             </select>
           </div>
           <div>
@@ -189,10 +190,10 @@ export default function PaymentsTab({ venues }: { venues: ProAdminVenue[] }) {
           <>
             {/* จอแคบ: ตาราง scroll แนวนอนในกรอบนี้ ไม่ดันทั้งหน้า */}
             <div className="relative overflow-x-auto" data-testid="payments-scroll">
-              <table className="w-full min-w-[960px] text-sm">
+              <table className="w-full min-w-[1080px] text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    {['วันที่', 'ผู้ชำระ', 'สนาม · แพ็กเกจ', 'วิธีชำระ', 'ยอด', 'สถานะ', 'รหัสอ้างอิง'].map((h) => (
+                    {['วันที่', 'ผู้ชำระ', 'สนาม · แพ็กเกจ', 'วิธีชำระ', 'ยอด', 'ส่วนลด', 'สถานะ', 'รหัสอ้างอิง'].map((h) => (
                       <th key={h} scope="col" className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {h}
                       </th>
@@ -234,6 +235,26 @@ export default function PaymentsTab({ venues }: { venues: ProAdminVenue[] }) {
                           {p.vatSatang > 0 ? `VAT ${formatSatang(p.vatSatang)}` : 'ไม่มี VAT'}
                         </span>
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap" data-testid="payment-discount">
+                        {p.discountSatang > 0 || p.discountCode ? (
+                          <>
+                            <span className="block font-medium text-emerald-700 dark:text-emerald-300 tabular-nums">
+                              −{formatSatang(p.discountSatang)}
+                            </span>
+                            {p.discountCode && (
+                              <span className="block font-mono text-xs text-gray-600 dark:text-gray-400">{p.discountCode}</span>
+                            )}
+                            {/* ต้องคืนเงิน = ไม่ได้ให้สิทธิ์ ส่วนลดไม่ถูกนับว่าใช้ (task 19 รอบ 3) */}
+                            {p.refundRequired && (
+                              <span data-testid="discount-not-counted" className="block text-xs text-amber-700 dark:text-amber-300">
+                                (ไม่นับสิทธิ์)
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 max-w-[14rem]">
                         <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${paymentStatusClass(p.status)}`}>
                           {paymentStatusLabel(p.status)}
@@ -247,7 +268,13 @@ export default function PaymentsTab({ venues }: { venues: ProAdminVenue[] }) {
                           </span>
                         )}
                         {p.failureMessage && (
-                          <span className="block mt-1 text-xs text-red-700 dark:text-red-300 break-words">{p.failureMessage}</span>
+                          <span
+                            className={`block mt-1 text-xs break-words ${
+                              p.status === 'canceled' ? 'text-gray-600 dark:text-gray-400' : 'text-red-700 dark:text-red-300'
+                            }`}
+                          >
+                            {p.failureMessage}
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300 break-all max-w-[14rem]">

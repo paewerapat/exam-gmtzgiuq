@@ -6,43 +6,102 @@ import { filenameFromContentDisposition, safeCsvFilename, type UnlockCodeStatusF
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+type RawRecord = Record<string, unknown>;
+
+const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+// COUNT จาก SQL อาจมาเป็น string
+const num = (v: unknown, fallback = 0): number => {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+  return typeof n === 'number' && Number.isFinite(n) ? n : fallback;
+};
+const isRecord = (v: unknown): v is RawRecord => !!v && typeof v === 'object' && !Array.isArray(v);
+
 // ── ผู้ใช้ ────────────────────────────────────────────────
 
 export interface RedeemUnlockCodeInput {
   /** ตามที่ผู้ใช้กรอก — API ตัดช่องว่าง/ขีดและไม่สนตัวพิมพ์ */
   code: string;
-  /** ชุดที่กรอกโค้ดอยู่ (API ตรวจว่าโค้ดใช้กับชุดนี้ได้) */
-  examId: string;
+  /**
+   * ชุดที่กรอกโค้ดอยู่ (API ตรวจว่าโค้ดใช้กับชุดนี้ได้) — ไม่ส่ง = กรอกจากหน้า /upgrade หรือสมาชิกของฉัน (task 19)
+   * โค้ดแบบ exam ที่ไม่ส่ง examId → 422 NOT_FOR_THIS_EXAM, โค้ดแบบ pro ไม่สน examId
+   */
+  examId?: string;
 }
 
-export interface RedeemUnlockCodeResult {
+/** โค้ดแบบ Unlock ชุดข้อสอบ (task 15) */
+export interface RedeemExamCodeResult {
+  kind: 'exam';
   /** ทุกชุดที่บัญชีได้สิทธิ์จากโค้ดนี้ (โค้ดผูกหลายชุด → หลาย id) */
   unlockedExamIds: string[];
   /** วันหมดสิทธิ์ ISO */
   expiresAt: string;
 }
 
-/** POST /unlock-codes/redeem (JWT) — ผิด → ApiError ที่มี errorCode (INVALID_FORMAT, NOT_FOUND, ...) */
-export async function redeemUnlockCode(input: RedeemUnlockCodeInput): Promise<RedeemUnlockCodeResult> {
-  const response = await fetchWithAuth(`${API_URL}/unlock-codes/redeem`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) throw await toApiError(response, 'Failed to redeem code');
-  const data = (await response.json()) as Record<string, unknown>;
+/** โค้ดแบบให้แพ็กเกจ Pro (task 19) */
+export interface RedeemProCodeResult {
+  kind: 'pro';
+  venue: { key: string; name: string };
+  plan: { name: string };
+  /** วันหมดของแพ็กเกจหลังใช้โค้ด ISO */
+  currentPeriodEnd: string;
+  /** แพ็กเกจที่ตัดบัตรอัตโนมัติ: ต่อวันหมดแล้วแต่รอบตัดบัตรถัดไปยังเป็นวันเดิม (API ไม่ส่ง = false) */
+  autoRenewDatesDiffer: boolean;
+}
+
+export type RedeemUnlockCodeResult = RedeemExamCodeResult | RedeemProCodeResult;
+
+export type UnlockBatchKind = 'exam' | 'pro';
+
+/** response ของ redeem → แยกตาม kind (API เดิมที่ไม่ส่ง kind = exam) */
+export function normalizeRedeemResult(raw: unknown): RedeemUnlockCodeResult {
+  const data = isRecord(raw) ? raw : {};
+  if (data.kind === 'pro') {
+    const venue = isRecord(data.venue) ? data.venue : {};
+    const plan = isRecord(data.plan) ? data.plan : {};
+    return {
+      kind: 'pro',
+      venue: { key: str(venue.key), name: str(venue.name) },
+      plan: { name: str(plan.name) },
+      currentPeriodEnd: str(data.currentPeriodEnd),
+      autoRenewDatesDiffer: data.autoRenewDatesDiffer === true,
+    };
+  }
   return {
+    kind: 'exam',
     unlockedExamIds: Array.isArray(data.unlockedExamIds)
       ? data.unlockedExamIds.filter((v): v is string => typeof v === 'string')
       : [],
-    expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : '',
+    expiresAt: str(data.expiresAt),
   };
+}
+
+/** POST /unlock-codes/redeem (JWT) — ผิด → ApiError ที่มี errorCode (INVALID_FORMAT, NOT_FOUND, ALREADY_HIGHER_PLAN, ...) */
+export async function redeemUnlockCode(input: RedeemUnlockCodeInput): Promise<RedeemUnlockCodeResult> {
+  const body: RedeemUnlockCodeInput = { code: input.code, ...(input.examId ? { examId: input.examId } : {}) };
+  const response = await fetchWithAuth(`${API_URL}/unlock-codes/redeem`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await toApiError(response, 'Failed to redeem code');
+  return normalizeRedeemResult(await response.json());
 }
 
 // ── แอดมิน ────────────────────────────────────────────────
 
+export interface UnlockBatchProPlan {
+  id: string;
+  name: string;
+  venue: { key: string; name: string };
+}
+
 export interface UnlockBatch {
   id: string;
   name: string;
+  /** exam = Unlock ชุดข้อสอบ (เดิม), pro = ให้แพ็กเกจ Pro (task 19) */
+  kind: UnlockBatchKind;
+  /** แพ็กเกจที่ได้ (kind pro เท่านั้น) */
+  proPlan: UnlockBatchProPlan | null;
   /** true = ทุกชุด Mock ที่ไม่ฟรี (รวมชุดที่สร้างภายหลัง) — exams ว่าง */
   allMock: boolean;
   exams: { id: string; title: string }[];
@@ -86,9 +145,14 @@ export interface GetUnlockBatchesParams {
 
 export interface CreateUnlockBatchInput {
   name: string;
-  /** Mock ที่ไม่ฟรี (allMock = true ไม่ต้องส่ง) */
+  /** ไม่ส่ง = exam (task 19) */
+  kind?: UnlockBatchKind;
+  /** kind pro: แพ็กเกจที่ให้ (ต้องมี) */
+  proPlanId?: string;
+  /** Mock ที่ไม่ฟรี (allMock = true ไม่ต้องส่ง) — kind pro ไม่ส่ง */
   examIds?: string[];
-  allMock: boolean;
+  /** kind pro ไม่ส่ง */
+  allMock?: boolean;
   /** 1–5000 */
   count: number;
   /** 1–3650 */
@@ -111,25 +175,19 @@ export interface GetUnlockCodesParams {
   limit?: number;
 }
 
-type RawRecord = Record<string, unknown>;
-
-const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
-const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
-// COUNT จาก SQL อาจมาเป็น string
-const num = (v: unknown, fallback = 0): number => {
-  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
-  return typeof n === 'number' && Number.isFinite(n) ? n : fallback;
-};
-
 export function normalizeUnlockBatch(raw: RawRecord): UnlockBatch {
   const exams = Array.isArray(raw.exams)
     ? (raw.exams as unknown[])
         .filter((e): e is RawRecord => !!e && typeof e === 'object')
         .map((e) => ({ id: str(e.id), title: str(e.title) }))
     : [];
+  const p = isRecord(raw.proPlan) ? raw.proPlan : null;
+  const pv = p && isRecord(p.venue) ? p.venue : {};
   return {
     id: str(raw.id),
     name: str(raw.name),
+    kind: raw.kind === 'pro' ? 'pro' : 'exam',
+    proPlan: p ? { id: str(p.id), name: str(p.name), venue: { key: str(pv.key), name: str(pv.name) } } : null,
     allMock: raw.allMock === true,
     exams,
     codeCount: num(raw.codeCount),
@@ -182,12 +240,16 @@ export async function getUnlockBatches(
 
 /** POST /unlock-codes/admin/batches — สร้างแคมเปญพร้อมโค้ด (5,000 โค้ดใช้เวลาหลายวินาที) */
 export async function createUnlockBatch(input: CreateUnlockBatchInput): Promise<UnlockBatch> {
+  // kind pro: ส่ง kind + proPlanId ไม่ส่ง examIds/allMock (API ไม่รับ) / exam: แบบเดิม (ไม่ส่ง kind = exam)
+  const scope: Partial<CreateUnlockBatchInput> =
+    input.kind === 'pro'
+      ? { kind: 'pro', proPlanId: input.proPlanId ?? '' }
+      : { allMock: !!input.allMock, ...(input.allMock ? {} : { examIds: input.examIds ?? [] }) };
   const body: CreateUnlockBatchInput = {
     name: input.name,
-    allMock: input.allMock,
+    ...scope,
     count: input.count,
     accessDays: input.accessDays,
-    ...(input.allMock ? {} : { examIds: input.examIds ?? [] }),
     ...(input.codeExpiresAt ? { codeExpiresAt: input.codeExpiresAt } : {}),
   };
   const response = await fetchWithAuth(`${ADMIN_BASE}/batches`, { method: 'POST', body: JSON.stringify(body) });

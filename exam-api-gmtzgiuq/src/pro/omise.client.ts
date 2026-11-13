@@ -85,6 +85,8 @@ export interface CreateScheduleParams {
   end_date: string;
   charge: {
     customer: string;
+    // a card of the customer (default card when left out)
+    card?: string;
     amount: number;
     currency: 'thb';
     description?: string;

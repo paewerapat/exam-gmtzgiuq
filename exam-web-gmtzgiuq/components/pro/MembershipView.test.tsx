@@ -276,4 +276,18 @@ describe('/dashboard/membership — MembershipView (task 18)', () => {
     expect(getMyPro).not.toHaveBeenCalled();
     expect(getMyProPayments).not.toHaveBeenCalled();
   });
+
+  it('ประวัติ: รายการที่ถูกแทนที่ (canceled — task 19 รอบ 2) → "ยกเลิกแล้ว" + เหตุผลสีเทา ไม่มีลิงก์ดูรายการ', async () => {
+    (getMyProPayments as jest.Mock).mockResolvedValue({
+      items: [payment({ id: 'c1', status: 'canceled', method: 'promptpay', failureMessage: 'ถูกแทนที่ด้วยรายการชำระใหม่', paidAt: null })],
+      total: 1,
+    });
+    render(<MembershipView />);
+    const section = (await screen.findByRole('heading', { name: 'ประวัติการชำระเงิน' })).closest('section') as HTMLElement;
+    const badge = await within(section).findByText('ยกเลิกแล้ว');
+    expect(badge.className).toContain('dark:bg-gray-700');
+    const reason = within(section).getByText('ถูกแทนที่ด้วยรายการชำระใหม่');
+    expect(reason.className).toContain('text-gray-600');
+    expect(within(section).queryByRole('link', { name: 'ดูรายการ' })).not.toBeInTheDocument();
+  });
 });

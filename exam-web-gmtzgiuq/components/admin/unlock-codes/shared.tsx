@@ -4,18 +4,46 @@ import Link from 'next/link';
 import Swal from 'sweetalert2';
 import type { UnlockBatch } from '@/lib/api/unlockCodes';
 import { formatReleaseDate } from '@/lib/release-date';
+import { BATCH_KIND_LABELS } from '@/lib/unlock-codes';
 
-/** ชุดที่แคมเปญ Unlock: "ทุกชุด Mock Exam" หรือรายชื่อชุด (ยาวเกิน → +N) */
+/** ป้ายประเภทแคมเปญ (task 19): Unlock ชุดข้อสอบ / ให้แพ็กเกจ Pro */
+export function BatchKindBadge({ kind }: { kind: UnlockBatch['kind'] }) {
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
+        kind === 'pro'
+          ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+          : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+      }`}
+    >
+      {BATCH_KIND_LABELS[kind === 'pro' ? 'pro' : 'exam']}
+    </span>
+  );
+}
+
+/**
+ * สิ่งที่แคมเปญให้: "ทุกชุด Mock Exam" หรือรายชื่อชุด (ยาวเกิน → +N)
+ * แคมเปญแบบให้แพ็กเกจ Pro (task 19) → "สนาม · แพ็กเกจ"
+ */
 export function BatchExamsSummary({
   batch,
   max = 2,
   linkExams = false,
 }: {
-  batch: Pick<UnlockBatch, 'allMock' | 'exams'>;
+  batch: Pick<UnlockBatch, 'allMock' | 'exams'> & Partial<Pick<UnlockBatch, 'kind' | 'proPlan'>>;
   max?: number;
   /** ลิงก์ไปหน้าแก้ชุดข้อสอบ (หน้ารายละเอียดแคมเปญ) */
   linkExams?: boolean;
 }) {
+  if (batch.kind === 'pro') {
+    const plan = batch.proPlan;
+    if (!plan) return <span className="text-sm text-gray-500 dark:text-gray-400">แพ็กเกจที่ถูกลบ</span>;
+    return (
+      <span className="text-sm text-gray-700 dark:text-gray-300 break-words">
+        {[plan.venue.name, plan.name].filter(Boolean).join(' · ') || '-'}
+      </span>
+    );
+  }
   if (batch.allMock) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-semibold whitespace-nowrap">

@@ -28,6 +28,7 @@ describe('ข้อความ error ของการกรอกโค้ด
       BATCH_ALREADY_USED: 'บัญชีนี้ใช้โค้ดของแคมเปญนี้ไปแล้ว',
       NOT_FOR_THIS_EXAM: 'โค้ดนี้ใช้กับชุดข้อสอบนี้ไม่ได้',
       TOO_MANY_ATTEMPTS: 'กรอกโค้ดผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่',
+      ALREADY_HIGHER_PLAN: 'คุณมีแพ็กเกจของสนามนี้ที่ระดับสูงกว่าหรือเท่ากันอยู่แล้ว โค้ดนี้จึงยังไม่ถูกใช้',
     });
   });
 
@@ -91,6 +92,9 @@ describe('validateUnlockBatchForm', () => {
   it('ค่าเริ่มต้น: 100 โค้ด 30 วัน ไม่หมดอายุ', () => {
     expect(createUnlockBatchForm()).toEqual({
       name: '',
+      kind: 'exam',
+      venueId: '',
+      proPlanId: '',
       allMock: false,
       examIds: [],
       count: '100',
@@ -106,7 +110,7 @@ describe('validateUnlockBatchForm', () => {
 
   it('error แยกช่อง + ช่องแรกที่ผิดตามลำดับฟอร์ม', () => {
     const errors = validateUnlockBatchForm(
-      { name: ' ', allMock: false, examIds: [], count: '5001', accessDays: '0', codeExpiresAt: '2026-11-01T10:00' },
+      { ...createUnlockBatchForm(), name: ' ', allMock: false, examIds: [], count: '5001', accessDays: '0', codeExpiresAt: '2026-11-01T10:00' },
       bangkokInputToIso,
       now,
     );

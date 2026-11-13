@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -26,7 +27,9 @@ export const MAX_BATCH_EXAMS = 200;
  * checked in UnlockCodesService.redeem, so a bad body gets the contract's
  * error shape instead of the ValidationPipe's message array:
  * code missing/not a string/too long/bad format → 400 INVALID_FORMAT;
- * examId not a uuid → 400 with a Thai message (string).
+ * examId sent but not a uuid → 400 with a Thai message (string).
+ * examId is optional (task 19): a Pro code needs none; an exam code
+ * without it → NOT_FOR_THIS_EXAM.
  */
 export class RedeemCodeDto {
   // Spaces/dashes/case are cleaned up by the service
@@ -34,7 +37,7 @@ export class RedeemCodeDto {
   code: unknown;
 
   @Allow()
-  examId: unknown;
+  examId?: unknown;
 }
 
 const EXPIRES_MESSAGE =
@@ -63,13 +66,29 @@ function IsBatchName() {
   );
 }
 
+export const UNLOCK_BATCH_KINDS = ['exam', 'pro'] as const;
+export type UnlockBatchKindInput = (typeof UNLOCK_BATCH_KINDS)[number];
+
 /** POST /unlock-codes/admin/batches */
 export class CreateUnlockBatchDto {
   @IsBatchName()
   name: string;
 
-  // Required (≥ 1) unless allMock; Mock Exams that are not free
-  @ValidateIf((dto: CreateUnlockBatchDto) => dto.allMock !== true)
+  // exam (default) = access to exams; pro = a Pro plan (task 19)
+  @IsOptional()
+  @IsIn(UNLOCK_BATCH_KINDS, { message: 'ประเภทแคมเปญต้องเป็น exam หรือ pro' })
+  kind?: UnlockBatchKindInput;
+
+  // Required for kind pro (a paid plan); not accepted for exam
+  @ValidateIf((dto: CreateUnlockBatchDto) => dto.kind === 'pro')
+  @IsUUID('all', { message: 'กรุณาเลือกแพ็กเกจ Pro' })
+  proPlanId?: string;
+
+  // Required (≥ 1) unless allMock or kind pro; Mock Exams that are not free
+  @ValidateIf(
+    (dto: CreateUnlockBatchDto) =>
+      dto.allMock !== true && (dto.kind !== 'pro' || dto.examIds != null),
+  )
   @IsArray({ message: 'กรุณาเลือกชุดข้อสอบอย่างน้อย 1 ชุด' })
   @ArrayMaxSize(MAX_BATCH_EXAMS, {
     message: `เลือกชุดข้อสอบได้ไม่เกิน ${MAX_BATCH_EXAMS} ชุด`,

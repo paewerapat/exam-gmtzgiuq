@@ -30,15 +30,19 @@ import {
   EXPIRED_MESSAGE,
   REFUND_NOTE,
   RENEWAL_GRACE_MS,
+  REPLACED_PAID_NOTE,
   SCHEDULE_YEARS,
   addDays,
   addYearsToDate,
   bangkokDate,
   clip,
+  computeAmounts,
   floorToSecond,
   parseOmiseDate,
   thaiFailureMessage,
 } from './pro-payment-format';
+import { renewalTotalOf } from './pro-discount-rules';
+import { markDiscountUsed, releaseDiscounts } from './pro-discount-ledger';
 
 /** What syncCharge did with a charge read from Opn. */
 export interface ChargeOutcome {
@@ -156,8 +160,9 @@ export function chargeMatchesPayment(
  *   step of checkout (memoized, so a deadlock retry does not repeat it).
  *   Schedules are made / deleted after the commit.
  *
- * Lock order: users → pro_venues (S) → pro_plans (S) → pro_payments /
- * pro_subscriptions, the same as the admin grant (task 17).
+ * Lock order: users → pro_venues (S) → pro_plans (S) → pro_discount_codes
+ * (X, task 19) → pro_payments / pro_subscriptions / redemptions, the same
+ * as the admin grant (task 17) and checkout.
  */
 @Injectable()
 export class ProBillingService {
@@ -319,8 +324,20 @@ export class ProBillingService {
               })
             : null;
           const amount = Number(charge.amount);
-          // The split of the payment the schedule charges again
-          const base = template?.totalSatang === amount ? template : null;
+          // The split of the payment the schedule charges again; a
+          // discounted first payment renews at the full price (task 19)
+          const base =
+            template?.totalSatang === amount
+              ? template
+              : template && renewalTotalOf(template) === amount
+                ? {
+                    ...computeAmounts(
+                      template.subtotalSatang,
+                      template.vatSatang > 0,
+                    ),
+                    discountSatang: 0,
+                  }
+                : null;
           const payment: NewPayment = {
             id: randomUUID(),
             userId: sub.userId,
@@ -332,7 +349,8 @@ export class ProBillingService {
             isRenewal: true,
             subtotalSatang: base ? base.subtotalSatang : amount,
             vatSatang: base ? base.vatSatang : 0,
-            discountSatang: base ? base.discountSatang : 0,
+            // a renewal never has a discount (task 19)
+            discountSatang: 0,
             totalSatang: amount,
             currency: String(charge.currency ?? 'THB')
               .toUpperCase()
@@ -406,7 +424,9 @@ export class ProBillingService {
    * Apply the charge to the locked payment row. Only a pending payment
    * changes (also a failed/expired one that never got a charge id, when
    * its charge turns out successful: the money was taken, so the rights
-   * are given). Returns the payment's status afterwards.
+   * are given). A canceled one (replaced by a newer checkout, task 19) that
+   * turns out paid → successful + refundRequired, nothing else. Returns the
+   * payment's status afterwards.
    */
   private async applyLocked(
     manager: EntityManager,
@@ -430,7 +450,23 @@ export class ProBillingService {
       (payment.status === String(ProPaymentStatus.FAILED) ||
         payment.status === String(ProPaymentStatus.EXPIRED));
 
-    if (charge.status === 'successful' && (pending || unlinkedFailure)) {
+    const canceled = payment.status === String(ProPaymentStatus.CANCELED);
+
+    if (charge.status === 'successful' && canceled) {
+      // Replaced by a newer checkout of the plan but paid anyway (an old
+      // QR / 3-D Secure finished later): the money is recorded for a
+      // refund; no rights, no extension, the discount is not used
+      this.logger.error(
+        `payment ${payment.id} (charge ${charge.id}) was replaced by a newer checkout but is paid - refund it in the Opn dashboard`,
+      );
+      Object.assign(changes, {
+        status: ProPaymentStatus.SUCCESSFUL,
+        paidAt: parseOmiseDate(charge.paid_at) ?? floorToSecond(new Date(now)),
+        refundRequired: true,
+        failureCode: null,
+        failureMessage: REPLACED_PAID_NOTE,
+      });
+    } else if (charge.status === 'successful' && (pending || unlinkedFailure)) {
       Object.assign(
         changes,
         await this.activateLocked(manager, payment, charge, after, now),
@@ -447,6 +483,10 @@ export class ProBillingService {
           : thaiFailureMessage(charge.failure_code, payment.method);
       if (payment.isRenewal) {
         await this.stopFailedRenewal(manager, payment, charge, after, now);
+      }
+      // Its discount code use stops counting (task 19)
+      if (payment.discountCodeId) {
+        await releaseDiscounts(manager, [payment.id]);
       }
     }
 
@@ -606,6 +646,10 @@ export class ProBillingService {
       return { ...done, periodStart: start, periodEnd: end };
     }
 
+    // The discount code of the checkout: reserved (or released) → used,
+    // redeemedCount + 1 (task 19; locks the code row after venue / plan)
+    if (payment.discountCodeId) await markDiscountUsed(manager, payment);
+
     const isCard = payment.method === String(ProPaymentMethod.CARD);
     const card = isCard ? cardOf(charge) : null;
     const active = await manager.find(ProSubscription, {
@@ -762,7 +806,8 @@ export class ProBillingService {
   /**
    * Make the Opn schedule that renews a card subscription: every
    * periodDays days from the Thai date of currentPeriodEnd, the same total
-   * as the payment (VAT changes later do not touch it), charging the
+   * as the payment (VAT changes later do not touch it; a discounted payment
+   * → its full price + VAT, task 19), charging the
    * customer's default card; that card (brand / last 4 / Opn id) is stored
    * on the row. Stored with autoRenew on; a failure only logs (the row then
    * shows no auto renewal and can be renewed by hand). A schedule made at
@@ -792,10 +837,12 @@ export class ProBillingService {
       ]);
       if (!payment || !customer || !plan) return null;
 
+      // A discount is for the first payment only: a discounted payment
+      // renews at the full price + VAT of the full price (task 19)
       const schedule = await this.postSchedule(
         sub,
         customer.omiseCustomerId,
-        payment.totalSatang,
+        renewalTotalOf(payment),
         plan,
         venue,
       );
@@ -851,6 +898,113 @@ export class ProBillingService {
   }
 
   /**
+   * The end of a card row was moved (a Pro unlock code extended it, task
+   * 19): its Opn schedule still starts on the old date, so make a new one
+   * from the new currentPeriodEnd with the same amount (renewalTotalOf the
+   * row's last payment) and the same card, save it on the row (only while
+   * the row still has `scheduleId`), then delete the old one. Made before
+   * the old one is deleted: if the new one cannot be made or saved, the old
+   * schedule stays (it still renews, on the old date), an ERROR is logged
+   * and false is returned. A row without that schedule / auto renewal →
+   * true (nothing to move).
+   */
+  async moveRenewalSchedule(
+    subscriptionId: string,
+    scheduleId: string,
+  ): Promise<boolean> {
+    let madeId: string | null = null;
+    let saved = false;
+    let paymentId: string | null = null;
+    try {
+      const sub = await this.subscriptionsRepository.findOne({
+        where: { id: subscriptionId },
+      });
+      if (
+        !sub ||
+        sub.status !== String(ProSubscriptionStatus.ACTIVE) ||
+        sub.omiseScheduleId !== scheduleId ||
+        !bool(sub.autoRenew)
+      ) {
+        return true;
+      }
+      const [payment, customer, plan, venue] = await Promise.all([
+        sub.lastPaymentId
+          ? this.paymentsRepository.findOne({
+              where: { id: sub.lastPaymentId },
+            })
+          : Promise.resolve(null),
+        this.customersRepository.findOne({ where: { userId: sub.userId } }),
+        this.plansRepository.findOne({ where: { id: sub.planId } }),
+        this.venuesRepository.findOne({ where: { id: sub.venueId } }),
+      ]);
+      if (!payment || !customer || !plan) {
+        throw new Error('payment, customer or plan of the row is missing');
+      }
+      paymentId = payment.id;
+      const schedule = await this.postSchedule(
+        sub,
+        customer.omiseCustomerId,
+        renewalTotalOf(payment),
+        plan,
+        venue,
+        sub.omiseCardId,
+      );
+      madeId = schedule.id;
+      const newId = schedule.id;
+      saved = await withUserLock(
+        this.dataSource,
+        sub.userId,
+        async (manager) => {
+          const fresh = await manager.findOne(ProSubscription, {
+            where: { id: sub.id },
+          });
+          if (
+            !fresh ||
+            fresh.status !== String(ProSubscriptionStatus.ACTIVE) ||
+            fresh.omiseScheduleId !== scheduleId
+          ) {
+            return false;
+          }
+          await manager.update(
+            ProSubscription,
+            { id: sub.id, omiseScheduleId: scheduleId },
+            {
+              omiseScheduleId: newId,
+              omiseCardId: schedule.cardId ?? fresh.omiseCardId,
+            },
+          );
+          return true;
+        },
+      );
+      if (!saved) {
+        await this.dropOrphanSchedule(newId, payment.id);
+        this.logger.error(
+          `subscription ${subscriptionId} changed while its auto renewal was moved - it still renews on its old date (schedule ${scheduleId})`,
+        );
+        return false;
+      }
+    } catch (err) {
+      this.logger.error(
+        `could not move the auto renewal of subscription ${subscriptionId} to its new end: ${describe(err)} - it still renews on the old date (schedule ${scheduleId})`,
+      );
+      if (madeId && !saved && paymentId) {
+        await this.dropOrphanSchedule(madeId, paymentId);
+      }
+      return false;
+    }
+    // The old schedule: deleted now (a charge it still makes is not the
+    // row's schedule → recorded for a refund and the schedule stopped)
+    try {
+      await this.deleteSchedule(scheduleId);
+    } catch (err) {
+      this.logger.error(
+        `old Opn schedule ${scheduleId} of subscription ${subscriptionId} could not be deleted (${describe(err)}) - delete it in the Opn dashboard`,
+      );
+    }
+    return true;
+  }
+
+  /**
    * A schedule exists at Opn but no subscription points to it: delete it.
    * If Opn cannot delete it now, log an ERROR (delete it in the dashboard)
    * and keep its id on the payment, so a charge it makes is recognised,
@@ -886,6 +1040,7 @@ export class ProBillingService {
     amount: number,
     plan: ProPlan,
     venue: ProVenue | null,
+    useCard?: string | null,
   ): Promise<{ id: string; cardId: string | null }> {
     const startDate = bangkokDate(sub.currentPeriodEnd);
     const schedule = await this.omise.createSchedule({
@@ -895,6 +1050,7 @@ export class ProBillingService {
       end_date: addYearsToDate(startDate, SCHEDULE_YEARS),
       charge: {
         customer: customerId,
+        ...(useCard ? { card: useCard } : {}),
         amount,
         currency: 'thb',
         description: clip(

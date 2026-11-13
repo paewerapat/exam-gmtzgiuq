@@ -62,6 +62,12 @@ export const EXPIRED_MESSAGE = 'รายการหมดเวลาชำร
 /** Opn could not be reached while making the charge. */
 export const OMISE_DOWN_MESSAGE =
   'ระบบชำระเงินขัดข้องชั่วคราว รายการนี้ยังไม่ถูกเรียกเก็บเงิน กรุณาลองใหม่อีกครั้งในอีกสักครู่';
+/** A pending payment replaced by a newer checkout of the plan (task 19). */
+export const REPLACED_CODE = 'replaced';
+export const REPLACED_MESSAGE = 'ถูกแทนที่ด้วยรายการชำระใหม่';
+/** …that Opn still reports paid (refundRequired, no rights). */
+export const REPLACED_PAID_NOTE =
+  'รายการนี้ถูกแทนที่ด้วยรายการชำระใหม่แล้วแต่ยังมีการชำระเงินเข้ามา จึงไม่ได้ให้สิทธิ์เพิ่ม ทีมงานจะคืนเงินรายการนี้';
 /** Money taken without rights (refundRequired): shown to the user/admin. */
 export const REFUND_NOTE =
   'ระบบตัดเงินต่ออายุหลังจากสมาชิกสิ้นสุดหรือหยุดต่ออายุแล้ว จึงไม่ได้ต่ออายุให้ ทีมงานจะคืนเงินรายการนี้';

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertCircle, CheckCircle2, Clock, Crown, Loader2, QrCode, RotateCcw, WifiOff, XCircle } from 'lucide-react';
+import { AlertCircle, Ban, CheckCircle2, Clock, Crown, Loader2, QrCode, RotateCcw, WifiOff, XCircle } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/lib/api/apiError';
@@ -17,6 +17,7 @@ import {
   loginHref,
   MEMBERSHIP_PATH,
   msUntil,
+  PAYMENT_CANCELED_MESSAGE,
   PAYMENT_EXPIRY_GRACE_MS,
   PAYMENT_POLL_MS,
   paymentErrorMessage,
@@ -234,7 +235,29 @@ export default function PaymentResultView() {
   );
 
   let body: React.ReactNode;
-  if (detail.status === 'successful') {
+  if (detail.refundRequired) {
+    // ตัดเงินแล้วแต่ไม่ได้ให้สิทธิ์จากรายการนี้ (task 19 รอบ 3) — ห้ามบอกว่าสมัครสำเร็จ / ไม่มีปุ่มเริ่มทำข้อสอบ
+    // สถานะ successful/failed ไม่ poll ต่ออยู่แล้ว (shouldKeepPolling)
+    body = (
+      <>
+        <AlertCircle className="w-16 h-16 text-amber-500 dark:text-amber-400" aria-hidden="true" />
+        <h1 className="mt-3 text-xl font-bold text-gray-900 dark:text-gray-100">ชำระเงินแล้ว แต่ไม่ได้ให้สิทธิ์จากรายการนี้</h1>
+        <p role="status" className="mt-1 text-sm text-amber-800 dark:text-amber-200 break-words">
+          {detail.failureMessage || 'รายการนี้อยู่ระหว่างดำเนินการคืนเงิน'}
+        </p>
+        {summary}
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Link href={MEMBERSHIP_PATH} className={PRIMARY_BUTTON}>
+            <Crown className="w-4 h-4" aria-hidden="true" />
+            ไปหน้าสมาชิกของฉัน
+          </Link>
+          <Link href="/upgrade" className={SECONDARY_BUTTON}>
+            กลับไปหน้าแพ็กเกจ
+          </Link>
+        </div>
+      </>
+    );
+  } else if (detail.status === 'successful') {
     const until = formatThaiDate(detail.subscription?.currentPeriodEnd);
     body = (
       <>
@@ -253,6 +276,28 @@ export default function PaymentResultView() {
           <Link href={MEMBERSHIP_PATH} className={SECONDARY_BUTTON}>
             <Crown className="w-4 h-4" aria-hidden="true" />
             ดูสมาชิกของฉัน
+          </Link>
+        </div>
+      </>
+    );
+  } else if (detail.status === 'canceled') {
+    // ถูกแทนที่ด้วย checkout ใหม่ของแพ็กเกจเดียวกัน (task 19 รอบ 2): สถานะจบแล้ว ไม่ poll ไม่มี QR
+    body = (
+      <>
+        <Ban className="w-16 h-16 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+        <h1 className="mt-3 text-xl font-bold text-gray-900 dark:text-gray-100">รายการชำระนี้ถูกยกเลิกแล้ว</h1>
+        <p role="status" className="mt-1 text-sm text-gray-600 dark:text-gray-400 break-words">
+          {detail.failureMessage || PAYMENT_CANCELED_MESSAGE} ไม่ต้องชำระรายการนี้ ดูรายการล่าสุดได้ที่หน้าสมาชิกของฉัน
+        </p>
+        {summary}
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Link href={planId ? checkoutHref(planId) : '/upgrade'} className={PRIMARY_BUTTON}>
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
+            กลับไปหน้าชำระเงิน
+          </Link>
+          <Link href={MEMBERSHIP_PATH} className={SECONDARY_BUTTON}>
+            <Crown className="w-4 h-4" aria-hidden="true" />
+            ไปหน้าสมาชิกของฉัน
           </Link>
         </div>
       </>

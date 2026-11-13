@@ -14,6 +14,8 @@ import {
   OmiseError,
 } from './omise.client';
 import { ProBillingService } from './pro-billing.service';
+import { ProDiscountCode } from './pro-discount-code.entity';
+import { ProDiscountRedemption } from './pro-discount-redemption.entity';
 
 type Row = Record<string, any>;
 
@@ -88,9 +90,13 @@ describe('ProBillingService (task 18)', () => {
             ? 'plans'
             : entity === ProVenue
               ? 'venues'
-              : (() => {
-                  throw new Error('entity not mocked');
-                })();
+              : entity === ProDiscountCode
+                ? 'codes'
+                : entity === ProDiscountRedemption
+                  ? 'redemptions'
+                  : (() => {
+                      throw new Error('entity not mocked');
+                    })();
 
   const ops = {
     findOne: jest.fn(
@@ -175,6 +181,8 @@ describe('ProBillingService (task 18)', () => {
         },
       ],
       subs: [],
+      codes: [],
+      redemptions: [],
       payments: [
         {
           id: PAY1,
@@ -1126,6 +1134,287 @@ describe('ProBillingService (task 18)', () => {
           'tokn_test_x',
         ),
       ).resolves.toMatchObject({ id: 'cust_test_b2' });
+    });
+  });
+
+  // ── discount codes (task 19) ────────────────────────────────────────
+
+  describe('discount codes (task 19)', () => {
+    const CODE = 'dc-1';
+    beforeEach(() => {
+      // 20% of 199 baht, VAT on the price after it
+      Object.assign(pay1(), {
+        subtotalSatang: 19900,
+        discountSatang: 3980,
+        vatSatang: 1114,
+        totalSatang: 17034,
+        discountCodeId: CODE,
+      });
+      db.codes.push({ id: CODE, code: 'NEWYEAR20', redeemedCount: 4 });
+      db.redemptions.push({
+        id: 'r-1',
+        codeId: CODE,
+        userId: USER,
+        paymentId: PAY1,
+        amountSatang: 3980,
+        status: 'reserved',
+      });
+      omise.getCharge.mockResolvedValue(charge({ amount: 17034 }));
+    });
+
+    it('successful charge → use used + redeemedCount + 1, once; code row locked after venue / plan (AC4)', async () => {
+      await service.syncCharge('chrg_test_1', PAY1);
+      expect(db.redemptions[0].status).toBe('used');
+      expect(db.codes[0].redeemedCount).toBe(5);
+      // (the next user lock is the one that saves the new schedule)
+      expect(lockOrder.slice(0, 4)).toEqual([
+        'users:FOR UPDATE',
+        'venues:pessimistic_read',
+        'plans:pessimistic_read',
+        'codes:pessimistic_write',
+      ]);
+      // replay: nothing more
+      await service.syncCharge('chrg_test_1', PAY1);
+      expect(db.codes[0].redeemedCount).toBe(5);
+    });
+
+    it('the renewal schedule charges the full price + VAT, not the discounted total (AC4)', async () => {
+      await service.syncCharge('chrg_test_1', PAY1);
+      const params = (
+        omise.createSchedule.mock.calls[0] as [CreateScheduleParams]
+      )[0];
+      expect(params.charge.amount).toBe(21293);
+      // the payment itself keeps what was charged
+      expect(pay1()).toMatchObject({
+        status: 'successful',
+        totalSatang: 17034,
+      });
+    });
+
+    it('a renewal of a discounted first payment is recorded with the full split and no discount', async () => {
+      await service.syncCharge('chrg_test_1', PAY1);
+      const sub = active()[0];
+      const outcome = await service.applyCharge(
+        charge({
+          id: 'chrg_test_ren',
+          amount: 21293,
+          schedule: 'schd_test_new',
+          metadata: {},
+        }),
+        undefined,
+        new Date(sub.currentPeriodEnd.getTime() - 3600e3),
+      );
+      expect(outcome).toMatchObject({ handled: true, status: 'successful' });
+      expect(
+        db.payments.find((p) => p.omiseChargeId === 'chrg_test_ren'),
+      ).toMatchObject({
+        isRenewal: true,
+        subtotalSatang: 19900,
+        vatSatang: 1393,
+        discountSatang: 0,
+        totalSatang: 21293,
+        discountCodeId: null,
+      });
+      expect(db.codes[0].redeemedCount).toBe(5);
+    });
+
+    it('declined / expired charge → the reservation is released, no count (AC5)', async () => {
+      omise.getCharge.mockResolvedValue(
+        charge({ amount: 17034, status: 'failed', failure_code: 'x' }),
+      );
+      await service.syncCharge('chrg_test_1', PAY1);
+      expect(pay1().status).toBe('failed');
+      expect(db.redemptions[0].status).toBe('released');
+      expect(db.codes[0].redeemedCount).toBe(4);
+    });
+
+    it('a released use whose payment is paid after all (old QR) → used again', async () => {
+      db.redemptions[0].status = 'released';
+      await service.syncCharge('chrg_test_1', PAY1);
+      expect(db.redemptions[0].status).toBe('used');
+      expect(db.codes[0].redeemedCount).toBe(5);
+    });
+
+    it('a payment without a discount code never touches the code tables', async () => {
+      Object.assign(pay1(), {
+        subtotalSatang: 18598,
+        discountSatang: 0,
+        vatSatang: 1302,
+        totalSatang: 19900,
+        discountCodeId: null,
+      });
+      omise.getCharge.mockResolvedValue(charge());
+      await service.syncCharge('chrg_test_1', PAY1);
+      expect(db.redemptions[0].status).toBe('reserved');
+      expect(lockOrder).not.toContain('codes:pessimistic_write');
+      const params = (
+        omise.createSchedule.mock.calls[0] as [CreateScheduleParams]
+      )[0];
+      expect(params.charge.amount).toBe(19900);
+    });
+  });
+
+  // ── round 2 ─────────────────────────────────────────────────────────
+
+  describe('canceled payments (task 19 round 2)', () => {
+    beforeEach(() => {
+      Object.assign(pay1(), {
+        method: 'promptpay',
+        status: 'canceled',
+        failureCode: 'replaced',
+        failureMessage: 'ถูกแทนที่ด้วยรายการชำระใหม่',
+        omiseChargeId: 'chrg_test_1',
+        discountSatang: 3980,
+        subtotalSatang: 19900,
+        vatSatang: 1114,
+        totalSatang: 17034,
+        discountCodeId: 'dc-1',
+      });
+      db.codes.push({ id: 'dc-1', redeemedCount: 0 });
+      db.redemptions.push({
+        id: 'r-1',
+        codeId: 'dc-1',
+        paymentId: PAY1,
+        status: 'released',
+      });
+    });
+
+    it('paid anyway (old QR) → successful + refundRequired; no rights, no schedule, discount not used, ERROR logged', async () => {
+      omise.getCharge.mockResolvedValue(charge({ amount: 17034 }));
+      const outcome = await service.syncCharge('chrg_test_1', PAY1);
+      expect(outcome).toMatchObject({ handled: true, status: 'successful' });
+      expect(pay1()).toMatchObject({
+        status: 'successful',
+        refundRequired: true,
+        failureCode: null,
+        subscriptionId: null,
+        paidAt: new Date('2026-11-13T04:59:58Z'),
+      });
+      expect(String(pay1().failureMessage)).toContain('คืนเงิน');
+      expect(db.subs).toHaveLength(0);
+      expect(omise.createSchedule).not.toHaveBeenCalled();
+      expect(db.redemptions[0].status).toBe('released');
+      expect(db.codes[0].redeemedCount).toBe(0);
+      expect(String((error.mock.calls[0] as unknown[])[0])).toContain('refund');
+      // again (webhook replay): nothing more
+      await service.syncCharge('chrg_test_1', PAY1);
+      expect(db.subs).toHaveLength(0);
+    });
+
+    it('failed / expired at Opn → stays canceled', async () => {
+      for (const status of ['failed', 'expired'] as const) {
+        omise.getCharge.mockResolvedValue(charge({ amount: 17034, status }));
+        await service.syncCharge('chrg_test_1', PAY1);
+        expect(pay1().status).toBe('canceled');
+      }
+    });
+  });
+
+  describe('moveRenewalSchedule (task 19 round 2)', () => {
+    const END = new Date('2026-12-20T11:00:00.000Z');
+    beforeEach(() => {
+      Object.assign(pay1(), {
+        status: 'successful',
+        omiseChargeId: 'chrg_test_first',
+        omiseScheduleId: 'schd_test_old',
+        subtotalSatang: 19900,
+        discountSatang: 3980,
+        vatSatang: 1114,
+        totalSatang: 17034,
+      });
+      db.subs.push({
+        id: SUB_OLD,
+        userId: USER,
+        venueId: 'netsat',
+        planId: 'netsat-pro',
+        status: 'active',
+        source: 'card',
+        autoRenew: true,
+        omiseScheduleId: 'schd_test_old',
+        omiseCardId: 'card_test_a',
+        currentPeriodStart: new Date(NOW_S.getTime() - DAY),
+        currentPeriodEnd: END,
+        lastPaymentId: PAY1,
+      });
+    });
+
+    it('new schedule from the new end (same amount = full price + VAT, same card) saved, then the old one deleted', async () => {
+      await expect(
+        service.moveRenewalSchedule(SUB_OLD, 'schd_test_old'),
+      ).resolves.toBe(true);
+      const params = (
+        omise.createSchedule.mock.calls[0] as [CreateScheduleParams]
+      )[0];
+      expect(params).toMatchObject({
+        every: 30,
+        start_date: '2026-12-20', // Thai date of the new end
+        charge: {
+          customer: 'cust_test_a',
+          card: 'card_test_a',
+          amount: 21293,
+          metadata: { subscriptionId: SUB_OLD },
+        },
+      });
+      expect(db.subs[0]).toMatchObject({
+        omiseScheduleId: 'schd_test_new',
+        autoRenew: true,
+      });
+      expect(omise.deleteSchedule).toHaveBeenCalledWith('schd_test_old');
+      expect(omise.createSchedule.mock.invocationCallOrder[0]).toBeLessThan(
+        omise.deleteSchedule.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('Opn cannot make the new one → false, the old schedule kept (not deleted), ERROR logged', async () => {
+      omise.createSchedule.mockRejectedValueOnce(
+        new OmiseError(true, 503, 'timeout'),
+      );
+      await expect(
+        service.moveRenewalSchedule(SUB_OLD, 'schd_test_old'),
+      ).resolves.toBe(false);
+      expect(db.subs[0].omiseScheduleId).toBe('schd_test_old');
+      expect(omise.deleteSchedule).not.toHaveBeenCalled();
+      expect(String((error.mock.calls[0] as unknown[])[0])).toContain(
+        'old date',
+      );
+    });
+
+    it('the row has another schedule already → nothing to move (true)', async () => {
+      db.subs[0].omiseScheduleId = 'schd_test_other';
+      await expect(
+        service.moveRenewalSchedule(SUB_OLD, 'schd_test_old'),
+      ).resolves.toBe(true);
+      expect(omise.createSchedule).not.toHaveBeenCalled();
+    });
+
+    it('the row changed while the new one was made → the new one is deleted again, old kept, false', async () => {
+      omise.createSchedule.mockImplementationOnce(() => {
+        db.subs[0].omiseScheduleId = 'schd_test_other';
+        return Promise.resolve({
+          object: 'schedule',
+          id: 'schd_test_new',
+          status: 'running',
+        });
+      });
+      await expect(
+        service.moveRenewalSchedule(SUB_OLD, 'schd_test_old'),
+      ).resolves.toBe(false);
+      expect(omise.deleteSchedule).toHaveBeenCalledWith('schd_test_new');
+      expect(omise.deleteSchedule).not.toHaveBeenCalledWith('schd_test_old');
+      expect(db.subs[0].omiseScheduleId).toBe('schd_test_other');
+    });
+
+    it('old schedule cannot be deleted → still true (new one saved), ERROR logged', async () => {
+      omise.deleteSchedule.mockRejectedValueOnce(
+        new OmiseError(true, 503, 'timeout'),
+      );
+      await expect(
+        service.moveRenewalSchedule(SUB_OLD, 'schd_test_old'),
+      ).resolves.toBe(true);
+      expect(db.subs[0].omiseScheduleId).toBe('schd_test_new');
+      expect(String((error.mock.calls[0] as unknown[])[0])).toContain(
+        'schd_test_old',
+      );
     });
   });
 });

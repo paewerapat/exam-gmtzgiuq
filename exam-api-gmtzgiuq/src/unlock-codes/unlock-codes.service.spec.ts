@@ -11,6 +11,10 @@ import {
 } from '../exam-access/exam-access.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
 import { ProAccessService } from '../pro/pro-access.service';
+import { ProException } from '../pro/pro-errors';
+import { ProPlan } from '../pro/pro-plan.entity';
+import { ProSubscriptionsService } from '../pro/pro-subscriptions.service';
+import { RedeemThrottleService } from './redeem-throttle.service';
 import { UnlockCodeBatch } from './unlock-code-batch.entity';
 import { UnlockCodeBatchExam } from './unlock-code-batch-exam.entity';
 import { UnlockCode } from './unlock-code.entity';
@@ -104,6 +108,7 @@ class FakeDb {
   access: Row[] = [];
   users: Row[] = [];
   exams: Row[] = [];
+  plans: Row[] = [];
   queries: string[] = [];
   insertChunks: number[] = [];
   /** Run inside the next transaction before the callback (race tests). */
@@ -342,6 +347,14 @@ class FakeDb {
       access: {
         find: (opts: { where: Row[] }) => this.find(this.access)(opts),
       },
+      plans: {
+        findOne: async ({ where }: { where: Row }) => {
+          await tick();
+          const row = this.plans.find((r) => matches(r, where));
+          return row ? { ...row } : null;
+        },
+        find: (opts: { where: Row }) => this.find(this.plans)(opts),
+      },
     };
   }
 
@@ -478,8 +491,75 @@ describe('UnlockCodesService (task 15)', () => {
     expect(typeof body.message).toBe('string');
   }
 
+  // Pro plans (task 19) given by the mocked ProSubscriptionsService
+  const PRO_PLAN = 'a17e0001-0000-4000-8000-000000000012';
+  const HIDDEN_PLAN = 'a17e0001-0000-4000-8000-000000000013';
+  const CLOSED_VENUE_PLAN = 'a17e0001-0000-4000-8000-000000000032';
+  let proSubs: { grantFromCode: jest.Mock };
+  let proMockAccess: Map<string, Date | null>;
+
   beforeEach(async () => {
     db = new FakeDb();
+    proMockAccess = new Map();
+    // grantFromCode: the code is consumed in the transaction (real
+    // conditional UPDATE of the fake DB), then the plan is "given"
+    proSubs = {
+      grantFromCode: jest.fn(
+        async (
+          input: { userId: string; planId: string; days: number },
+          consume: (m: unknown) => Promise<void>,
+          now: Date,
+        ) => {
+          await db.dataSource.transaction((m) => consume(m));
+          return {
+            subscriptionId: 'sub-1',
+            extended: false,
+            autoRenewDatesDiffer: false,
+            currentPeriodEnd: new Date(
+              Math.floor(now.getTime() / 1000) * 1000 + input.days * DAY,
+            ),
+            venue: { id: 'netsat', key: 'netsat', name: 'NETSAT' },
+            plan: { id: input.planId, code: 'pro', name: 'PRO' },
+          };
+        },
+      ),
+    };
+    db.plans = [
+      {
+        id: PRO_PLAN,
+        venueId: 'netsat',
+        code: 'pro',
+        name: 'PRO',
+        rank: 1,
+        isVisible: 1,
+        venue: { id: 'netsat', key: 'netsat', name: 'NETSAT', isActive: 1 },
+      },
+      {
+        id: 'a17e0001-0000-4000-8000-000000000011',
+        venueId: 'netsat',
+        code: 'free',
+        name: 'Free',
+        rank: 0,
+      },
+      {
+        id: HIDDEN_PLAN,
+        venueId: 'netsat',
+        code: 'max',
+        name: 'MAX',
+        rank: 2,
+        isVisible: 0,
+        venue: { id: 'netsat', key: 'netsat', name: 'NETSAT', isActive: 1 },
+      },
+      {
+        id: CLOSED_VENUE_PLAN,
+        venueId: 'tgat',
+        code: 'pro',
+        name: 'PRO',
+        rank: 1,
+        isVisible: true,
+        venue: { id: 'tgat', key: 'tgat', name: 'TGAT', isActive: 0 },
+      },
+    ];
     db.exams = [
       {
         id: E1,
@@ -536,7 +616,7 @@ describe('UnlockCodesService (task 15)', () => {
         {
           provide: ProAccessService,
           useValue: {
-            getMockPurchaseAccess: () => Promise.resolve(new Map()),
+            getMockPurchaseAccess: () => Promise.resolve(proMockAccess),
           },
         },
         {
@@ -554,7 +634,10 @@ describe('UnlockCodesService (task 15)', () => {
         },
         { provide: getRepositoryToken(Exam), useValue: repos.exams },
         { provide: getRepositoryToken(ExamAccess), useValue: repos.access },
+        { provide: getRepositoryToken(ProPlan), useValue: repos.plans },
         { provide: DataSource, useValue: db.dataSource },
+        RedeemThrottleService,
+        { provide: ProSubscriptionsService, useValue: proSubs },
       ],
     }).compile();
 
@@ -578,6 +661,7 @@ describe('UnlockCodesService (task 15)', () => {
 
       const expiresAt = new Date(NOW.getTime() + 30 * DAY);
       expect(result).toEqual({
+        kind: 'exam',
         unlockedExamIds: [E1, E2],
         expiresAt: expiresAt.toISOString(),
       });
@@ -971,7 +1055,6 @@ describe('UnlockCodesService (task 15)', () => {
     });
 
     it.each([
-      ['missing', undefined],
       ['not a uuid', 'exam-1'],
       ['a number', 5],
     ])(
@@ -1168,6 +1251,8 @@ describe('UnlockCodesService (task 15)', () => {
       expect({ ...view, id: 'x', createdAt: null }).toEqual({
         id: 'x',
         name: 'แคมเปญ ม.6',
+        kind: 'exam',
+        proPlan: null,
         allMock: false,
         exams: [
           { id: E1, title: 'ชุด 1' },
@@ -1465,6 +1550,344 @@ describe('UnlockCodesService (task 15)', () => {
       expect(
         lines.slice(1).every((l) => /^[A-HJ-NP-Z2-9]{10},unused,,,$/.test(l)),
       ).toBe(true);
+    });
+  });
+
+  // ── Pro campaigns (task 19) ─────────────────────────────────────────
+
+  describe('Pro codes (task 19)', () => {
+    const proBatch = (fields: Row = {}) =>
+      addBatch(
+        {
+          name: 'PRO NETSAT 7 วัน',
+          kind: 'pro',
+          proPlanId: PRO_PLAN,
+          accessDays: 7,
+          ...fields,
+        },
+        [],
+      );
+
+    it('no examId (/upgrade): the plan via grantFromCode (note = campaign), code used, no exam access, not counted', async () => {
+      addCode(proBatch(), 'PROCODE222');
+
+      const result = await service.redeem(
+        studentA,
+        { code: 'procode222' },
+        NOW,
+      );
+
+      expect(proSubs.grantFromCode).toHaveBeenCalledTimes(1);
+      expect((proSubs.grantFromCode.mock.calls[0] as unknown[])[0]).toEqual({
+        userId: 'user-a',
+        planId: PRO_PLAN,
+        days: 7,
+        note: 'PRO NETSAT 7 วัน',
+      });
+      const end = new Date(NOW.getTime() + 7 * DAY).toISOString();
+      expect(result).toEqual({
+        kind: 'pro',
+        venue: { id: 'netsat', key: 'netsat', name: 'NETSAT' },
+        plan: { id: PRO_PLAN, code: 'pro', name: 'PRO' },
+        currentPeriodEnd: end,
+        extended: false,
+        autoRenewDatesDiffer: false,
+        unlockedExamIds: [],
+        expiresAt: end,
+      });
+      expect(db.codes[0]).toMatchObject({
+        usedByUserId: 'user-a',
+        usedAt: NOW,
+      });
+      expect(db.access).toHaveLength(0);
+      expect(db.failures).toHaveLength(0);
+    });
+
+    it('typed on a purchase Mock page: unlockedExamIds has the exam when the plan now unlocks it', async () => {
+      addCode(proBatch(), 'PROCODE222');
+      proMockAccess.set(E3, new Date(NOW.getTime() + 7 * DAY));
+      await expect(
+        service.redeem(studentA, { code: 'PROCODE222', examId: E3 }, NOW),
+      ).resolves.toMatchObject({ kind: 'pro', unlockedExamIds: [E3] });
+
+      // a code exam page that the plan does not unlock → []
+      addCode(proBatch({ name: 'อีกแคมเปญ' }), 'PROCODE333');
+      await expect(
+        service.redeem(studentB, { code: 'PROCODE333', examId: E1 }, NOW),
+      ).resolves.toMatchObject({ kind: 'pro', unlockedExamIds: [] });
+    });
+
+    it('an exam code without examId → 422 NOT_FOR_THIS_EXAM with "กรอกที่หน้าชุดข้อสอบ" (counted)', async () => {
+      addCode(addBatch(), 'ABCDEFGHJK');
+      for (const examId of [undefined, null, '']) {
+        const err = await redeemError(
+          service.redeem(studentA, { code: 'ABCDEFGHJK', examId }, NOW),
+        );
+        expect(err.getStatus()).toBe(422);
+        expect(err.getResponse()).toEqual({
+          statusCode: 422,
+          errorCode: 'NOT_FOR_THIS_EXAM',
+          message: 'โค้ดนี้ใช้กับชุดข้อสอบ กรุณากรอกที่หน้าชุดข้อสอบ',
+        });
+      }
+      expect(db.codes[0].usedByUserId).toBeNull();
+      expect(db.failures.map((f) => f.errorCode)).toEqual([
+        'NOT_FOR_THIS_EXAM',
+        'NOT_FOR_THIS_EXAM',
+        'NOT_FOR_THIS_EXAM',
+      ]);
+    });
+
+    it('second code of the same Pro campaign → BATCH_ALREADY_USED; the same code again → ALREADY_REDEEMED', async () => {
+      const batch = proBatch();
+      addCode(batch, 'FIRSTPRO22');
+      addCode(batch, 'SECONDPRO2');
+      await service.redeem(studentA, { code: 'FIRSTPRO22' }, NOW);
+
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'SECONDPRO2' }, NOW),
+        'BATCH_ALREADY_USED',
+        409,
+      );
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'FIRSTPRO22' }, NOW),
+        'ALREADY_REDEEMED',
+        409,
+      );
+      expect(proSubs.grantFromCode).toHaveBeenCalledTimes(1);
+      expect(db.codes.find((c) => c.code === 'SECONDPRO2')!.usedAt).toBeNull();
+    });
+
+    it('two codes of one Pro campaign at once by one account: the unique index decides (BATCH_ALREADY_USED)', async () => {
+      const batch = proBatch();
+      addCode(batch, 'FIRSTPRO22');
+      addCode(batch, 'SECONDPRO2');
+      const results = await Promise.allSettled([
+        service.redeem(studentA, { code: 'FIRSTPRO22' }, NOW),
+        service.redeem(studentA, { code: 'SECONDPRO2' }, NOW),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const failed = results.find(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      )!;
+      expect((failed.reason as RedeemException).errorCode).toBe(
+        'BATCH_ALREADY_USED',
+      );
+      expect(db.codes.filter((c) => c.usedByUserId === 'user-a')).toHaveLength(
+        1,
+      );
+    });
+
+    it('ALREADY_HIGHER_PLAN (409) from the grant: code not used, not counted as a guess (round 2)', async () => {
+      addCode(proBatch(), 'PROCODE222');
+      proSubs.grantFromCode.mockRejectedValueOnce(
+        new ProException('ALREADY_HIGHER_PLAN'),
+      );
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'PROCODE222' }, NOW),
+        'ALREADY_HIGHER_PLAN',
+        409,
+      );
+      expect(db.codes[0].usedByUserId).toBeNull();
+      expect(db.failures).toHaveLength(0);
+    });
+
+    it('autoRenewDatesDiffer of the grant is passed on', async () => {
+      addCode(proBatch(), 'PROCODE222');
+      proSubs.grantFromCode.mockImplementationOnce(
+        async (
+          input: { planId: string },
+          consume: (m: unknown) => Promise<void>,
+        ) => {
+          await db.dataSource.transaction((m) => consume(m));
+          return {
+            subscriptionId: 'sub-1',
+            extended: true,
+            autoRenewDatesDiffer: true,
+            currentPeriodEnd: new Date(NOW.getTime() + 7 * DAY),
+            venue: { id: 'netsat', key: 'netsat', name: 'NETSAT' },
+            plan: { id: input.planId, code: 'pro', name: 'PRO' },
+          };
+        },
+      );
+      await expect(
+        service.redeem(studentA, { code: 'PROCODE222' }, NOW),
+      ).resolves.toMatchObject({ extended: true, autoRenewDatesDiffer: true });
+    });
+
+    it('plan deleted / made free / missing on the campaign → 409 PLAN_UNAVAILABLE', async () => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      addCode(proBatch(), 'PROCODE222');
+      for (const code of ['PLAN_NOT_FOUND', 'FREE_PLAN_GRANT'] as const) {
+        proSubs.grantFromCode.mockRejectedValueOnce(new ProException(code));
+        await expectRedeemError(
+          service.redeem(studentA, { code: 'PROCODE222' }, NOW),
+          'PLAN_UNAVAILABLE',
+          409,
+        );
+      }
+      addCode(
+        proBatch({ proPlanId: null, name: 'ไม่มีแพ็กเกจ' }),
+        'NOPLAN2222',
+      );
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'NOPLAN2222' }, NOW),
+        'PLAN_UNAVAILABLE',
+        409,
+      );
+      // not a wrong guess (round 2)
+      expect(db.failures).toHaveLength(0);
+    });
+
+    it('other errors of the grant (USER_BUSY) pass through and are not counted', async () => {
+      addCode(proBatch(), 'PROCODE222');
+      proSubs.grantFromCode.mockRejectedValueOnce(
+        new ProException('USER_BUSY'),
+      );
+      await expect(
+        service.redeem(studentA, { code: 'PROCODE222' }, NOW),
+      ).rejects.toMatchObject({ errorCode: 'USER_BUSY' });
+      expect(db.failures).toHaveLength(0);
+    });
+
+    it('campaign off / expired → DISABLED / EXPIRED before any grant', async () => {
+      addCode(proBatch({ isActive: false }), 'OFFPRO2222');
+      addCode(
+        proBatch({
+          name: 'หมด',
+          codeExpiresAt: new Date(NOW.getTime() - 1000),
+        }),
+        'OLDPRO2222',
+      );
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'OFFPRO2222' }, NOW),
+        'DISABLED',
+        403,
+      );
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'OLDPRO2222' }, NOW),
+        'EXPIRED',
+        410,
+      );
+      expect(proSubs.grantFromCode).not.toHaveBeenCalled();
+    });
+
+    it('disabled between the checks and the grant transaction → DISABLED (the conditional UPDATE decides)', async () => {
+      const batch = proBatch();
+      addCode(batch, 'PROCODE222');
+      db.beforeTransaction = () => {
+        db.batches.find((b) => b.id === batch)!.isActive = false;
+      };
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'PROCODE222' }, NOW),
+        'DISABLED',
+        403,
+      );
+      expect(db.codes[0].usedByUserId).toBeNull();
+    });
+
+    describe('createBatch kind pro', () => {
+      const proInput = (fields: Partial<CreateUnlockBatchDto> = {}) =>
+        ({
+          name: ' PRO NETSAT 7 วัน ',
+          kind: 'pro',
+          proPlanId: PRO_PLAN,
+          count: 5,
+          accessDays: 7,
+          ...fields,
+        }) as CreateUnlockBatchDto;
+
+      it('stores kind + plan, no exams; the view shows the plan and its venue', async () => {
+        const view = await service.createBatch(proInput(), admin, NOW);
+        expect(view).toMatchObject({
+          name: 'PRO NETSAT 7 วัน',
+          kind: 'pro',
+          proPlan: {
+            id: PRO_PLAN,
+            code: 'pro',
+            name: 'PRO',
+            venue: { id: 'netsat', key: 'netsat', name: 'NETSAT' },
+          },
+          allMock: false,
+          exams: [],
+          codeCount: 5,
+          accessDays: 7,
+        });
+        expect(db.batches[0]).toMatchObject({
+          kind: 'pro',
+          proPlanId: PRO_PLAN,
+          allMock: false,
+        });
+        expect(db.batchExams).toHaveLength(0);
+        const list = await service.listBatches(1, 20);
+        expect(list.items[0]).toMatchObject({
+          kind: 'pro',
+          proPlan: { id: PRO_PLAN },
+        });
+      });
+
+      it('exams / allMock with kind pro → 400; plan missing → 404 PLAN_NOT_FOUND; free plan → 400 FREE_PLAN_GRANT', async () => {
+        await expect(
+          service.createBatch(proInput({ examIds: [E1] }), admin, NOW),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(
+          service.createBatch(proInput({ allMock: true }), admin, NOW),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        await expect(
+          service.createBatch(
+            proInput({ proPlanId: '99999999-9999-4999-8999-999999999999' }),
+            admin,
+            NOW,
+          ),
+        ).rejects.toMatchObject({ errorCode: 'PLAN_NOT_FOUND' });
+        await expect(
+          service.createBatch(
+            proInput({ proPlanId: 'a17e0001-0000-4000-8000-000000000011' }),
+            admin,
+            NOW,
+          ),
+        ).rejects.toMatchObject({ errorCode: 'FREE_PLAN_GRANT' });
+        expect(db.batches).toHaveLength(0);
+      });
+
+      it('hidden plan / plan of a closed venue → 400 PLAN_NOT_OFFERED (Thai), nothing made (round 2)', async () => {
+        for (const proPlanId of [HIDDEN_PLAN, CLOSED_VENUE_PLAN]) {
+          const err = await service
+            .createBatch(proInput({ proPlanId }), admin, NOW)
+            .then(
+              () => null,
+              (e: unknown) => e,
+            );
+          expect(err).toBeInstanceOf(ProException);
+          expect((err as ProException).getResponse()).toMatchObject({
+            statusCode: 400,
+            errorCode: 'PLAN_NOT_OFFERED',
+            message: expect.stringContaining('ถูกซ่อน') as string,
+          });
+        }
+        expect(db.batches).toHaveLength(0);
+      });
+
+      it('kind exam (or none) with a proPlanId → 400; old campaigns without kind show kind exam', async () => {
+        await expect(
+          service.createBatch(
+            {
+              name: 'x',
+              examIds: [E1],
+              count: 1,
+              accessDays: 1,
+              proPlanId: PRO_PLAN,
+            } as CreateUnlockBatchDto,
+            admin,
+            NOW,
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        const id = addBatch();
+        await expect(service.getBatch(id)).resolves.toMatchObject({
+          kind: 'exam',
+          proPlan: null,
+        });
+      });
     });
   });
 });

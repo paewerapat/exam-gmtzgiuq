@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
 import { Category } from '../categories/category.entity';
+import { UnlockCodeBatch } from '../unlock-codes/unlock-code-batch.entity';
+import { ProDiscountCode } from './pro-discount-code.entity';
 import type { AccessViewer } from '../exam-access/exam-access';
 import { ProPage, PRO_PAGE_ID } from './pro-page.entity';
 import { ProPayment } from './pro-payment.entity';
@@ -291,7 +293,9 @@ export class ProConfigService {
 
   /**
    * DELETE /pro/admin/venues/:id: only when no subscription or payment
-   * refers to it (else 409 VENUE_IN_USE: turn isActive off instead). Its plans go with it
+   * refers to it, nor a Pro unlock campaign of its plans / a discount code of
+   * it or its plans (task 19) (else 409 VENUE_IN_USE: turn isActive off
+   * instead). Its plans go with it
    * and categories of the venue get venueId = null. Locks venue X, then
    * its plans X (the order of every Pro write, see withUserLock): a grant
    * holds a shared lock on the venue, so it either finishes first (then
@@ -308,7 +312,7 @@ export class ProConfigService {
             lock: { mode: 'pessimistic_write' },
           });
           if (!venue) throw new ProException('VENUE_NOT_FOUND');
-          await manager.find(ProPlan, {
+          const venuePlans = await manager.find(ProPlan, {
             select: { id: true },
             where: { venueId: id },
             lock: { mode: 'pessimistic_write' },
@@ -318,6 +322,17 @@ export class ProConfigService {
               where: { venueId: id },
             })) + (await manager.count(ProPayment, { where: { venueId: id } }));
           if (used > 0) throw new ProException('VENUE_IN_USE');
+          const codes = await codeReferences(
+            manager,
+            (venuePlans ?? []).map((p) => p.id),
+            id,
+          );
+          if (codes) {
+            throw new ProException(
+              'VENUE_IN_USE',
+              `สนามนี้หรือแพ็กเกจของสนามถูกใช้อยู่ใน${codes} ลบไม่ได้ ให้ปิดการใช้งานสนามแทน`,
+            );
+          }
           await manager.update(Category, { venueId: id }, { venueId: null });
           await manager.delete(ProVenue, { id });
         }),
@@ -469,7 +484,8 @@ export class ProConfigService {
 
   /**
    * DELETE /pro/admin/plans/:id: only when no subscription or payment
-   * refers to it (else 409 PLAN_IN_USE: hide it instead; checkout and the
+   * refers to it, nor a Pro unlock campaign / discount code (task 19; the
+   * message names them) (else 409 PLAN_IN_USE: hide it instead; checkout and the
    * payment activation take venue S → plan S, so they are counted). Comparison cells of its code
    * stay in the table and are simply not shown. Locks venue X then plan X
    * (the order of every Pro write); a deadlock is retried, then 409.
@@ -491,6 +507,13 @@ export class ProConfigService {
               where: { planId: id },
             })) + (await manager.count(ProPayment, { where: { planId: id } }));
           if (used > 0) throw new ProException('PLAN_IN_USE');
+          const codes = await codeReferences(manager, [id], null);
+          if (codes) {
+            throw new ProException(
+              'PLAN_IN_USE',
+              `แพ็กเกจนี้ถูกใช้อยู่ใน${codes} ลบไม่ได้ ให้ซ่อนแพ็กเกจแทน`,
+            );
+          }
           await manager.delete(ProPlan, { id });
         }),
       );
@@ -581,6 +604,37 @@ export function assertPlanRules(
   if (rank === 0 && entitlements.mockPurchase === true) {
     throw new ProException('FREE_PLAN_MOCK_PURCHASE');
   }
+}
+
+/**
+ * Codes that would stop working if these plans / this venue went away
+ * (task 19): Pro unlock campaigns of the plans, discount codes of the plans
+ * or the venue. Returns the Thai text naming them, or null when none.
+ */
+async function codeReferences(
+  manager: EntityManager,
+  planIds: string[],
+  venueId: string | null,
+): Promise<string | null> {
+  const batches =
+    planIds.length > 0
+      ? await manager.count(UnlockCodeBatch, {
+          where: { proPlanId: In(planIds) },
+        })
+      : 0;
+  const discountWhere = [
+    ...(planIds.length > 0 ? [{ planId: In(planIds) }] : []),
+    ...(venueId ? [{ venueId }] : []),
+  ];
+  const discounts =
+    discountWhere.length > 0
+      ? await manager.count(ProDiscountCode, { where: discountWhere })
+      : 0;
+  const reasons = [
+    ...(batches > 0 ? ['แคมเปญโค้ด Unlock แบบให้แพ็กเกจ Pro'] : []),
+    ...(discounts > 0 ? ['โค้ดส่วนลด'] : []),
+  ];
+  return reasons.length > 0 ? reasons.join(' และ') : null;
 }
 
 /** Lock the venue row for the transaction (404 when it is gone). */

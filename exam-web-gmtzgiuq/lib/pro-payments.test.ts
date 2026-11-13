@@ -73,3 +73,12 @@ describe('lib/pro-payments (task 18)', () => {
     expect(paymentErrorMessage(new Error('boom'), 'ลองใหม่')).toBe('ลองใหม่');
   });
 });
+
+describe('สถานะ canceled (task 19 รอบ 2)', () => {
+  it('ป้าย "ยกเลิกแล้ว" สีเทาพร้อม dark: + ข้อความเหตุผล', async () => {
+    const { paymentStatusLabel, paymentStatusClass, PAYMENT_CANCELED_MESSAGE } = await import('./pro-payments');
+    expect(paymentStatusLabel('canceled')).toBe('ยกเลิกแล้ว');
+    expect(paymentStatusClass('canceled')).toContain('dark:bg-gray-700');
+    expect(PAYMENT_CANCELED_MESSAGE).toBe('ถูกแทนที่ด้วยรายการชำระใหม่');
+  });
+});

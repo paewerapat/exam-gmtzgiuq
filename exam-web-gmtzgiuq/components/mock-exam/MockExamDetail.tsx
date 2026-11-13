@@ -166,6 +166,17 @@ export default function MockExamDetail({ id }: { id: string }) {
   const instructions = exam.accessType === 'code' ? exam.codeInstructions : null;
 
   function handleRedeemed(res: RedeemUnlockCodeResult) {
+    if (res.kind === 'pro') {
+      // โค้ดแบบให้แพ็กเกจ Pro (task 19): สิทธิ์ของชุดนี้ขึ้นกับแพ็กเกจ (mockPurchase + สนามเดียวกัน) → ถาม API ใหม่
+      // แบบไม่ขึ้นหน้าโหลด กล่องกรอกโค้ดจึงยังแสดงผลสำเร็จถ้าชุดนี้ยังไม่ได้สิทธิ์
+      const key = requestKey;
+      getMockExam(id)
+        .then((data) => {
+          if (data) setResult((prev) => (prev?.key === key ? { key, state: 'ready', exam: data } : prev));
+        })
+        .catch((err) => console.error('Failed to refresh mock exam access:', err));
+      return;
+    }
     setRedeemed({ key: requestKey, access: { status: 'unlocked', expiresAt: res.expiresAt || null, via: 'code' } });
   }
 

@@ -3,10 +3,26 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { isUUID } from 'class-validator';
-import { DataSource, MoreThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, MoreThan, Repository } from 'typeorm';
 import { User } from '../users/user.entity';
-import { escapeLike } from '../unlock-codes/unlock-code-format';
+import {
+  RedeemException,
+  escapeLike,
+} from '../unlock-codes/unlock-code-format';
+import { RedeemThrottleService } from '../unlock-codes/redeem-throttle.service';
 import { ProCustomer } from './pro-customer.entity';
+import { ProDiscountCode } from './pro-discount-code.entity';
+import {
+  ProDiscountRedemption,
+  ProDiscountRedemptionStatus,
+} from './pro-discount-redemption.entity';
+import {
+  AppliedDiscount,
+  ProDiscountsService,
+  QuoteDiscount,
+} from './pro-discounts.service';
+import { releaseDiscounts, reserveDiscount } from './pro-discount-ledger';
+import { DISCOUNT_ERROR_CODES, DiscountedAmounts } from './pro-discount-rules';
 import { ProPage, PRO_PAGE_ID } from './pro-page.entity';
 import {
   ProPayment,
@@ -36,6 +52,8 @@ import {
 import {
   MIN_CHARGE_SATANG,
   OMISE_DOWN_MESSAGE,
+  REPLACED_CODE,
+  REPLACED_MESSAGE,
   PaymentAmounts,
   QR_REUSE_MIN_MS,
   SYNC_THROTTLE_MS,
@@ -57,6 +75,14 @@ import {
 
 /** GET /pro/checkout/quote */
 export interface CheckoutQuote extends PaymentAmounts {
+  // subtotal = price before the discount; total = subtotal − discount + VAT
+  // of (subtotal − discount) (task 19)
+  discountSatang: number;
+  discount: QuoteDiscount | null;
+  // the code typed cannot be used (the quote is then without a discount)
+  discountError?: { errorCode: string; message: string };
+  // what each automatic renewal (card) charges: full price + its VAT
+  renewalTotalSatang: number;
   plan: {
     id: string;
     code: string;
@@ -99,6 +125,8 @@ export interface PaymentView {
   subtotalSatang: number;
   vatSatang: number;
   discountSatang: number;
+  // the discount code of this payment (task 19)
+  discountCode: string | null;
   currency: string;
   qrImageUrl: string | null;
   expiresAt: Date | null;
@@ -125,6 +153,8 @@ export interface MyPaymentItem {
   totalSatang: number;
   subtotalSatang: number;
   vatSatang: number;
+  discountSatang: number;
+  discountCode: string | null;
   failureMessage: string | null;
   refundRequired: boolean;
   omiseChargeId: string | null;
@@ -152,6 +182,9 @@ export interface AdminPaymentItem {
   isRenewal: boolean;
   subtotalSatang: number;
   vatSatang: number;
+  // task 19: the discount and its code (null = none)
+  discountSatang: number;
+  discountCode: string | null;
   totalSatang: number;
   omiseChargeId: string | null;
   subscriptionId: string | null;
@@ -188,6 +221,8 @@ interface PaymentRow {
   isRenewal: number | boolean | string;
   subtotalSatang: number | string;
   vatSatang: number | string;
+  discountSatang: number | string | null;
+  discountCode: string | null;
   totalSatang: number | string;
   omiseChargeId: string | null;
   subscriptionId: string | null;
@@ -224,12 +259,45 @@ export const WEBHOOK_MAX_PER_MIN = 30;
 /** A handled event id is not asked from Opn again for this long. */
 export const WEBHOOK_EVENT_CACHE_MS = 10 * 60 * 1000;
 const WEBHOOK_MAP_MAX = 5000;
+/** Schedules cancelRenewal deletes at most (the row's, then a moved one). */
+const CANCEL_RENEWAL_ROUNDS = 3;
 const INFLIGHT_WAIT_MS = 500;
 const INFLIGHT_WAIT_TRIES = 16;
 
 function clampPage(value: unknown): number {
   const n = Math.floor(Number(value));
   return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
+/** The discount use of this payment is still `reserved` (counted). */
+async function hasReservedUse(
+  manager: EntityManager,
+  paymentId: string,
+): Promise<boolean> {
+  const use = await manager.findOne(ProDiscountRedemption, {
+    select: { id: true, status: true },
+    where: { paymentId },
+  });
+  return use?.status === String(ProDiscountRedemptionStatus.RESERVED);
+}
+
+/** An error about the typed discount code (counted as a code guess). */
+function isDiscountError(err: unknown): err is ProException {
+  return (
+    err instanceof ProException && DISCOUNT_ERROR_CODES.includes(err.errorCode)
+  );
+}
+
+/** `{ errorCode, message }` of a ProException / RedeemException. */
+function errorBody(err: ProException | RedeemException): {
+  errorCode: string;
+  message: string;
+} {
+  const body = err.getResponse() as { message?: unknown };
+  return {
+    errorCode: err.errorCode,
+    message: typeof body?.message === 'string' ? body.message : '',
+  };
 }
 
 function clampLimit(value: unknown, fallback: number, max: number): number {
@@ -272,6 +340,8 @@ export class ProPaymentsService implements OnModuleInit {
     private billing: ProBillingService,
     private subscriptionsService: ProSubscriptionsService,
     private configService: ConfigService,
+    private discounts: ProDiscountsService,
+    private throttle: RedeemThrottleService,
   ) {}
 
   onModuleInit(): void {
@@ -294,6 +364,7 @@ export class ProPaymentsService implements OnModuleInit {
     userId: string,
     planId: string,
     now: Date = new Date(),
+    code?: string,
   ): Promise<CheckoutQuote> {
     const plan = await this.plansRepository.findOne({
       where: { id: planId },
@@ -301,9 +372,33 @@ export class ProPaymentsService implements OnModuleInit {
     });
     assertPurchasable(plan, plan?.venue ?? null);
     const vatEnabled = await this.isVatEnabled();
-    const amounts = computeAmounts(plan.priceSatang, vatEnabled);
-    if (amounts.totalSatang < MIN_CHARGE_SATANG) {
+    const full = computeAmounts(plan.priceSatang, vatEnabled);
+    if (full.totalSatang < MIN_CHARGE_SATANG) {
       throw new ProException('AMOUNT_TOO_LOW');
+    }
+    let amounts: DiscountedAmounts = { ...full, discountSatang: 0 };
+    let discount: QuoteDiscount | null = null;
+    let discountError: { errorCode: string; message: string } | undefined;
+    const typed = typeof code === 'string' ? code.trim() : '';
+    if (typed) {
+      const outcome = await this.quoteDiscount(
+        userId,
+        typed,
+        plan,
+        vatEnabled,
+        now,
+      );
+      if ('error' in outcome) {
+        discountError = outcome.error;
+      } else {
+        amounts = outcome.applied.amounts;
+        discount = {
+          code: outcome.applied.code,
+          type: outcome.applied.type,
+          value: outcome.applied.value,
+          discountSatang: outcome.applied.amounts.discountSatang,
+        };
+      }
     }
     const current = await this.subscriptionsRepository.findOne({
       where: {
@@ -324,7 +419,13 @@ export class ProPaymentsService implements OnModuleInit {
         periodDays: plan.periodDays,
         venue: { id: venue.id, key: venue.key, name: venue.name },
       },
-      ...amounts,
+      subtotalSatang: amounts.subtotalSatang,
+      discountSatang: amounts.discountSatang,
+      vatSatang: amounts.vatSatang,
+      totalSatang: amounts.totalSatang,
+      discount,
+      ...(discountError ? { discountError } : {}),
+      renewalTotalSatang: full.totalSatang,
       vatEnabled,
       current: current
         ? {
@@ -339,14 +440,76 @@ export class ProPaymentsService implements OnModuleInit {
   }
 
   /**
+   * The code typed on the checkout page, for the quote: through the redeem
+   * limit (task 15) like checkout; a code that cannot be used → its
+   * errorCode + Thai message (counted), never an error of the quote. The
+   * user's own pending payments of this plan do not count toward the
+   * limits (a checkout replaces them).
+   */
+  private async quoteDiscount(
+    userId: string,
+    typed: string,
+    plan: ProPlan,
+    vatEnabled: boolean,
+    now: Date,
+  ): Promise<
+    | { applied: AppliedDiscount }
+    | { error: { errorCode: string; message: string } }
+  > {
+    let attemptId: string;
+    try {
+      attemptId = await this.throttle.begin(userId, now);
+    } catch (err) {
+      if (err instanceof RedeemException) return { error: errorBody(err) };
+      throw err;
+    }
+    try {
+      const pendings = await this.paymentsRepository.find({
+        select: { id: true },
+        where: {
+          userId,
+          planId: plan.id,
+          isRenewal: false,
+          status: ProPaymentStatus.PENDING,
+        },
+      });
+      const applied = await this.discounts.evaluateForQuote(
+        typed,
+        plan,
+        vatEnabled,
+        userId,
+        now,
+        pendings.map((p) => p.id),
+      );
+      await this.throttle.settle(attemptId, null);
+      return { applied };
+    } catch (err) {
+      if (isDiscountError(err)) {
+        await this.throttle.settle(attemptId, err.errorCode);
+        return { error: errorBody(err) };
+      }
+      await this.throttle.settle(attemptId, null);
+      throw err;
+    }
+  }
+
+  /**
    * POST /pro/checkout.
-   * 1. Under the user's lock (users → venue S → plan S): the plan must
-   *    still be for sale, amounts from the locked plan + VAT (never from
-   *    the client), the same plan renewing by card already → 409
-   *    ALREADY_AUTO_RENEW, a pending PromptPay QR of the same plan and
-   *    amount still valid ≥ 1 min → returned again (no new QR); card → the
-   *    user's Opn customer gets the token's card (default card); a pending
-   *    payment row is inserted and committed before Opn is asked to charge.
+   * 0. A discount code (task 19) goes through the redeem limit of task 15
+   *    (429 TOO_MANY_ATTEMPTS; a DISCOUNT_* / AMOUNT_TOO_LOW error counts).
+   * 1. Under the user's lock (users → venue S → plan S → discount code X):
+   *    the plan must still be for sale, the code is checked again (never
+   *    trusting the quote), amounts from the locked plan + code + VAT
+   *    (never from the client), the same plan renewing by card already →
+   *    409 ALREADY_AUTO_RENEW, a pending PromptPay QR of the same plan,
+   *    amount and code (its use still reserved) valid ≥ 1 min → returned
+   *    again (no new QR); otherwise the user's other pending payments of
+   *    the plan become `canceled` (failureMessage "ถูกแทนที่ด้วยรายการชำระใหม่")
+   *    and their reservations are released; the code's limits (used +
+   *    reserved of pending payments, those replaced left out); card →
+   *    the user's Opn customer gets the token's card (default card); the
+   *    pending payment row and its reservation are inserted and committed
+   *    before Opn is asked to charge.
    * 2. POST /charges (metadata.paymentId) outside the transaction: Opn
    *    refuses (4xx) → payment failed; Opn down → payment failed at once
    *    (failureCode omise_unavailable, Thai message) and 503; if Opn did
@@ -379,6 +542,41 @@ export class ProPaymentsService implements OnModuleInit {
     });
     assertPurchasable(quick, quick?.venue ?? null);
 
+    const typedCode =
+      typeof input.discountCode === 'string' ? input.discountCode.trim() : '';
+    if (!typedCode) {
+      return this.checkoutLocked(user, input, method, quick, null, now);
+    }
+    const attemptId = await this.throttle.begin(user.id, now);
+    try {
+      const result = await this.checkoutLocked(
+        user,
+        input,
+        method,
+        quick,
+        typedCode,
+        now,
+      );
+      await this.throttle.settle(attemptId, null);
+      return result;
+    } catch (err) {
+      await this.throttle.settle(
+        attemptId,
+        isDiscountError(err) ? err.errorCode : null,
+      );
+      throw err;
+    }
+  }
+
+  /** Steps 1–3 of checkout (see there). */
+  private async checkoutLocked(
+    user: Pick<User, 'id' | 'email'>,
+    input: CheckoutDto,
+    method: ProPaymentMethod,
+    quick: ProPlan,
+    typedCode: string | null,
+    now: Date,
+  ): Promise<CheckoutResult> {
     const paymentId = randomUUID();
     const memo: CustomerMemo = {};
     const prepared = await withUserLock(
@@ -394,16 +592,27 @@ export class ProPaymentsService implements OnModuleInit {
           lock: { mode: 'pessimistic_read' },
         });
         assertPurchasable(plan, venue);
+        // The code row is locked before the first plain read of this
+        // transaction, so the counts below see every reservation committed
+        // by checkouts that held the lock before (see countDiscountUses)
+        const codeRow = typedCode
+          ? await this.discounts.findUsable(manager, typedCode, plan, now, true)
+          : null;
         const page = await manager.findOne(ProPage, {
           where: { id: PRO_PAGE_ID },
         });
-        const amounts = computeAmounts(
-          plan.priceSatang,
-          bool(page?.vatEnabled),
-        );
-        if (amounts.totalSatang < MIN_CHARGE_SATANG) {
+        const vatEnabled = bool(page?.vatEnabled);
+        const full = computeAmounts(plan.priceSatang, vatEnabled);
+        if (full.totalSatang < MIN_CHARGE_SATANG) {
           throw new ProException('AMOUNT_TOO_LOW');
         }
+        const applied = codeRow
+          ? this.discounts.withAmounts(codeRow, plan, vatEnabled)
+          : null;
+        const amounts: DiscountedAmounts = applied
+          ? applied.amounts
+          : { ...full, discountSatang: 0 };
+        const discountCodeId = applied?.codeId ?? null;
 
         const active = await manager.find(ProSubscription, {
           where: {
@@ -449,23 +658,59 @@ export class ProPaymentsService implements OnModuleInit {
                 p.failureCode === OMISE_DOWN_CODE)),
         );
         if (inflight) {
-          if (method === ProPaymentMethod.CARD) {
+          // A QR being made with another code: not this one (try again)
+          if (
+            method === ProPaymentMethod.CARD ||
+            (inflight.discountCodeId ?? null) !== discountCodeId
+          ) {
             throw new ProException('PAYMENT_IN_PROGRESS');
           }
           return { inflight, reuse: null, plan, venue, amounts, card: null };
         }
         if (method === ProPaymentMethod.PROMPTPAY) {
-          const reuse = pendings.find(
+          const candidates = pendings.filter(
             (p) =>
               !!p.omiseChargeId &&
               !!p.qrImageUrl &&
               !!p.expiresAt &&
               p.expiresAt.getTime() - now.getTime() >= QR_REUSE_MIN_MS &&
-              p.totalSatang === amounts.totalSatang,
+              p.totalSatang === amounts.totalSatang &&
+              (p.discountCodeId ?? null) === discountCodeId,
           );
-          if (reuse) {
+          for (const reuse of candidates) {
+            // With a code: only while its use is still reserved (counted)
+            if (
+              reuse.discountCodeId &&
+              !(await hasReservedUse(manager, reuse.id))
+            ) {
+              continue;
+            }
             return { inflight: null, reuse, plan, venue, amounts, card: null };
           }
+        }
+
+        // The user's other pending payments of this plan are replaced by
+        // this one (task 19 round 2): they become `canceled` and their
+        // reservations are released below, so they do not count toward
+        // the code's limits here and can never be reused. If Opn still
+        // reports one paid, it is recorded for a refund (no rights, no use).
+        const replaced = await manager.find(ProPayment, {
+          select: { id: true, discountCodeId: true },
+          where: {
+            userId: user.id,
+            planId: plan.id,
+            isRenewal: false,
+            status: ProPaymentStatus.PENDING,
+          },
+        });
+        if (applied) {
+          await this.discounts.assertCapacity(
+            manager,
+            applied,
+            user.id,
+            now,
+            replaced.map((p) => p.id),
+          );
         }
 
         let card: CustomerCard | null = null;
@@ -488,7 +733,7 @@ export class ProPaymentsService implements OnModuleInit {
           isRenewal: false,
           subtotalSatang: amounts.subtotalSatang,
           vatSatang: amounts.vatSatang,
-          discountSatang: 0,
+          discountSatang: amounts.discountSatang,
           totalSatang: amounts.totalSatang,
           currency: 'THB',
           omiseChargeId: null,
@@ -500,11 +745,35 @@ export class ProPaymentsService implements OnModuleInit {
           paidAt: null,
           periodStart: null,
           periodEnd: null,
-          discountCodeId: null,
+          discountCodeId,
           refundRequired: false,
           lastCheckedAt: null,
         };
         await manager.insert(ProPayment, row);
+        if (applied) {
+          await reserveDiscount(manager, {
+            codeId: applied.codeId,
+            userId: user.id,
+            paymentId,
+            amountSatang: amounts.discountSatang,
+          });
+        }
+        // By primary key, still pending only (a charge applied meanwhile wins)
+        for (const old of replaced) {
+          await manager.update(
+            ProPayment,
+            { id: old.id, status: ProPaymentStatus.PENDING },
+            {
+              status: ProPaymentStatus.CANCELED,
+              failureCode: REPLACED_CODE,
+              failureMessage: REPLACED_MESSAGE,
+            },
+          );
+        }
+        await releaseDiscounts(
+          manager,
+          replaced.filter((p) => !!p.discountCodeId).map((p) => p.id),
+        );
         return { inflight: null, reuse: null, plan, venue, amounts, card };
       },
     );
@@ -551,6 +820,9 @@ export class ProPaymentsService implements OnModuleInit {
             failureMessage,
           },
         );
+        if (amounts.discountSatang > 0) {
+          await releaseDiscounts(this.dataSource.manager, [paymentId]);
+        }
         return { paymentId, status: ProPaymentStatus.FAILED, failureMessage };
       }
       this.logger.warn(`checkout ${paymentId}: ${describe(err)}`);
@@ -565,6 +837,9 @@ export class ProPaymentsService implements OnModuleInit {
           failureMessage: OMISE_DOWN_MESSAGE,
         },
       );
+      if (amounts.discountSatang > 0) {
+        await releaseDiscounts(this.dataSource.manager, [paymentId]);
+      }
       throw new ProException('OMISE_UNAVAILABLE');
     }
 
@@ -660,8 +935,11 @@ export class ProPaymentsService implements OnModuleInit {
     });
     if (!payment) throw new ProException('PAYMENT_NOT_FOUND');
 
+    // A canceled one (replaced, task 19) is asked too: its old QR may still
+    // be paid, which makes it successful + refundRequired (no rights)
     if (
-      payment.status === String(ProPaymentStatus.PENDING) &&
+      (payment.status === String(ProPaymentStatus.PENDING) ||
+        payment.status === String(ProPaymentStatus.CANCELED)) &&
       payment.omiseChargeId &&
       (await this.claimSync(payment.id, now))
     ) {
@@ -709,6 +987,8 @@ export class ProPaymentsService implements OnModuleInit {
         totalSatang: Number(row.totalSatang),
         subtotalSatang: Number(row.subtotalSatang),
         vatSatang: Number(row.vatSatang),
+        discountSatang: Number(row.discountSatang ?? 0),
+        discountCode: row.discountCode ?? null,
         failureMessage: row.failureMessage ?? null,
         refundRequired: bool(row.refundRequired),
         omiseChargeId: row.omiseChargeId ?? null,
@@ -732,6 +1012,9 @@ export class ProPaymentsService implements OnModuleInit {
    * POST /pro/subscriptions/:id/cancel-renewal (owner only, else 404):
    * DELETE the Opn schedule first (Opn down → 503, nothing changes), then
    * autoRenew off + canceledAt; the rights stay until currentPeriodEnd.
+   * If the row got another schedule meanwhile (a Pro code moved it, task
+   * 19) that one is deleted too; still changing after a few rounds → 409
+   * USER_BUSY (never success while the row has a schedule).
    * Not renewing by card (no schedule / not active) → 409 NOT_RENEWABLE.
    */
   async cancelRenewal(
@@ -749,26 +1032,59 @@ export class ProPaymentsService implements OnModuleInit {
     ) {
       throw new ProException('NOT_RENEWABLE');
     }
-    try {
-      await this.billing.deleteSchedule(scheduleId);
-    } catch (err) {
-      this.logger.warn(
-        `cancel renewal of ${sub.id}: Opn schedule not deleted (${describe(err)})`,
-      );
-      throw new ProException('OMISE_UNAVAILABLE');
-    }
-    await withUserLock(this.dataSource, userId, async (manager) => {
-      await manager.update(
-        ProSubscription,
-        { id: sub.id, omiseScheduleId: scheduleId },
-        {
-          autoRenew: false,
-          omiseScheduleId: null,
-          canceledAt: floorToSecond(now),
+    // The row's schedule may be replaced meanwhile (a Pro code moved it to a
+    // new end, task 19): then the new one is deleted too. Success only when
+    // the row is left without a schedule.
+    let current = scheduleId;
+    for (let round = 0; round < CANCEL_RENEWAL_ROUNDS; round++) {
+      try {
+        await this.billing.deleteSchedule(current);
+      } catch (err) {
+        this.logger.warn(
+          `cancel renewal of ${sub.id}: Opn schedule not deleted (${describe(err)})`,
+        );
+        throw new ProException('OMISE_UNAVAILABLE');
+      }
+      const deleted = current;
+      const next = await withUserLock(
+        this.dataSource,
+        userId,
+        async (manager) => {
+          const result = await manager.update(
+            ProSubscription,
+            { id: sub.id, omiseScheduleId: deleted },
+            {
+              autoRenew: false,
+              omiseScheduleId: null,
+              canceledAt: floorToSecond(now),
+            },
+          );
+          if ((result?.affected ?? 0) > 0) return null;
+          // Not matched: read the row again under the lock
+          const fresh = await manager.findOne(ProSubscription, {
+            where: { id: sub.id },
+          });
+          if (fresh?.omiseScheduleId) return fresh.omiseScheduleId;
+          if (fresh && bool(fresh.autoRenew)) {
+            await manager.update(
+              ProSubscription,
+              { id: sub.id },
+              { autoRenew: false, canceledAt: floorToSecond(now) },
+            );
+          }
+          return null;
         },
       );
-    });
-    return this.subscriptionsService.findMineOne(userId, sub.id, now);
+      if (!next) {
+        return this.subscriptionsService.findMineOne(userId, sub.id, now);
+      }
+      current = next;
+    }
+    // Still changing: never report success while a schedule remains
+    this.logger.warn(
+      `cancel renewal of ${sub.id}: the schedule kept changing - not canceled`,
+    );
+    throw new ProException('USER_BUSY');
   }
 
   /**
@@ -1010,6 +1326,8 @@ export class ProPaymentsService implements OnModuleInit {
         isRenewal: bool(row.isRenewal),
         subtotalSatang: Number(row.subtotalSatang),
         vatSatang: Number(row.vatSatang),
+        discountSatang: Number(row.discountSatang ?? 0),
+        discountCode: row.discountCode ?? null,
         totalSatang: Number(row.totalSatang),
         omiseChargeId: row.omiseChargeId ?? null,
         subscriptionId: row.subscriptionId ?? null,
@@ -1088,7 +1406,7 @@ export class ProPaymentsService implements OnModuleInit {
   }
 
   private async toView(payment: ProPayment): Promise<PaymentView> {
-    const [plan, sub] = await Promise.all([
+    const [plan, sub, code] = await Promise.all([
       this.plansRepository.findOne({
         where: { id: payment.planId },
         relations: { venue: true },
@@ -1096,6 +1414,12 @@ export class ProPaymentsService implements OnModuleInit {
       payment.subscriptionId
         ? this.subscriptionsRepository.findOne({
             where: { id: payment.subscriptionId },
+          })
+        : Promise.resolve(null),
+      payment.discountCodeId
+        ? this.dataSource.manager.findOne(ProDiscountCode, {
+            select: { id: true, code: true },
+            where: { id: payment.discountCodeId },
           })
         : Promise.resolve(null),
     ]);
@@ -1111,6 +1435,7 @@ export class ProPaymentsService implements OnModuleInit {
       subtotalSatang: payment.subtotalSatang,
       vatSatang: payment.vatSatang,
       discountSatang: payment.discountSatang,
+      discountCode: code?.code ?? null,
       currency: payment.currency,
       qrImageUrl: pendingQr ? payment.qrImageUrl : null,
       expiresAt: payment.expiresAt ?? null,
@@ -1138,12 +1463,15 @@ export class ProPaymentsService implements OnModuleInit {
       .createQueryBuilder('pay')
       .leftJoin(ProVenue, 'v', 'v.id = pay.venueId')
       .leftJoin(ProPlan, 'p', 'p.id = pay.planId')
+      .leftJoin(ProDiscountCode, 'dc', 'dc.id = pay.discountCodeId')
       .select('pay.id', 'id')
       .addSelect('pay.status', 'status')
       .addSelect('pay.method', 'method')
       .addSelect('pay.isRenewal', 'isRenewal')
       .addSelect('pay.subtotalSatang', 'subtotalSatang')
       .addSelect('pay.vatSatang', 'vatSatang')
+      .addSelect('pay.discountSatang', 'discountSatang')
+      .addSelect('dc.code', 'discountCode')
       .addSelect('pay.totalSatang', 'totalSatang')
       .addSelect('pay.omiseChargeId', 'omiseChargeId')
       .addSelect('pay.subscriptionId', 'subscriptionId')

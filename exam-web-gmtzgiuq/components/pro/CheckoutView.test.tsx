@@ -35,6 +35,9 @@ const quote = (patch: Partial<ProCheckoutQuote> = {}): ProCheckoutQuote => ({
   vatEnabled: true,
   current: null,
   changesPlan: false,
+  discount: null,
+  discountError: null,
+  renewalTotalSatang: 21293,
   ...patch,
 });
 

@@ -25,12 +25,14 @@ export enum ProSubscriptionStatus {
 
 /**
  * How the subscription was made or last paid for (task 18: card =
- * renewed by an Opn schedule while autoRenew, promptpay = renewed by hand).
+ * renewed by an Opn schedule while autoRenew, promptpay = renewed by hand;
+ * task 19: code = a Pro unlock code, note = the campaign name).
  */
 export enum ProSubscriptionSource {
   ADMIN = 'admin',
   CARD = 'card',
   PROMPTPAY = 'promptpay',
+  CODE = 'code',
 }
 
 /**

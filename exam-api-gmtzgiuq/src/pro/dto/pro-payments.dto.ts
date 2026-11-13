@@ -22,14 +22,24 @@ export const PAYMENT_STATUS_FILTERS = [
   'successful',
   'failed',
   'expired',
+  'canceled',
 ] as const;
 
 const CARD_TOKEN_MESSAGE = 'ข้อมูลบัตรไม่ถูกต้อง กรุณากรอกบัตรใหม่อีกครั้ง';
 
-/** GET /pro/checkout/quote?planId= */
+const DISCOUNT_CODE_MESSAGE = 'โค้ดส่วนลดต้องเป็นข้อความไม่เกิน 100 ตัวอักษร';
+
+/** GET /pro/checkout/quote?planId=&code= */
 export class CheckoutQuoteQueryDto {
   @IsUUID('all', { message: 'รหัสแพ็กเกจไม่ถูกต้อง' })
   planId: string;
+
+  // Discount code (task 19): checked by the service; a code that cannot be
+  // used gives discountError, not an error of the quote
+  @IsOptional()
+  @IsString({ message: DISCOUNT_CODE_MESSAGE })
+  @MaxLength(100, { message: DISCOUNT_CODE_MESSAGE })
+  code?: string;
 }
 
 /**
@@ -49,6 +59,13 @@ export class CheckoutDto {
   @ValidateIf((o: CheckoutDto) => o.method === 'card')
   @Matches(CARD_TOKEN_PATTERN, { message: CARD_TOKEN_MESSAGE })
   cardToken?: string;
+
+  // Discount code (task 19), checked again under the user's lock; empty =
+  // none. Wrong codes → 400 DISCOUNT_* (counted like unlock code guesses)
+  @IsOptional()
+  @IsString({ message: DISCOUNT_CODE_MESSAGE })
+  @MaxLength(100, { message: DISCOUNT_CODE_MESSAGE })
+  discountCode?: string;
 }
 
 /** POST /pro/subscriptions/:id/change-card */

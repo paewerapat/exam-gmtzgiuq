@@ -6,10 +6,20 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+/** What the codes of a campaign give (task 19). */
+export enum UnlockBatchKind {
+  // access to exams (task 15)
+  EXAM = 'exam',
+  // a Pro plan for accessDays (proPlanId)
+  PRO = 'pro',
+}
+
 /**
  * A campaign of unlock codes (task 15, sql/20261110-01-unlock-codes.sql).
  * The exams it unlocks (unlock_code_batch_exams, or every non-free Mock
  * Exam when `allMock`) and `accessDays` cannot change after creation.
+ * kind `pro` (task 19, sql/20261115-01-pro-codes.sql): no exams; a code gives
+ * the plan `proPlanId` for accessDays days instead. kind / plan are fixed.
  */
 @Entity('unlock_code_batches')
 export class UnlockCodeBatch {
@@ -18,6 +28,14 @@ export class UnlockCodeBatch {
 
   @Column({ type: 'varchar', length: 150 })
   name: string;
+
+  // UnlockBatchKind (campaigns made before task 19 are 'exam')
+  @Column({ type: 'varchar', length: 20, default: UnlockBatchKind.EXAM })
+  kind: string;
+
+  // kind pro: the plan given (no FK; a missing plan → PLAN_UNAVAILABLE)
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  proPlanId: string | null;
 
   // Unlocks every non-free Mock Exam, including ones created later
   @Column({ type: 'boolean', default: false })

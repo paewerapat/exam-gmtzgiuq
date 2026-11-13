@@ -30,6 +30,7 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   successful: 'สำเร็จ',
   failed: 'ไม่สำเร็จ',
   expired: 'หมดอายุ',
+  canceled: 'ยกเลิกแล้ว',
 };
 
 export const PAYMENT_STATUS_CLASSES: Record<string, string> = {
@@ -37,7 +38,11 @@ export const PAYMENT_STATUS_CLASSES: Record<string, string> = {
   successful: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   failed: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   expired: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+  canceled: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
 };
+
+/** ข้อความของรายการที่ถูกแทนที่ (API ส่ง failureMessage เดียวกันมา ใช้เมื่อไม่มี) */
+export const PAYMENT_CANCELED_MESSAGE = 'ถูกแทนที่ด้วยรายการชำระใหม่';
 
 export function paymentStatusLabel(status: string): string {
   return PAYMENT_STATUS_LABELS[status] ?? (status || '-');

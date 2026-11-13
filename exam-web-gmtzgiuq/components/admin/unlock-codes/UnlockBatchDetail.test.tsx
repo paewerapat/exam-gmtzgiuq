@@ -30,6 +30,8 @@ jest.mock('@/components/animations/FadeIn', () => ({
 const batch: UnlockBatch = {
   id: 'b1',
   name: 'NETSAT Campaign',
+  kind: 'exam',
+  proPlan: null,
   allMock: false,
   exams: [
     { id: 'e1', title: 'NETSAT Math 1' },

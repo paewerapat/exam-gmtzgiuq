@@ -94,6 +94,27 @@ export interface AdminSubscriptionQuery {
   search?: string;
 }
 
+/** Result of a Pro unlock code (task 19). */
+export interface CodeGrantResult {
+  subscriptionId: string;
+  // true = the running row of the same plan got +days
+  extended: boolean;
+  currentPeriodEnd: Date;
+  // true = the row renews by card but its Opn schedule could not be moved
+  // to the new end: the next charge is still on the old date (round 2)
+  autoRenewDatesDiffer: boolean;
+  venue: { id: string; key: string; name: string };
+  plan: { id: string; code: string; name: string };
+}
+
+/** What writeGrantLocked did. */
+interface GrantWrite extends CodeGrantResult {
+  // Opn schedules of the rows that were ended (deleted after the commit)
+  schedules: string[];
+  // the schedule of the extended row, to move to the new end after commit
+  moveSchedule?: string | null;
+}
+
 /** Raw row of the admin list query. */
 interface SubscriptionRow {
   id: string;
@@ -138,6 +159,10 @@ export function effectiveStatus(
 
 function floorToSecond(date: Date): Date {
   return new Date(Math.floor(date.getTime() / 1000) * 1000);
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * DAY_MS);
 }
 
 function clampPage(value: unknown): number {
@@ -343,18 +368,18 @@ export class ProSubscriptionsService {
 
     // Whole seconds: datetime columns have no fraction
     const start = floorToSecond(now);
-    const end = new Date(start.getTime() + input.days * DAY_MS);
     const id = randomUUID();
 
-    let schedules: string[] = [];
+    let written: GrantWrite;
     try {
-      schedules = await withUserLock(this.dataSource, user.id, (manager) =>
-        this.replaceActive(manager, {
+      written = await withUserLock(this.dataSource, user.id, (manager) =>
+        this.writeGrantLocked(manager, {
+          mode: 'admin',
           id,
           userId: user.id,
           planId: plan.id,
           start,
-          end,
+          days: input.days,
           note: nullableText(input.note),
           adminId: admin.id,
         }),
@@ -365,11 +390,75 @@ export class ProSubscriptionsService {
       throw err;
     }
     // Card rows that were replaced stop renewing at Opn (task 18)
-    for (const scheduleId of schedules) {
+    for (const scheduleId of written.schedules) {
       await this.billing.cancelScheduleQuietly(scheduleId);
     }
 
     return this.findAdminView(id, now);
+  }
+
+  /**
+   * A Pro unlock code (task 19): the same write as the admin grant (same
+   * user lock, lock order and replace rules), source `code`, note = the
+   * campaign name, with these differences for the venue's running row:
+   * - same plan → extended: +days from its current end (source kept); a
+   *   card row renewing by schedule gets its schedule moved to the new end
+   *   after the commit (billing.moveRenewalSchedule; failed →
+   *   autoRenewDatesDiffer, the old schedule stays)
+   * - another plan of a lower rank → replaced (revoked; its schedule is
+   *   deleted after the commit), a new row starts now for `days`
+   * - another plan of the same or a higher rank → 409 ALREADY_HIGHER_PLAN
+   * `consume` runs in the same transaction after these checks and before
+   * the subscription is written (marks the code used; throwing rolls the
+   * whole redeem back, so a refused code stays unused).
+   * Errors: plan missing 404 PLAN_NOT_FOUND, rank 0 400 FREE_PLAN_GRANT,
+   * user busy 409 USER_BUSY.
+   */
+  async grantFromCode(
+    input: { userId: string; planId: string; days: number; note: string },
+    consume: (manager: EntityManager) => Promise<void>,
+    now: Date = new Date(),
+  ): Promise<CodeGrantResult> {
+    const start = floorToSecond(now);
+    let written: GrantWrite;
+    try {
+      written = await withUserLock(this.dataSource, input.userId, (manager) =>
+        this.writeGrantLocked(manager, {
+          mode: 'code',
+          id: randomUUID(),
+          userId: input.userId,
+          planId: input.planId,
+          start,
+          days: input.days,
+          note: nullableText(input.note),
+          adminId: null,
+          consume,
+        }),
+      );
+    } catch (err) {
+      if (isMissingReference(err)) throw new ProException('PLAN_NOT_FOUND');
+      throw err;
+    }
+    for (const scheduleId of written.schedules) {
+      await this.billing.cancelScheduleQuietly(scheduleId);
+    }
+    // A card row renewing by schedule got a new end: its next charge moves
+    // to that end too (round 2); if that fails the code still counts, the
+    // old date stays (ERROR logged by billing) and the caller is told
+    const moved = written.moveSchedule
+      ? await this.billing.moveRenewalSchedule(
+          written.subscriptionId,
+          written.moveSchedule,
+        )
+      : true;
+    return {
+      subscriptionId: written.subscriptionId,
+      extended: written.extended,
+      currentPeriodEnd: written.currentPeriodEnd,
+      autoRenewDatesDiffer: !moved,
+      venue: written.venue,
+      plan: written.plan,
+    };
   }
 
   /**
@@ -382,28 +471,30 @@ export class ProSubscriptionsService {
    *   3. shared lock on the plan, read again: deleted → 404, rank 0 → 400
    * then end the active row of the venue (by primary key, see below) and
    * insert the new one (the FK checks of the insert need the S locks
-   * already held). Returns the Opn schedules of the ended rows (deleted
-   * after the commit, task 18).
+   * already held). mode `code` extends / refuses instead (grantFromCode).
+   * Returns the Opn schedules of the ended rows (deleted after the commit,
+   * task 18).
    */
-  private async replaceActive(
+  private async writeGrantLocked(
     manager: EntityManager,
     row: {
+      mode: 'admin' | 'code';
       id: string;
       userId: string;
       planId: string;
       start: Date;
-      end: Date;
+      days: number;
       note: string | null;
-      adminId: string;
+      adminId: string | null;
+      consume?: (manager: EntityManager) => Promise<void>;
     },
-  ): Promise<string[]> {
+  ): Promise<GrantWrite> {
     const found = await manager.findOne(ProPlan, {
       select: { id: true, venueId: true },
       where: { id: row.planId },
     });
     if (!found) throw new ProException('PLAN_NOT_FOUND');
     const venue = await manager.findOne(ProVenue, {
-      select: { id: true },
       where: { id: found.venueId },
       lock: { mode: 'pessimistic_read' },
     });
@@ -414,6 +505,10 @@ export class ProSubscriptionsService {
     });
     if (!plan) throw new ProException('PLAN_NOT_FOUND');
     if (plan.rank <= 0) throw new ProException('FREE_PLAN_GRANT');
+    const names = {
+      venue: { id: venue.id, key: venue.key, name: venue.name },
+      plan: { id: plan.id, code: plan.code, name: plan.name },
+    };
 
     // The user's active rows of the venue: a plain read is enough (no other
     // writer of this user while the user lock is held, and the read view
@@ -422,23 +517,81 @@ export class ProSubscriptionsService {
     // condition would take next-key (gap) locks across other users' index
     // entries and deadlock with their grants' inserts.
     const active = await manager.find(ProSubscription, {
-      select: { id: true, currentPeriodEnd: true, omiseScheduleId: true },
+      select: {
+        id: true,
+        planId: true,
+        currentPeriodEnd: true,
+        omiseScheduleId: true,
+        autoRenew: true,
+      },
       where: {
         userId: row.userId,
         venueId: plan.venueId,
         status: ProSubscriptionStatus.ACTIVE,
       },
     });
-    const replaced = active
-      .filter((s) => s.currentPeriodEnd.getTime() > row.start.getTime())
-      .map((s) => s.id);
+    const running = active.filter(
+      (s) => s.currentPeriodEnd.getTime() > row.start.getTime(),
+    );
     const ended = active
       .filter((s) => s.currentPeriodEnd.getTime() <= row.start.getTime())
       .map((s) => s.id);
-    if (replaced.length > 0) {
+
+    if (row.mode === 'code') {
+      const same = running.find((s) => s.planId === plan.id);
+      if (!same) {
+        // Ranks of the other running plans (a plain read; only this plan
+        // is locked, the same as checkout)
+        const others = [...new Set(running.map((s) => s.planId))];
+        const otherPlans =
+          others.length > 0
+            ? await manager.find(ProPlan, {
+                select: { id: true, rank: true },
+                where: { id: In(others) },
+              })
+            : [];
+        if (otherPlans.some((p) => p.rank >= plan.rank)) {
+          throw new ProException('ALREADY_HIGHER_PLAN');
+        }
+      }
+      if (row.consume) await row.consume(manager);
+      if (same) {
+        const end = addDays(same.currentPeriodEnd, row.days);
+        await manager.update(
+          ProSubscription,
+          { id: same.id },
+          { currentPeriodEnd: end },
+        );
+        if (ended.length > 0) {
+          await manager.update(
+            ProSubscription,
+            { id: In(ended) },
+            { status: ProSubscriptionStatus.EXPIRED, autoRenew: false },
+          );
+        }
+        // Other running rows (never more than one per venue) are left alone
+        return {
+          schedules: [],
+          subscriptionId: same.id,
+          extended: true,
+          currentPeriodEnd: end,
+          autoRenewDatesDiffer: false,
+          moveSchedule:
+            same.omiseScheduleId && bool(same.autoRenew)
+              ? same.omiseScheduleId
+              : null,
+          ...names,
+        };
+      }
+    }
+
+    // The venue's running row (another plan, or any plan for an admin
+    // grant) is replaced by a new row from now
+    const end = addDays(row.start, row.days);
+    if (running.length > 0) {
       await manager.update(
         ProSubscription,
-        { id: In(replaced) },
+        { id: In(running.map((s) => s.id)) },
         {
           status: ProSubscriptionStatus.REVOKED,
           revokedAt: row.start,
@@ -460,16 +613,28 @@ export class ProSubscriptionsService {
       venueId: plan.venueId,
       planId: plan.id,
       status: ProSubscriptionStatus.ACTIVE,
-      source: ProSubscriptionSource.ADMIN,
+      source:
+        row.mode === 'code'
+          ? ProSubscriptionSource.CODE
+          : ProSubscriptionSource.ADMIN,
       currentPeriodStart: row.start,
-      currentPeriodEnd: row.end,
+      currentPeriodEnd: end,
       autoRenew: false,
       note: row.note,
       grantedById: row.adminId,
       revokedAt: null,
       revokedById: null,
     });
-    return active.map((s) => s.omiseScheduleId).filter((s): s is string => !!s);
+    return {
+      schedules: active
+        .map((s) => s.omiseScheduleId)
+        .filter((s): s is string => !!s),
+      subscriptionId: row.id,
+      extended: false,
+      currentPeriodEnd: end,
+      autoRenewDatesDiffer: false,
+      ...names,
+    };
   }
 
   /**

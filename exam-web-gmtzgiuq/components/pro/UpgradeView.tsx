@@ -6,10 +6,12 @@ import { AlertCircle, Loader2, PackageOpen, RotateCcw } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProUpgrade, type ProPublicPlan, type ProUpgradeData } from '@/lib/api/pro';
+import type { RedeemProCodeResult } from '@/lib/api/unlockCodes';
 import { findLiveSubscription } from '@/lib/pro';
 import { checkoutHref, loginHref } from '@/lib/pro-payments';
 import PlanCard from './PlanCard';
 import ComparisonTable from './ComparisonTable';
+import ProCodeRedeemBox from './ProCodeRedeemBox';
 
 function isAbortError(err: unknown) {
   return err instanceof DOMException && err.name === 'AbortError';
@@ -90,7 +92,21 @@ export default function UpgradeView() {
     router.push(userId ? target : loginHref(target));
   }
 
+  // ได้แพ็กเกจจากโค้ด (task 19): โหลดสิทธิ์ใหม่แบบไม่ขึ้นหน้าโหลด (กล่องโค้ดยังแสดงผลสำเร็จอยู่) แล้วไปสนามของแพ็กเกจนั้น
+  function handleCodeRedeemed(res: RedeemProCodeResult) {
+    const key = requestKey;
+    getProUpgrade()
+      .then((fresh) => setResult((prev) => (prev?.key === key ? { key, data: fresh, error: false } : prev)))
+      .catch((err) => console.error('Failed to refresh upgrade page:', err));
+    if (res.venue.key && res.venue.key !== venue?.key && venues.some((v) => v.key === res.venue.key)) {
+      selectVenue(res.venue.key);
+    }
+  }
+
   const plans = venue?.plans ?? [];
+  const codeBox = (
+    <ProCodeRedeemBox isLoggedIn={!!userId} loginRedirect={pathname || '/upgrade'} onRedeemed={handleCodeRedeemed} />
+  );
 
   return (
     <FadeIn>
@@ -102,6 +118,7 @@ export default function UpgradeView() {
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 break-words">{page.title}</h1>
             )}
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">ยังไม่มีแพ็กเกจให้สมัครในตอนนี้</p>
+            <div className="mt-6 max-w-xl mx-auto text-left">{codeBox}</div>
           </div>
         ) : (
           <>
@@ -139,6 +156,9 @@ export default function UpgradeView() {
                 })}
               </div>
             </section>
+
+            {/* มีโค้ด? (task 19) — พับไว้ กดแล้วค่อยแสดงช่องกรอก */}
+            <div className="mt-4">{codeBox}</div>
 
             {/* หัวหน้า + การ์ดแพ็กเกจ — จอ xl คอลัมน์ตรงกับตารางเปรียบเทียบด้านล่าง */}
             <div

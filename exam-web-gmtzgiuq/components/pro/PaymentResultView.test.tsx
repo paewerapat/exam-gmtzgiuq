@@ -33,6 +33,7 @@ const detail = (patch: Partial<ProPaymentDetail> = {}): ProPaymentDetail => ({
   plan: { id: '', name: 'PRO' },
   venue: { name: 'NETSAT' },
   subscription: null,
+  refundRequired: false,
   ...patch,
 });
 
@@ -279,5 +280,38 @@ describe('/upgrade/result — PaymentResultView (task 18)', () => {
     render(<PaymentResultView />);
     expect(mockReplace).toHaveBeenCalledWith('/login?redirect=' + encodeURIComponent('/upgrade/result?payment=pay1&plan=p-pro'));
     expect(getProPayment).not.toHaveBeenCalled();
+  });
+
+  it('canceled (ถูกแทนที่ด้วยรายการใหม่ — task 19 รอบ 2): สถานะจบ ไม่ poll ไม่มี QR + ลิงก์กลับหน้าชำระเงิน/สมาชิกของฉัน', async () => {
+    (getProPayment as jest.Mock).mockResolvedValue(
+      detail({ status: 'canceled', qrImageUrl: null, failureMessage: 'ถูกแทนที่ด้วยรายการชำระใหม่' }),
+    );
+    render(<PaymentResultView />);
+    await advance(0);
+    expect(screen.getByRole('heading', { name: 'รายการชำระนี้ถูกยกเลิกแล้ว' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('ถูกแทนที่ด้วยรายการชำระใหม่');
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('qr-countdown')).not.toBeInTheDocument();
+    expect(screen.queryByText(/กำลังยืนยัน/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'กลับไปหน้าชำระเงิน' })).toHaveAttribute('href', '/upgrade/checkout?plan=p-pro');
+    expect(screen.getByRole('link', { name: 'ไปหน้าสมาชิกของฉัน' })).toHaveAttribute('href', '/dashboard/membership');
+    await advance(30000);
+    expect(getProPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('successful + refundRequired (QR ที่ถูกแทนที่แล้วยังมีคนจ่าย — task 19 รอบ 3): ไม่บอกสมัครสำเร็จ ไม่มีปุ่มเริ่มทำ แสดงหมายเหตุคืนเงิน ไม่ poll', async () => {
+    (getProPayment as jest.Mock).mockResolvedValue(
+      detail({ status: 'successful', refundRequired: true, subscription: null, qrImageUrl: null, failureMessage: 'รายการนี้ถูกแทนที่แล้ว จะคืนเงินให้ภายใน 7 วัน' }),
+    );
+    render(<PaymentResultView />);
+    await advance(0);
+    expect(screen.getByRole('heading', { name: 'ชำระเงินแล้ว แต่ไม่ได้ให้สิทธิ์จากรายการนี้' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('รายการนี้ถูกแทนที่แล้ว จะคืนเงินให้ภายใน 7 วัน');
+    expect(screen.queryByText(/สมัครสำเร็จ/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'เริ่มทำข้อสอบ' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ไปหน้าสมาชิกของฉัน' })).toHaveAttribute('href', '/dashboard/membership');
+    expect(screen.getByRole('link', { name: 'กลับไปหน้าแพ็กเกจ' })).toHaveAttribute('href', '/upgrade');
+    await advance(30000);
+    expect(getProPayment).toHaveBeenCalledTimes(1);
   });
 });

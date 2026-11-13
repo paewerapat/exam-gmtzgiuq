@@ -52,6 +52,9 @@ describe('lib/api/pro — ชำระเงิน (task 18)', () => {
       vatEnabled: true,
       current: { planId: 'p0', currentPeriodEnd: '2026-12-01T00:00:00Z', autoRenew: false, source: '' },
       changesPlan: true,
+      discount: null,
+      discountError: null,
+      renewalTotalSatang: 21293,
     });
   });
 

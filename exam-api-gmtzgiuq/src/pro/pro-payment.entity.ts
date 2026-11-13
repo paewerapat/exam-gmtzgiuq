@@ -15,12 +15,16 @@ export enum ProPaymentMethod {
 /**
  * pending → successful / failed / expired, decided only by the charge read
  * back from Opn (ProBillingService.syncCharge), never by a request body.
+ * pending → canceled (task 19): replaced by a newer checkout of the same
+ * user and plan; if Opn still reports it paid it becomes successful with
+ * refundRequired (no rights, no discount use).
  */
 export enum ProPaymentStatus {
   PENDING = 'pending',
   SUCCESSFUL = 'successful',
   FAILED = 'failed',
   EXPIRED = 'expired',
+  CANCELED = 'canceled',
 }
 
 /**

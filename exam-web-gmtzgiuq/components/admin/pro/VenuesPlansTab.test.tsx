@@ -2,7 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { toast } from 'react-toastify';
 import VenuesPlansTab from './VenuesPlansTab';
-import { updateProPlan, updateProVenue, type ProAdminPlan, type ProAdminVenue } from '@/lib/api/pro';
+import Swal from 'sweetalert2';
+import { deleteProPlan, deleteProVenue, updateProPlan, updateProVenue, type ProAdminPlan, type ProAdminVenue } from '@/lib/api/pro';
 import { ApiError } from '@/lib/api/apiError';
 import { DEFAULT_ENTITLEMENTS } from '@/lib/pro';
 
@@ -93,6 +94,31 @@ describe('VenuesPlansTab — เรียงลำดับ (task 17 รอบ 2
       ['p-pro', { sortOrder: 2 }],
     ]);
     expect(toast.error).toHaveBeenCalledWith('ไม่พบแพ็กเกจนี้');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('VenuesPlansTab — ลบที่ถูกอ้างอยู่ (task 19 รอบ 2)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (Swal.fire as jest.Mock).mockResolvedValue({ isConfirmed: true });
+  });
+
+  it.each([
+    ['แพ็กเกจ', 'PLAN_IN_USE', 'แพ็กเกจนี้ถูกใช้ในโค้ด Unlock หรือโค้ดส่วนลด จึงลบไม่ได้'],
+    ['สนาม', 'VENUE_IN_USE', 'สนามนี้ถูกใช้ในโค้ด Unlock หรือโค้ดส่วนลด จึงลบไม่ได้'],
+  ])('ลบ%s ได้ 409 %s → toast ข้อความไทยจาก API (ไม่ใช่ข้อความทั่วไป) ไม่ลบออกจากรายการ', async (what, code, message) => {
+    const user = userEvent.setup();
+    const { onChange } = setup();
+    const err = new ApiError(message, 409, code);
+    if (what === 'แพ็กเกจ') {
+      (deleteProPlan as jest.Mock).mockRejectedValue(err);
+      await user.click(screen.getByRole('button', { name: 'ลบ PRO' }));
+    } else {
+      (deleteProVenue as jest.Mock).mockRejectedValue(err);
+      await user.click(screen.getByRole('button', { name: 'ลบสนาม NETSAT' }));
+    }
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
     expect(onChange).not.toHaveBeenCalled();
   });
 });

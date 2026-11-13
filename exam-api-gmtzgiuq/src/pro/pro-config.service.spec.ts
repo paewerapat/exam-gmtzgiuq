@@ -13,6 +13,8 @@ import { ProPlan } from './pro-plan.entity';
 import { ProVenue } from './pro-venue.entity';
 import { ProSubscriptionsService } from './pro-subscriptions.service';
 import type { CreateProPlanDto } from './dto/pro.dto';
+import { ProDiscountCode } from './pro-discount-code.entity';
+import { UnlockCodeBatch } from '../unlock-codes/unlock-code-batch.entity';
 
 type Row = Record<string, unknown>;
 
@@ -20,6 +22,9 @@ function matches(row: Row, where: Row): boolean {
   return Object.entries(where).every(([key, value]) => {
     if (value instanceof FindOperator) {
       if (value.type === 'not') return row[key] !== value.value;
+      if (value.type === 'in') {
+        return (value.value as unknown as unknown[]).includes(row[key]);
+      }
       throw new Error(`operator ${value.type} not mocked`);
     }
     return row[key] === value;
@@ -63,6 +68,8 @@ describe('ProConfigService (task 17)', () => {
   let plans: Row[];
   let payments: Row[];
   let subscriptions: Row[];
+  let batches: Row[];
+  let discountCodes: Row[];
   let categories: Row[];
   let page: Row | null;
   let findMySummaries: jest.Mock;
@@ -162,6 +169,8 @@ describe('ProConfigService (task 17)', () => {
     ];
     subscriptions = [{ id: 's1', venueId: 'v-netsat', planId: 'p-pro' }];
     payments = [];
+    batches = [];
+    discountCodes = [];
     categories = [{ id: 'c1', slug: 'netsat-math', venueId: 'v-netsat' }];
     page = {
       id: 1,
@@ -181,17 +190,27 @@ describe('ProConfigService (task 17)', () => {
           ) ?? null,
         ),
       ),
-      find: jest.fn(() => Promise.resolve([])),
-      count: jest.fn((entity: unknown, { where }: { where: Row }) =>
+      find: jest.fn((entity: unknown, { where }: { where: Row }) =>
         Promise.resolve(
-          (entity === ProPlan
+          entity === ProPlan ? plans.filter((r) => matches(r, where)) : [],
+        ),
+      ),
+      count: jest.fn((entity: unknown, { where }: { where: Row | Row[] }) => {
+        const rows =
+          entity === ProPlan
             ? plans
             : entity === ProPayment
               ? payments
-              : subscriptions
-          ).filter((r) => matches(r, where)).length,
-        ),
-      ),
+              : entity === UnlockCodeBatch
+                ? batches
+                : entity === ProDiscountCode
+                  ? discountCodes
+                  : subscriptions;
+        const any = Array.isArray(where) ? where : [where];
+        return Promise.resolve(
+          rows.filter((r) => any.some((w) => matches(r, w))).length,
+        );
+      }),
       save: jest.fn((_entity: unknown, data: Row) => {
         const existing = plans.find((r) => r.id === data.id);
         if (existing) {
@@ -704,6 +723,41 @@ describe('ProConfigService (task 17)', () => {
       expect((await errorOf(service.deletePlan('p-free'))).body.errorCode).toBe(
         'PLAN_IN_USE',
       );
+    });
+
+    it('plan / venue used by a Pro unlock campaign or a discount code → 409 naming it (task 19 round 2)', async () => {
+      subscriptions = [];
+      batches = [{ id: 'b1', proPlanId: 'p-max' }];
+      expect(await errorOf(service.deletePlan('p-max'))).toEqual({
+        status: 409,
+        body: {
+          statusCode: 409,
+          errorCode: 'PLAN_IN_USE',
+          message:
+            'แพ็กเกจนี้ถูกใช้อยู่ในแคมเปญโค้ด Unlock แบบให้แพ็กเกจ Pro ลบไม่ได้ ให้ซ่อนแพ็กเกจแทน',
+        },
+      });
+      discountCodes = [{ id: 'd1', planId: 'p-max', venueId: 'v-netsat' }];
+      expect((await errorOf(service.deletePlan('p-max'))).body.message).toBe(
+        'แพ็กเกจนี้ถูกใช้อยู่ในแคมเปญโค้ด Unlock แบบให้แพ็กเกจ Pro และโค้ดส่วนลด ลบไม่ได้ ให้ซ่อนแพ็กเกจแทน',
+      );
+      // the venue: through its plans, or a code of the venue itself
+      expect(await errorOf(service.deleteVenue('v-netsat'))).toMatchObject({
+        status: 409,
+        body: { errorCode: 'VENUE_IN_USE' },
+      });
+      batches = [];
+      discountCodes = [{ id: 'd2', planId: null, venueId: 'v-netsat' }];
+      expect(
+        (await errorOf(service.deleteVenue('v-netsat'))).body.message,
+      ).toBe(
+        'สนามนี้หรือแพ็กเกจของสนามถูกใช้อยู่ในโค้ดส่วนลด ลบไม่ได้ ให้ปิดการใช้งานสนามแทน',
+      );
+      // a code of another venue / plan does not block
+      await expect(service.deletePlan('p-max')).resolves.toEqual({
+        success: true,
+      });
+      expect(venues).toHaveLength(2);
     });
   });
 

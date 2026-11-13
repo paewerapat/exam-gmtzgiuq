@@ -80,15 +80,39 @@ export const REDEEM_ERRORS = {
     status: 429,
     message: 'กรอกโค้ดผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่',
   },
+  // ── Pro codes (task 19) ──
+  ALREADY_HIGHER_PLAN: {
+    status: 409,
+    message:
+      'บัญชีนี้มีแพ็กเกจระดับเดียวกันหรือสูงกว่าในสนามนี้อยู่แล้ว จึงใช้โค้ดนี้ไม่ได้ (โค้ดยังไม่ถูกใช้)',
+  },
+  // the plan of a Pro campaign was deleted / made free
+  PLAN_UNAVAILABLE: {
+    status: 409,
+    message: 'แพ็กเกจของโค้ดนี้ไม่เปิดให้ใช้แล้ว กรุณาติดต่อผู้ดูแลระบบ',
+  },
 } as const;
 
 export type RedeemErrorCode = keyof typeof REDEEM_ERRORS;
 
-/** Error of POST /unlock-codes/redeem: `{ statusCode, message, errorCode }`. */
+/** NOT_FOR_THIS_EXAM of an exam code typed where there is no exam (/upgrade). */
+export const EXAM_CODE_ONLY_MESSAGE =
+  'โค้ดนี้ใช้กับชุดข้อสอบ กรุณากรอกที่หน้าชุดข้อสอบ';
+
+/**
+ * Error of POST /unlock-codes/redeem: `{ statusCode, message, errorCode }`.
+ * `message` replaces the default text (same errorCode and status).
+ */
 export class RedeemException extends HttpException {
-  constructor(readonly errorCode: RedeemErrorCode) {
-    const { status, message } = REDEEM_ERRORS[errorCode];
-    super({ statusCode: status, message, errorCode }, status);
+  constructor(
+    readonly errorCode: RedeemErrorCode,
+    message?: string,
+  ) {
+    const { status, message: fallback } = REDEEM_ERRORS[errorCode];
+    super(
+      { statusCode: status, message: message ?? fallback, errorCode },
+      status,
+    );
   }
 }
 
