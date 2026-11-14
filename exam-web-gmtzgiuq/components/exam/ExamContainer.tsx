@@ -12,6 +12,7 @@ import {
   X,
   ListFilter,
   ListChecks,
+  Lock,
 } from 'lucide-react';
 import { useExam } from '@/contexts/ExamContext';
 import {
@@ -31,14 +32,20 @@ import { getQuestionImages } from '@/lib/question-images';
 import { getQuestionPassage } from '@/lib/exam-passages';
 import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
+import LockedChallengeQuestion from './LockedChallengeQuestion';
 
 interface ExamContainerProps {
   onComplete: () => void | Promise<void>;
   mode?: 'practice' | 'exam';
   backUrl?: string;
+  /**
+   * หน้า Upgrade สำหรับข้อ Challenge ที่ล็อก (question.locked) เช่น /upgrade?venue=netsat (task 20)
+   * ข้อที่ล็อกแสดงการ์ดล็อก + modal แทนโจทย์ และไม่นับเป็นข้อที่ยังไม่ตอบตอนส่ง
+   */
+  lockedUpgradeHref?: string;
 }
 
-export default function ExamContainer({ onComplete, mode = 'practice', backUrl }: ExamContainerProps) {
+export default function ExamContainer({ onComplete, mode = 'practice', backUrl, lockedUpgradeHref = '/upgrade' }: ExamContainerProps) {
   const {
     state,
     currentQuestion,
@@ -102,19 +109,26 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
   const correctChoiceIds = getCorrectChoiceIds(currentQuestion);
   const hasAnswered = isShortAnswer ? userAnswer?.trim().length > 0 : selectedChoiceIds.length > 0;
   const isFirst = currentIndex === 0;
+  // ข้อ Challenge ที่ยังไม่มีสิทธิ์ (placeholder จาก Question Bank) — ไม่มีโจทย์ ทำไม่ได้
+  const isLocked = currentQuestion.locked === true;
+  const lockedIds = new Set(state.questions.filter((q) => q.locked === true).map((q) => q.id));
 
   const handleFinish = async () => {
-    const unanswered = session.questionIds.filter((id) => !session.answers[id]).length;
+    const unanswered = session.questionIds.filter((id) => !session.answers[id] && !lockedIds.has(id)).length;
+    // ทุกข้อเป็นข้อ Challenge ที่ล็อก (ยังไม่มี Pro) — ไม่มีข้อให้ตอบ ไม่ใช่ "ตอบครบทุกข้อแล้ว"
+    const allLocked = session.questionIds.length > 0 && session.questionIds.every((id) => lockedIds.has(id));
 
     const result = await Swal.fire({
       theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-      title: 'ส่งข้อสอบ?',
-      html: unanswered > 0
+      title: allLocked ? 'จบการฝึก?' : 'ส่งข้อสอบ?',
+      html: allLocked
+        ? `<p class="text-gray-600 dark:text-gray-400">ข้อในชุดนี้เป็นข้อ Challenge สำหรับสมาชิก Pro ทั้งหมด<br/>ต้องการจบการฝึกหรือไม่?</p>`
+        : unanswered > 0
         ? `<p class="text-gray-600 dark:text-gray-400">คุณยังมี <strong class="text-red-500">${unanswered} ข้อ</strong> ที่ยังไม่ได้ตอบ<br/>ต้องการส่งข้อสอบหรือไม่?</p>`
         : `<p class="text-gray-600 dark:text-gray-400">ตอบครบทุกข้อแล้ว พร้อมส่งข้อสอบหรือไม่?</p>`,
-      icon: unanswered > 0 ? 'warning' : 'question',
+      icon: allLocked ? 'info' : unanswered > 0 ? 'warning' : 'question',
       showCancelButton: true,
-      confirmButtonText: 'ส่งข้อสอบ',
+      confirmButtonText: allLocked ? 'จบการฝึก' : 'ส่งข้อสอบ',
       cancelButtonText: 'ยกเลิก',
       confirmButtonColor: '#4f46e5',
       cancelButtonColor: '#6b7280',
@@ -152,6 +166,11 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
     } else {
       nextQuestion();
     }
+  };
+
+  // ข้ามข้อที่ล็อก = ไปข้อถัดไป (ข้อสุดท้าย = ส่ง)
+  const handleSkipLocked = () => {
+    handleNext();
   };
 
   const { questionIds, answers, markedForReview } = session;
@@ -269,7 +288,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
               </div>
               <div className="flex items-center gap-1">
                 {/* Lightbulb: only in practice mode */}
-                {mode === 'practice' && currentQuestion.hint && (
+                {mode === 'practice' && !isLocked && currentQuestion.hint && (
                   <button
                     type="button"
                     onClick={isHintVisible ? hideHint : showHint}
@@ -285,6 +304,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                   </button>
                 )}
                 {/* Bookmark */}
+                {!isLocked && (
                 <button
                   type="button"
                   onClick={() => toggleMarkReview(currentQuestionId)}
@@ -298,12 +318,22 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                     fill={isMarked ? 'currentColor' : 'none'}
                   />
                 </button>
+                )}
               </div>
             </div>
 
             {/* Two-column layout */}
             {/* มีบทอ่าน: ฝั่งขวาแคบลง → โจทย์กับตัวเลือกเรียงลงมา และ (lg) เลื่อนในตัวเองถ้ายาว
-                ให้หัวการ์ดกับปุ่มก่อนหน้า/ถัดไปอยู่ในจอเสมอ — key ตามข้อ ให้เปลี่ยนข้อแล้วกลับไปบนสุด */}
+                ให้หัวการ์ดกับปุ่มก่อนหน้า/ถัดไปอยู่ในจอเสมอ — key ตามข้อ ให้เปลี่ยนข้อแล้วกลับไปบนสุด
+                ข้อ Challenge ที่ล็อก (task 20): การ์ดล็อก + modal แทนโจทย์/ตัวเลือก */}
+            {isLocked ? (
+              <LockedChallengeQuestion
+                key={currentQuestionId}
+                upgradeHref={lockedUpgradeHref}
+                onSkip={handleSkipLocked}
+                isLast={isLastQuestion}
+              />
+            ) : (
             <div
               key={passage ? currentQuestionId : undefined}
               data-testid={passage ? 'question-scroll' : undefined}
@@ -483,6 +513,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                 {mode === 'practice' && !passage && checkButton}
               </div>
             </div>
+            )}
 
             {/* Bottom prev / next */}
             <div
@@ -503,7 +534,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                 <ChevronLeft className="w-4 h-4" />
                 ข้อก่อนหน้า
               </button>
-              {mode === 'practice' && passage && checkButton}
+              {mode === 'practice' && passage && !isLocked && checkButton}
               <button
                 type="button"
                 onClick={handleNext}
@@ -609,6 +640,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                       const isMk = markedForReview.includes(qId);
                       const isCurrent = idx === currentIndex;
                       const checkedResult = checkedAnswers[qId]; // true/false/undefined
+                      const isLockedItem = lockedIds.has(qId);
 
                       let cls =
                         'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'; // unanswered
@@ -620,6 +652,8 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                         cls = 'bg-red-100 text-red-700 dark:text-red-300 border-2 border-red-400 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-800/50'; // incorrect
                       if (isMk)
                         cls = 'bg-orange-100 text-orange-600 dark:text-orange-400 border-2 border-orange-400 hover:bg-orange-200 dark:bg-orange-900/40 dark:hover:bg-orange-800/50'; // marked
+                      if (isLockedItem && !isCurrent)
+                        cls = 'bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-500 border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'; // ข้อ Challenge ที่ล็อก
                       if (isCurrent)
                         cls = 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-2 border-gray-900 font-bold shadow-sm'; // current
 
@@ -631,8 +665,10 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl }
                             jumpToQuestion(idx);
                             setIsNavOpen(false);
                           }}
-                          className={`aspect-square flex items-center justify-center rounded-xl text-xs transition ${cls}`}
+                          aria-label={isLockedItem ? `ข้อ ${idx + 1} (ข้อ Challenge ที่ล็อก)` : undefined}
+                          className={`aspect-square flex items-center justify-center gap-0.5 rounded-xl text-xs transition ${cls}`}
                         >
+                          {isLockedItem && <Lock className="w-3 h-3" aria-hidden="true" />}
                           {idx + 1}
                         </button>
                       );

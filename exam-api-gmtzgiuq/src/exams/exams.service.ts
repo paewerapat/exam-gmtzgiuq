@@ -50,7 +50,8 @@ import {
 } from './exam-mock';
 import { ExamAccessService } from '../exam-access/exam-access.service';
 import { ProVenue } from '../pro/pro-venue.entity';
-import type { AccessViewer } from '../exam-access/exam-access';
+import { isAdminViewer, type AccessViewer } from '../exam-access/exam-access';
+import { challengeNotInBankOnly } from '../question-bank/question-bank-errors';
 
 /**
  * `releaseDate` of POST/PUT (already an ISO 8601 date, see the DTO) as a Date,
@@ -102,6 +103,33 @@ export function matchQuestionIds(
   };
 }
 
+/**
+ * Challenge questions only in a bankOnly exam (task 20): 400
+ * CHALLENGE_NOT_IN_BANK_ONLY naming the first sent question marked
+ * Challenge. `sent` = the questions of the request; `stored` = the exam's
+ * current questions, checked when no questions are sent (PUT that only
+ * turns bankOnly off).
+ */
+export function assertChallengeInBankOnly(
+  bankOnly: boolean,
+  sent: Pick<CreateExamQuestionInput, 'isChallenge'>[] | undefined,
+  stored: Pick<Question, 'isChallenge'>[] = [],
+): void {
+  if (bankOnly) return;
+  if (sent) {
+    const index = sent.findIndex((q) => q.isChallenge === true);
+    if (index >= 0) throw challengeNotInBankOnly(index);
+    return;
+  }
+  if (stored.some((q) => isTrue(q.isChallenge))) {
+    throw challengeNotInBankOnly(null);
+  }
+}
+
+function isTrue(value: unknown): boolean {
+  return value === true || Number(value) === 1;
+}
+
 @Injectable()
 export class ExamsService {
   constructor(
@@ -121,6 +149,8 @@ export class ExamsService {
     const releaseDate = parseReleaseDate(input.releaseDate);
     const accessType = input.accessType ?? ExamAccessType.FREE;
     assertMockAccess(accessType, input.price);
+    const bankOnly = input.bankOnly ?? false;
+    assertChallengeInBankOnly(bankOnly, input.questions);
 
     const savedExamId = await this.dataSource.transaction(async (manager) => {
       const exam = manager.create(Exam, {
@@ -135,6 +165,7 @@ export class ExamsService {
         ...(releaseDate ? { releaseDate } : {}),
         passages,
         isMock: input.isMock ?? false,
+        bankOnly,
         accessType,
         price: input.price ?? null,
         accessDays: input.accessDays ?? null,
@@ -166,6 +197,7 @@ export class ExamsService {
           chapterId: q.chapterId || undefined,
           chapter: q.chapter || undefined,
           passageId: q.passageId || null,
+          isChallenge: q.isChallenge === true,
         }),
       );
       await manager.save(questions);
@@ -182,7 +214,13 @@ export class ExamsService {
     status?: QuestionStatus,
     category?: QuestionCategory,
     search?: string,
-    options: { excludeMock?: boolean } = {},
+    options: {
+      excludeMock?: boolean;
+      // Public lists: never bankOnly exams (task 20)
+      excludeBankOnly?: boolean;
+      // Admin list filter (task 20): true = bankOnly only, false = others
+      bankOnly?: boolean;
+    } = {},
   ): Promise<PaginatedExams> {
     const skip = (page - 1) * limit;
 
@@ -204,6 +242,15 @@ export class ExamsService {
     // Mock exams are listed only by GET /exams/mock (task 11)
     if (options.excludeMock) {
       queryBuilder.andWhere('exam.isMock = :isMock', { isMock: false });
+    }
+
+    // bankOnly exams are used by the Question Bank only (task 20)
+    if (options.excludeBankOnly) {
+      queryBuilder.andWhere('exam.bankOnly = :bankOnly', { bankOnly: false });
+    } else if (typeof options.bankOnly === 'boolean') {
+      queryBuilder.andWhere('exam.bankOnly = :bankOnly', {
+        bankOnly: options.bankOnly,
+      });
     }
 
     if (search) {
@@ -238,7 +285,7 @@ export class ExamsService {
       QuestionStatus.PUBLISHED,
       category,
       search,
-      { excludeMock: true },
+      { excludeMock: true, excludeBankOnly: true },
     );
   }
 
@@ -276,6 +323,15 @@ export class ExamsService {
     }
 
     await this.examAccessService.assertCanAccess(viewer, exam);
+
+    // Second layer (task 20): Challenge questions only reach non-admins
+    // through the Question Bank, even if one ever ends up in an exam that
+    // is not bankOnly
+    if (!isAdminViewer(viewer)) {
+      exam.questions = (exam.questions ?? []).filter(
+        (q) => !isTrue(q.isChallenge),
+      );
+    }
 
     return this.withPassages(exam);
   }
@@ -328,6 +384,11 @@ export class ExamsService {
     );
     // A repeated id → 400 before the transaction starts
     if (input.questions) matchQuestionIds([], input.questions);
+    // Not sent (or null) = unchanged; Challenge questions (sent, or the
+    // stored ones when questions are not sent) need bankOnly (task 20)
+    const bankOnly =
+      typeof input.bankOnly === 'boolean' ? input.bankOnly : exam.bankOnly;
+    assertChallengeInBankOnly(bankOnly, input.questions, exam.questions);
 
     // Passages are replaced when sent, and also (with []) when questions are
     // sent without them: the questions may only refer to this request.
@@ -360,6 +421,7 @@ export class ExamsService {
       if (input.durationMinutes !== undefined)
         exam.durationMinutes = input.durationMinutes ?? null;
       if (typeof input.isMock === 'boolean') exam.isMock = input.isMock;
+      exam.bankOnly = bankOnly;
       exam.accessType = accessType;
       exam.price = price ?? null;
       if (input.accessDays !== undefined)
@@ -408,6 +470,8 @@ export class ExamsService {
             orderIndex: q.orderIndex ?? index,
             examId: id,
             passageId: q.passageId || null,
+            // Not sent = false, like the other optional fields (task 20)
+            isChallenge: q.isChallenge === true,
           };
           const keptId = keptIdByIndex.get(index);
           if (keptId) {
@@ -452,6 +516,7 @@ export class ExamsService {
         bannerImage: exam.bannerImage,
         durationMinutes: exam.durationMinutes,
         isMock: exam.isMock,
+        bankOnly: exam.bankOnly,
         accessType: exam.accessType,
         price: exam.price,
         accessDays: exam.accessDays,
@@ -529,6 +594,8 @@ export class ExamsService {
       .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
       // Mock exams are listed only by GET /exams/mock (task 11)
       .andWhere('exam.isMock = :isMock', { isMock: false })
+      // bankOnly exams are used by the Question Bank only (task 20)
+      .andWhere('exam.bankOnly = :bankOnly', { bankOnly: false })
       .andWhere(
         'EXISTS (SELECT 1 FROM questions q WHERE q.examId = exam.id AND q.topicId = :topicId)',
         { topicId },
@@ -606,6 +673,7 @@ export class ExamsService {
       .addSelect('COUNT(*)', 'count')
       .where('exam.isMock = :isMock', { isMock: true })
       .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      .andWhere('exam.bankOnly = :bankOnly', { bankOnly: false })
       .groupBy('exam.category')
       .getRawMany<{
         slug: string;
@@ -702,7 +770,9 @@ export class ExamsService {
       .addSelect('exam.releaseDate', 'releaseDate')
       .addSelect('venue.key', 'venueKey')
       .where('exam.isMock = :isMock', { isMock: true })
-      .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED });
+      .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED })
+      // bankOnly exams are hidden from every exam list (task 20)
+      .andWhere('exam.bankOnly = :bankOnly', { bankOnly: false });
 
     if (category) {
       qb.andWhere('(exam.category = :category OR cat.name = :category)', {

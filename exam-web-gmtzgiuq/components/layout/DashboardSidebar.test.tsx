@@ -41,3 +41,19 @@ describe('DashboardSidebar — เมนู Mock Exam (task 11 AC3)', () => {
     expect(document.body.textContent).not.toMatch(/ปลดล็อก/);
   });
 });
+
+describe('DashboardSidebar — Question Bank / Challenge Questions (task 20)', () => {
+  beforeEach(() => {
+    mockedUseAuth.mockReturnValue({ user: null, logout: jest.fn() });
+  });
+
+  it('มีเมนู Question Bank และ Challenge Questions (ป้าย PRO) ให้ guest เห็นด้วย', () => {
+    render(<DashboardSidebar />);
+    expect(screen.getByRole('link', { name: 'Question Bank' })).toHaveAttribute('href', '/dashboard/question-bank');
+    // ป้าย PRO เป็นภาพ (aria-hidden) แต่ screen reader ได้ยิน "เฉพาะ Pro" (round 2)
+    const challenge = screen.getByRole('link', { name: 'Challenge Questions เฉพาะ Pro' });
+    expect(challenge).toHaveAttribute('href', '/dashboard/challenge');
+    expect(challenge).toHaveTextContent('PRO');
+    expect(document.body.textContent).not.toMatch(/ปลดล็อก/);
+  });
+});

@@ -69,6 +69,13 @@ export interface Question {
   type: QuestionType;
   status: QuestionStatus;
   tags?: string[];
+  /** ข้อ Challenge (task 20) — ติดได้เฉพาะข้อในชุดที่ใช้เฉพาะ Question Bank */
+  isChallenge?: boolean;
+  /**
+   * ข้อ Challenge ที่ผู้ใช้ยังไม่มีสิทธิ์ (มาจาก POST /question-bank/sessions เป็น placeholder)
+   * ไม่มีโจทย์/ตัวเลือก/เฉลย — หน้าทำข้อสอบแสดงการ์ดล็อกแทน และไม่นับคะแนน/ไม่ส่ง log
+   */
+  locked?: boolean;
   author: QuestionAuthor;
   createdAt: string;
   updatedAt: string;

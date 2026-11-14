@@ -23,6 +23,8 @@ import {
   MessageSquare,
   ClipboardCheck,
   Crown,
+  Database,
+  Mountain,
 } from 'lucide-react';
 
 const menuItems = [
@@ -31,6 +33,9 @@ const menuItems = [
   { href: '/dashboard/library', label: 'ทำข้อสอบแยกบท', icon: Library },
   { href: '/dashboard/exam', label: 'ฝึกทำข้อสอบ(จับเวลา)', icon: GraduationCap },
   { href: '/dashboard/mock-exams', label: 'Mock Exam', icon: ClipboardCheck },
+  // task 20 — งาน 7 จะจัดกลุ่ม LUMO'S EXAM / ปุ่ม Upgrade ทั้งหมดภายหลัง
+  { href: '/dashboard/question-bank', label: 'Question Bank', icon: Database },
+  { href: '/dashboard/challenge', label: 'Challenge Questions', icon: Mountain, badge: 'PRO' },
   { href: '/dashboard/history', label: 'ประวัติการสอบ', icon: Clock },
   { href: '/blogs', label: 'บทความ', icon: BookOpen },
   { href: '/dashboard/profile', label: 'โปรไฟล์', icon: User },
@@ -130,6 +135,19 @@ export default function DashboardSidebar({ onNavigate }: DashboardSidebarProps) 
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
               {item.label}
+              {item.badge && (
+                <span
+                  aria-hidden="true"
+                  className={`ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none tracking-wide ${
+                    isActive
+                      ? 'bg-white text-indigo-700 dark:bg-gray-900 dark:text-indigo-300'
+                      : 'bg-amber-400 text-amber-950 dark:bg-amber-500 dark:text-amber-950'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
+              {item.badge && <span className="sr-only">เฉพาะ Pro</span>}
             </Link>
           );
         })}

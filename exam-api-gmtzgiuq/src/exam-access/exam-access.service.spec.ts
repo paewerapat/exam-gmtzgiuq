@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EntityManager, FindOperator, In } from 'typeorm';
@@ -315,7 +315,13 @@ describe('ExamAccessService (task 15)', () => {
       examFindOne.mockResolvedValue(codeExam);
       await expectLocked(service.assertCanAccessExamId(student, 'code-1'));
       expect(examFindOne).toHaveBeenCalledWith({
-        select: { id: true, isMock: true, accessType: true, category: true },
+        select: {
+          id: true,
+          isMock: true,
+          accessType: true,
+          category: true,
+          bankOnly: true,
+        },
         where: { id: 'code-1' },
         loadEagerRelations: false,
       });
@@ -327,6 +333,38 @@ describe('ExamAccessService (task 15)', () => {
       await expect(service.assertCanAccessExamId(student, null)).resolves.toBe(
         undefined,
       );
+    });
+
+    it('task 20 AC5: a bankOnly exam is 404 for users and guests, open for admins', async () => {
+      const bankExam = {
+        ...exam('bank-1', ExamAccessType.FREE, false),
+        bankOnly: true,
+      };
+      await expect(
+        service.assertCanAccess(student, bankExam),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.assertCanAccess(null, bankExam)).rejects.toThrow(
+        'ไม่พบชุดข้อสอบ',
+      );
+      // raw 1 from MySQL
+      await expect(
+        service.assertCanAccess(student, { ...bankExam, bankOnly: 1 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.assertCanAccess(admin, bankExam)).resolves.toBe(
+        undefined,
+      );
+      // by id (attempt start/progress/complete/submit)
+      examFindOne.mockResolvedValue(bankExam);
+      await expect(
+        service.assertCanAccessExamId(student, 'bank-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        service.assertCanAccessExamId(admin, 'bank-1'),
+      ).resolves.toBe(undefined);
+      // bankOnly false → the old rules
+      await expect(
+        service.assertCanAccess(student, { ...bankExam, bankOnly: false }),
+      ).resolves.toBe(undefined);
     });
   });
 

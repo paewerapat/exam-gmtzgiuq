@@ -69,6 +69,8 @@ export interface Exam {
   detailBlocks?: DetailBlock[] | null;
   /** "วิธีรับโค้ด" (task 15) — มีใน GET /exams/admin/:id */
   codeInstructions?: CodeInstructions | null;
+  /** ชุดที่ใช้เฉพาะ Question Bank (task 20) — ซ่อนจากรายการชุดข้อสอบทุกที่ ข้อในชุดนี้ติดป้าย Challenge ได้ */
+  bankOnly?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +113,8 @@ export interface ExamQuestionInput {
   chapter?: string | null;
   /** id ของบทอ่านใน passages ของ payload เดียวกัน (null = ไม่ใช้บทอ่าน) */
   passageId?: string | null;
+  /** ข้อ Challenge — true ได้เฉพาะเมื่อชุดเป็น bankOnly (ไม่งั้น API ตอบ 400 CHALLENGE_NOT_IN_BANK_ONLY) */
+  isChallenge?: boolean;
 }
 
 /** บทอ่านใน payload สร้าง/แก้ข้อสอบ */
@@ -136,6 +140,8 @@ export interface CreateExamInput {
   durationMinutes?: number | null;
   /** ISO 8601 — ไม่ส่ง = เวลาที่สร้าง */
   releaseDate?: string;
+  /** ใช้เฉพาะ Question Bank (task 20) — ไม่ส่ง = false */
+  bankOnly?: boolean;
   // ── Mock Exam (task 11) ฟอร์มแอดมินส่งครบทุกครั้ง ไม่ส่ง = ค่าเริ่มต้นของ API ──
   isMock?: MockExamInput['isMock'];
   accessType?: MockExamInput['accessType'];
@@ -159,6 +165,8 @@ export interface UpdateExamInput {
   durationMinutes?: number | null;
   /** ISO 8601 — ไม่ส่ง = คงค่าเดิม */
   releaseDate?: string;
+  /** ใช้เฉพาะ Question Bank (task 20) — ไม่ส่ง = คงค่าเดิม */
+  bankOnly?: boolean;
   // ── Mock Exam (task 11) ฟอร์มแอดมินส่งครบทุกครั้ง ไม่ส่ง = คงค่าเดิม ──
   isMock?: MockExamInput['isMock'];
   accessType?: MockExamInput['accessType'];
@@ -175,6 +183,8 @@ export interface GetExamsParams {
   status?: QuestionStatus;
   category?: string;
   search?: string;
+  /** เฉพาะ admin list: true = เฉพาะชุด Question Bank, false = เฉพาะชุดปกติ, ไม่ส่ง = ทั้งหมด */
+  bankOnly?: boolean;
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -236,7 +246,7 @@ export async function getPublicExam(id: string, signal?: AbortSignal): Promise<E
 export async function getAdminExams(
   params: GetExamsParams = {},
 ): Promise<PaginatedExams> {
-  const { page = 1, limit = 10, status, category, search } = params;
+  const { page = 1, limit = 10, status, category, search, bankOnly } = params;
 
   const queryParams = new URLSearchParams();
   queryParams.set('page', String(page));
@@ -245,6 +255,7 @@ export async function getAdminExams(
   if (status) queryParams.set('status', status);
   if (category) queryParams.set('category', category);
   if (search) queryParams.set('search', search);
+  if (bankOnly !== undefined) queryParams.set('bankOnly', String(bankOnly));
 
   const response = await fetch(
     `${API_URL}/exams/admin/all?${queryParams.toString()}`,

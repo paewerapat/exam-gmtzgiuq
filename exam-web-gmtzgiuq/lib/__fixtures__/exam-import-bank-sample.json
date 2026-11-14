@@ -1,0 +1,55 @@
+{
+  "schema": "lumo-import/0.1-proposal",
+  "exam": {
+    "title": "NETSAT BIO Question Bank ชุดที่ 1 (ตัวอย่าง 3 ข้อ)",
+    "category": "NETSAT",
+    "status": "draft",
+    "bank_only": true,
+    "note": "ตัวอย่างไฟล์นำเข้าชุดที่ใช้เฉพาะ Question Bank — ข้อที่ is_challenge = true เป็นข้อ Challenge (เฉพาะสมาชิก Pro)"
+  },
+  "questions": [
+    {
+      "no": 1,
+      "topic": "การศึกษาชีววิทยา",
+      "type": "mcq",
+      "stem": "ข้อใดเป็นขั้นตอนแรกของวิธีการทางวิทยาศาสตร์",
+      "images": [],
+      "choices": [
+        { "label": "A", "text": "ตั้งสมมติฐาน" },
+        { "label": "B", "text": "สังเกตและตั้งปัญหา" },
+        { "label": "C", "text": "ทดลอง" },
+        { "label": "D", "text": "สรุปผล" }
+      ],
+      "correct": "B",
+      "difficulty": "easy",
+      "explanation": "วิธีการทางวิทยาศาสตร์เริ่มจากการสังเกตแล้วตั้งปัญหา",
+      "is_challenge": false
+    },
+    {
+      "no": 2,
+      "topic": "การศึกษาชีววิทยา",
+      "type": "numeric",
+      "stem": "กล้องจุลทรรศน์มีกำลังขยายเลนส์ใกล้ตา $10\\times$ และเลนส์ใกล้วัตถุ $40\\times$ กำลังขยายรวมเท่ากับเท่าใด",
+      "images": [],
+      "correct_value": "400",
+      "explanation": "กำลังขยายรวม = $10 \\times 40 = 400$ เท่า"
+    },
+    {
+      "no": 3,
+      "topic": "เซลล์และการทำงานของเซลล์",
+      "type": "mcq",
+      "stem": "เซลล์ที่แช่ในสารละลายไฮเพอร์โทนิกนาน ๆ จะเกิดสิ่งใดก่อนเป็นลำดับแรก",
+      "images": [],
+      "choices": [
+        { "label": "A", "text": "เซลล์เต่งขึ้น" },
+        { "label": "B", "text": "น้ำออสโมซิสออกจากเซลล์" },
+        { "label": "C", "text": "ตัวถูกละลายแพร่เข้าเซลล์จนสมดุลทันที" },
+        { "label": "D", "text": "เยื่อหุ้มเซลล์แตก" }
+      ],
+      "correct": "B",
+      "difficulty": "hard",
+      "explanation": "สารละลายนอกเซลล์เข้มข้นกว่า น้ำจึงออสโมซิสออกจากเซลล์ก่อน",
+      "is_challenge": true
+    }
+  ]
+}

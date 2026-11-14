@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
 import { User } from '../users/user.entity';
@@ -63,6 +64,8 @@ export class QuestionChoice {
 
 @ObjectType()
 @Entity('questions')
+// Question Bank / topic practice look questions up by topic (task 20)
+@Index('IDX_questions_topicId', ['topicId'])
 export class Question {
   @Field(() => ID)
   @PrimaryGeneratedColumn('uuid')
@@ -168,6 +171,14 @@ export class Question {
   @Field(() => String, { nullable: true })
   @Column({ type: 'varchar', length: 64, nullable: true })
   passageId: string | null;
+
+  // Challenge question (task 20, sql/20261116-01-question-bank.sql): only in
+  // an exam with bankOnly (400 CHALLENGE_NOT_IN_BANK_ONLY otherwise), only
+  // served by the Question Bank to users with the venue's `challenge` right,
+  // never by topic/subject practice
+  @Field()
+  @Column({ type: 'boolean', default: false })
+  isChallenge: boolean;
 
   // Resolved passage, attached by the public question list endpoints only
   // (not a column)

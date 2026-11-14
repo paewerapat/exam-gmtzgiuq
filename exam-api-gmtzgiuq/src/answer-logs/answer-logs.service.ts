@@ -11,6 +11,7 @@ import { Exam } from '../exams/exam.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
 import type { AccessViewer } from '../exam-access/exam-access';
 import { getAnswerStatus } from './answer-grading';
+import { ChallengeAccessService } from '../question-bank/challenge-access.service';
 import { AnswerLogItemDto, MAX_SELECTED_LENGTH } from './dto/answer-log.dto';
 
 /** Longest time stored for one answer (one day). */
@@ -41,7 +42,8 @@ type AnswerRow = Pick<
 type GradedQuestion = Pick<
   Question,
   'id' | 'examId' | 'status' | 'type' | 'correctAnswer' | 'choices'
->;
+> &
+  Partial<Pick<Question, 'isChallenge'>>;
 
 /** Tries of one insert when InnoDB picks it as a deadlock victim. */
 export const MAX_INSERT_TRIES = 3;
@@ -73,6 +75,7 @@ export class AnswerLogsService {
     @InjectRepository(Exam)
     private examsRepository: Repository<Exam>,
     private examAccessService: ExamAccessService,
+    private challengeAccessService: ChallengeAccessService,
   ) {}
 
   /**
@@ -144,8 +147,10 @@ export class AnswerLogsService {
    * subject / chapter practice). Skipped without an error: questions that do
    * not exist, are not published (the exam's status for a question in an
    * exam, as the practice lists use; otherwise the question's own), or
-   * belong to a locked Mock Exam the user may not take. examId, isCorrect
-   * and isFirstAttempt are always worked out here.
+   * belong to a locked Mock Exam the user may not take, or are Challenge
+   * questions without the venue's `challenge` right (task 20; Question Bank
+   * practice also logs here). examId, isCorrect and isFirstAttempt are
+   * always worked out here.
    */
   async logPractice(
     user: AccessViewer,
@@ -162,6 +167,7 @@ export class AnswerLogsService {
         type: true,
         correctAnswer: true,
         choices: true,
+        isChallenge: true,
       },
       where: { id: In(ids) },
       loadEagerRelations: false,
@@ -214,6 +220,20 @@ export class AnswerLogsService {
         continue;
       }
       allowed.set(question.id.toLowerCase(), question);
+    }
+
+    // Challenge questions (task 20): only with the venue's challenge right
+    const challengeIds = [...allowed.values()]
+      .filter((q) => q.isChallenge === true || Number(q.isChallenge) === 1)
+      .map((q) => q.id);
+    if (challengeIds.length > 0) {
+      const unlocked = await this.challengeAccessService.unlockedQuestionIds(
+        user,
+        challengeIds,
+      );
+      for (const id of challengeIds) {
+        if (!unlocked.has(id.toLowerCase())) allowed.delete(id.toLowerCase());
+      }
     }
     return allowed;
   }

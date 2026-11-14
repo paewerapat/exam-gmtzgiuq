@@ -18,6 +18,8 @@ export interface ExamSession {
   pausedAt?: number | null; // client timestamp when currently paused
   completedAt?: string;
   status: 'in_progress' | 'completed';
+  /** Question Bank (task 20): key ของสนาม ใช้ทำลิงก์ Unlock ของข้อที่ล็อก (เก็บใน session แทน key แยกใน localStorage) */
+  venueKey?: string;
 }
 
 export interface ExamState {

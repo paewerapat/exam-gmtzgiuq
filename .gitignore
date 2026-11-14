@@ -4,3 +4,5 @@ node_modules
 docs/dev-loop/
 .env.*
 !.env.example
+docs/requirement/
+*:Zone.Identifier

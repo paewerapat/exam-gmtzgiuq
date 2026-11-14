@@ -4,24 +4,46 @@ import { CurriculumService } from './curriculum.service';
 import { Subject } from './subject.entity';
 import { Chapter } from './chapter.entity';
 import { Topic } from './topic.entity';
+import { ProVenue } from '../pro/pro-venue.entity';
 
 describe('CurriculumService', () => {
   let service: CurriculumService;
   let find: jest.Mock;
   let query: jest.Mock;
+  let subjectUpdate: jest.Mock;
+  let subjectFindOne: jest.Mock;
+  let topicUpdate: jest.Mock;
+  let topicFindOne: jest.Mock;
+  let venueExists: jest.Mock;
 
   beforeEach(async () => {
     find = jest.fn();
     query = jest.fn();
+    subjectUpdate = jest.fn();
+    subjectFindOne = jest.fn();
+    topicUpdate = jest.fn();
+    topicFindOne = jest.fn();
+    venueExists = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CurriculumService,
-        { provide: getRepositoryToken(Subject), useValue: { find } },
+        {
+          provide: getRepositoryToken(Subject),
+          useValue: { find, update: subjectUpdate, findOne: subjectFindOne },
+        },
         { provide: getRepositoryToken(Chapter), useValue: {} },
         {
           provide: getRepositoryToken(Topic),
-          useValue: { manager: { query } },
+          useValue: {
+            manager: { query },
+            update: topicUpdate,
+            findOne: topicFindOne,
+          },
+        },
+        {
+          provide: getRepositoryToken(ProVenue),
+          useValue: { exists: venueExists },
         },
       ],
     }).compile();
@@ -82,6 +104,66 @@ describe('CurriculumService', () => {
         expect.objectContaining({ id: 't1', examCount: 2, questionCount: 7 }),
         expect.objectContaining({ id: 't2', examCount: 0, questionCount: 0 }),
       ]);
+    });
+
+    it('task 20: exam sets leave out bankOnly exams, question counts leave out Challenge questions', async () => {
+      await service.getPublicTreeWithCounts();
+      const [examSql, questionSql] = (
+        query.mock.calls as [string, string[]][]
+      ).map(([sql]) => sql.replace(/\s+/g, ' '));
+      expect(examSql).toContain('AND e.isMock = 0 AND e.bankOnly = 0');
+      expect(examSql).not.toContain('isChallenge');
+      // non-Challenge questions of bankOnly exams are still practised by topic
+      expect(questionSql).not.toContain('bankOnly');
+      expect(questionSql).toContain('AND q.isChallenge = 0');
+    });
+  });
+
+  describe('admin subjects/topics: Question Bank fields (task 20)', () => {
+    it('AC10 updateSubject stores venueId/bankLabel after checking the venue; undefined fields are not sent', async () => {
+      venueExists.mockResolvedValue(true);
+      subjectUpdate.mockResolvedValue({});
+      subjectFindOne.mockResolvedValue({ id: 's1', venueId: 'v1' });
+
+      await service.updateSubject('s1', {
+        venueId: 'v1',
+        bankLabel: 'ชีวะ',
+        name: undefined,
+      });
+      expect(venueExists).toHaveBeenCalledWith({ where: { id: 'v1' } });
+      expect(subjectUpdate).toHaveBeenCalledWith('s1', {
+        venueId: 'v1',
+        bankLabel: 'ชีวะ',
+      });
+    });
+
+    it('an unknown venue → 400, nothing written', async () => {
+      venueExists.mockResolvedValue(false);
+      await expect(
+        service.updateSubject('s1', { venueId: 'nope' }),
+      ).rejects.toThrow('ไม่พบสนามสอบที่เลือก');
+      expect(subjectUpdate).not.toHaveBeenCalled();
+    });
+
+    it('null venueId clears it without a lookup', async () => {
+      subjectUpdate.mockResolvedValue({});
+      subjectFindOne.mockResolvedValue({ id: 's1', venueId: null });
+      await service.updateSubject('s1', { venueId: null, bankLabel: null });
+      expect(venueExists).not.toHaveBeenCalled();
+      expect(subjectUpdate).toHaveBeenCalledWith('s1', {
+        venueId: null,
+        bankLabel: null,
+      });
+    });
+
+    it('updateTopic stores gradeLabel/term', async () => {
+      topicUpdate.mockResolvedValue({});
+      topicFindOne.mockResolvedValue({ id: 't1' });
+      await service.updateTopic('t1', { gradeLabel: 'ม.4', term: 1 });
+      expect(topicUpdate).toHaveBeenCalledWith('t1', {
+        gradeLabel: 'ม.4',
+        term: 1,
+      });
     });
   });
 });

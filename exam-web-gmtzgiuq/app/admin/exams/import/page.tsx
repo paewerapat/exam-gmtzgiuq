@@ -30,6 +30,7 @@ import { createExam } from '@/lib/api/exams';
 import { getCategories, type Category } from '@/lib/api/categories';
 import { getPublicCurriculumTree, type Subject } from '@/lib/api/curriculum';
 import { uploadImage, deleteUploadedImage, type UploadResult } from '@/lib/api/upload';
+import { BankOnlySettings } from '@/components/admin/QuestionBankExamSettings';
 import {
   parseImportFile,
   resolveImport,
@@ -172,6 +173,8 @@ export default function ImportExamPage() {
   const [parsed, setParsed] = useState<ParsedImport | null>(null);
   const [subjectId, setSubjectId] = useState('');
   const [categoryChoice, setCategoryChoice] = useState<string | null>(null);
+  // ใช้เฉพาะ Question Bank (task 20): null = ใช้ค่าจากไฟล์ (bank_only)
+  const [bankOnlyChoice, setBankOnlyChoice] = useState<boolean | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
 
@@ -204,6 +207,7 @@ export default function ImportExamPage() {
   );
 
   const category = categoryChoice ?? resolved?.matchedCategorySlug ?? '';
+  const bankOnly = bankOnlyChoice ?? resolved?.bankOnly ?? false;
   const imageMap = useMemo(
     () => new Map((resolved?.images ?? []).map((img) => [img.path, img])),
     [resolved],
@@ -218,6 +222,7 @@ export default function ImportExamPage() {
     setParsing(true);
     setResult(null);
     setCategoryChoice(null);
+    setBankOnlyChoice(null);
     setExpanded(new Set());
     try {
       const bytes = await readFileBytes(file);
@@ -246,6 +251,7 @@ export default function ImportExamPage() {
     setFileName(null);
     setResult(null);
     setCategoryChoice(null);
+    setBankOnlyChoice(null);
     setExpanded(new Set());
   };
 
@@ -278,7 +284,7 @@ export default function ImportExamPage() {
 
       setProgress({ phase: 'create' });
       const exam = await createExam(
-        buildCreateExamInput(resolved, { category, subjectId: subjectId || null, imageUrls }),
+        buildCreateExamInput(resolved, { category, subjectId: subjectId || null, imageUrls, bankOnly }),
       );
 
       setResult({
@@ -346,6 +352,26 @@ export default function ImportExamPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
             อัปโหลดไฟล์ .zip (exam.json + โฟลเดอร์รูป) หรือไฟล์ .json เดี่ยว ระบบจะสร้างเป็นแบบร่าง ให้ตรวจและแก้ต่อในหน้าแก้ไขก่อนเผยแพร่
           </p>
+          <details className="mb-6 -mt-4 text-sm text-gray-600 dark:text-gray-400">
+            <summary className="cursor-pointer text-indigo-600 dark:text-indigo-400 hover:underline w-fit">
+              รูปแบบไฟล์สำหรับ Question Bank
+            </summary>
+            <ul className="mt-2 ml-5 list-disc space-y-1">
+              <li>
+                <code className="px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">exam.bank_only: true</code>{' '}
+                (หรือ <code className="px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">bankOnly</code>) = ชุดใช้เฉพาะ Question Bank ซ่อนจากรายการชุดข้อสอบ
+              </li>
+              <li>
+                <code className="px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">questions[].is_challenge: true</code>{' '}
+                (หรือ <code className="px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">isChallenge</code>) = ข้อ Challenge มีผลเฉพาะชุดที่ใช้เฉพาะ Question Bank
+              </li>
+              <li>
+                <code className="px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">questions[].difficulty</code>{' '}
+                = easy / medium / hard (หรือ ง่าย / ปานกลาง / ยาก) ไม่ใส่ = ปานกลาง
+              </li>
+              <li>ไม่ใส่ = ชุด/ข้อปกติ และเปลี่ยนสวิตช์ &quot;ใช้เฉพาะ Question Bank&quot; ในหน้านี้ได้ก่อนสร้าง</li>
+            </ul>
+          </details>
 
           {/* Result */}
           {result && (
@@ -568,6 +594,15 @@ export default function ImportExamPage() {
                 </div>
               )}
 
+              {exam && (
+                <BankOnlySettings
+                  value={bankOnly}
+                  onChange={setBankOnlyChoice}
+                  challengeCount={resolved.questions.filter((q) => q.isChallenge).length}
+                  disabled={creating}
+                />
+              )}
+
               {resolved.passages.length > 0 && (
                 <PassageList key={fileName ?? ''} passages={resolved.passages} imageMap={imageMap} />
               )}
@@ -600,6 +635,7 @@ export default function ImportExamPage() {
                             <QuestionRow
                               key={q.orderIndex}
                               q={q}
+                              bankOnly={bankOnly}
                               isOpen={isOpen}
                               imageMap={imageMap}
                               onToggle={() => toggleExpand(q.orderIndex)}
@@ -757,11 +793,14 @@ function PassageList({
 
 function QuestionRow({
   q,
+  bankOnly,
   isOpen,
   imageMap,
   onToggle,
 }: {
   q: ResolvedImportQuestion;
+  /** ชุดเป็น bankOnly (ป้าย Challenge แสดงเฉพาะเมื่อมีผลจริง) */
+  bankOnly: boolean;
   isOpen: boolean;
   imageMap: Map<string, ImportImage>;
   onToggle: () => void;
@@ -783,7 +822,24 @@ function QuestionRow({
         aria-expanded={isOpen}
       >
         <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{q.no}</td>
-        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{typeLabel(q)}</td>
+        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+          {typeLabel(q)}
+          <span className="block text-xs text-gray-500 dark:text-gray-400">
+            {q.difficulty === 'easy' ? 'ง่าย' : q.difficulty === 'hard' ? 'ยาก' : 'ปานกลาง'}
+          </span>
+          {q.isChallenge && (
+            <span
+              title={bankOnly ? 'ข้อ Challenge' : 'ไม่มีผลเพราะชุดนี้ไม่ได้ใช้เฉพาะ Question Bank'}
+              className={`mt-1 block w-fit px-2 py-0.5 rounded-full text-xs font-semibold ${
+                bankOnly
+                  ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 line-through'
+              }`}
+            >
+              Challenge
+            </span>
+          )}
+        </td>
         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
           {q.question.trim() ? (
             <LatexRenderer content={q.question} className="line-clamp-2 break-words" />

@@ -111,6 +111,15 @@ export class Exam {
   })
   accessType: ExamAccessType;
 
+  // "ใช้เฉพาะ Question Bank" (task 20, sql/20261116-01-question-bank.sql):
+  // hidden from every exam list, GET /exams/:id and attempts for non-admins;
+  // its questions are used by the Question Bank only (and its non-Challenge
+  // questions by topic/subject practice). Only these exams may have
+  // Challenge questions.
+  @Field()
+  @Column({ type: 'boolean', default: false })
+  bankOnly: boolean;
+
   // Baht before VAT; required (> 0) when accessType = purchase.
   // Read as a number (mysql2 returns DECIMAL as a string).
   @Field(() => Float, { nullable: true })

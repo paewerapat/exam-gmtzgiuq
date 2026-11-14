@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ExamAccessType } from '../exams/exam-mock';
 import { UserRole } from '../users/user.entity';
 
@@ -23,6 +23,23 @@ export interface LockableExam {
   // Category slug: decides the Pro venue of a purchase exam (task 17).
   // Left out = looked up by ProAccessService when needed.
   category?: string | null;
+  // "ใช้เฉพาะ Question Bank" (task 20): only admins may open it as an exam
+  bankOnly?: boolean | number | string | null;
+}
+
+/** true/1/'1' (entity or raw row). */
+function isTrue(value: boolean | number | string | null | undefined) {
+  return value === true || Number(value) === 1;
+}
+
+/** Exam marked "ใช้เฉพาะ Question Bank" (task 20). */
+export function isBankOnlyExam(exam: Pick<LockableExam, 'bankOnly'>): boolean {
+  return isTrue(exam.bankOnly);
+}
+
+/** 404 for a bankOnly exam opened as an exam by a non-admin (task 20). */
+export function bankOnlyExamNotFound(): NotFoundException {
+  return new NotFoundException('ไม่พบชุดข้อสอบ');
 }
 
 /**

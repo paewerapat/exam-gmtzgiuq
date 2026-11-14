@@ -13,6 +13,7 @@ import {
   Loader2,
   BookOpen,
   FileUp,
+  Database,
 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 import {
@@ -38,6 +39,8 @@ export default function AdminExamsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  // ประเภทชุด (task 20): all / normal / bank (ใช้เฉพาะ Question Bank)
+  const [selectedKind, setSelectedKind] = useState<'all' | 'normal' | 'bank'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [data, setData] = useState<PaginatedExams | null>(null);
   const [stats, setStats] = useState<ExamStats | null>(null);
@@ -69,6 +72,7 @@ export default function AdminExamsPage() {
         status: selectedStatus === 'all' ? undefined : (selectedStatus as QuestionStatus),
         category: selectedCategory === 'all' ? undefined : (selectedCategory as QuestionCategory),
         search: debouncedSearch || undefined,
+        bankOnly: selectedKind === 'all' ? undefined : selectedKind === 'bank',
       });
       setData(result);
     } catch (err) {
@@ -76,7 +80,7 @@ export default function AdminExamsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, selectedStatus, selectedCategory, debouncedSearch]);
+  }, [currentPage, selectedStatus, selectedCategory, debouncedSearch, selectedKind]);
 
   useEffect(() => {
     fetchExams();
@@ -204,6 +208,31 @@ export default function AdminExamsPage() {
                     </button>
                   ))}
                 </div>
+
+                <div className="border-t border-gray-200 dark:border-gray-700 mt-3 pt-3">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 px-3 mb-2">ประเภทชุด</h3>
+                  {([
+                    ['all', 'ทั้งหมด'],
+                    ['normal', 'ชุดปกติ'],
+                    ['bank', 'Question Bank'],
+                  ] as const).map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      aria-pressed={selectedKind === kind}
+                      onClick={() => {
+                        setSelectedKind(kind);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
+                        selectedKind === kind
+                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -251,7 +280,15 @@ export default function AdminExamsPage() {
                         {data.items.map((exam) => (
                           <tr key={exam.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                             <td className="px-4 py-4">
-                              <div className="font-medium text-gray-900 dark:text-gray-100">{exam.title}</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">
+                                {exam.title}
+                                {exam.bankOnly && (
+                                  <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium align-middle whitespace-nowrap">
+                                    <Database className="w-3 h-3" aria-hidden="true" />
+                                    Question Bank
+                                  </span>
+                                )}
+                              </div>
                               {exam.description && (
                                 <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{exam.description}</div>
                               )}

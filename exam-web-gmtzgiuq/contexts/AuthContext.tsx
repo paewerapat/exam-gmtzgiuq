@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { gql } from '@apollo/client';
 import { useMutation, useLazyQuery } from '@apollo/client/react';
 import { useRouter } from 'next/navigation';
+import { clearExamSession } from '@/lib/exam-utils';
 
 interface User {
   id: string;
@@ -253,6 +254,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // เครื่องที่ใช้ร่วมกัน: session ฝึกที่ค้าง (รวมโจทย์ข้อ Challenge ของบัญชี Pro) ต้องไม่ค้างให้คนถัดไปเห็น
+    clearExamSession();
     setUser(null);
     router.push('/');
   };

@@ -5,9 +5,10 @@ import { Chapter } from './chapter.entity';
 import { Topic } from './topic.entity';
 import { CurriculumService } from './curriculum.service';
 import { CurriculumController } from './curriculum.controller';
+import { ProVenue } from '../pro/pro-venue.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Subject, Chapter, Topic])],
+  imports: [TypeOrmModule.forFeature([Subject, Chapter, Topic, ProVenue])],
   controllers: [CurriculumController],
   providers: [CurriculumService],
   exports: [CurriculumService],

@@ -102,6 +102,30 @@ describe('QuestionsService — locked Mock Exams (task 15)', () => {
     ).toHaveLength(2);
   });
 
+  it('task 20: GET /questions / GraphQL questions leave out bankOnly exams and Challenge questions', async () => {
+    await service.findPublished(1, 10);
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      '(lockExam.id IS NULL OR lockExam.bankOnly = :lockBankOnly)',
+      { lockBankOnly: false },
+    );
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'question.isChallenge = :lockIsChallenge',
+      { lockIsChallenge: false },
+    );
+  });
+
+  it('task 20 AC6: topic/subject practice never serves Challenge questions', async () => {
+    await service.findByTopic('t1');
+    await service.findBySubject('s1');
+    expect(
+      (qb.andWhere.mock.calls as unknown[][]).filter(
+        (c) =>
+          c[0] === 'q.isChallenge = :isChallenge' &&
+          (c[1] as { isChallenge: boolean }).isChallenge === false,
+      ),
+    ).toHaveLength(2);
+  });
+
   describe('page/limit are clamped (used to be a 500)', () => {
     it.each([
       ['0 / 0', 0, 0, 0, 10, 1],
@@ -148,10 +172,22 @@ describe('QuestionsService — locked Mock Exams (task 15)', () => {
         NotFoundException,
       );
       expect(examFindOne).toHaveBeenCalledWith({
-        select: { id: true, isMock: true, accessType: true },
+        select: { id: true, isMock: true, accessType: true, bankOnly: true },
         where: { id: 'exam-1' },
         loadEagerRelations: false,
       });
+    });
+
+    it('task 20: a Challenge question or a question of a bankOnly exam is not found', async () => {
+      exam = { id: 'exam-1', isMock: false, bankOnly: true };
+      await expect(resolver.question('q1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      exam = { id: 'exam-1', isMock: false, bankOnly: false };
+      question = { ...question, isChallenge: true };
+      await expect(resolver.question('q1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('questions of free Mock / normal exams, or without an exam, are returned', async () => {

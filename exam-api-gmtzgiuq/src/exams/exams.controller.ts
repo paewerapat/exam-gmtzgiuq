@@ -79,8 +79,14 @@ export class ExamsController {
     @Query('status') status?: QuestionStatus,
     @Query('category') category?: QuestionCategory,
     @Query('search') search?: string,
+    // task 20: 'true' = only "ใช้เฉพาะ Question Bank" exams, 'false' = only
+    // the others, not sent / anything else = all
+    @Query('bankOnly') bankOnly?: string,
   ) {
-    return this.examsService.findAll(+page, +limit, status, category, search);
+    return this.examsService.findAll(+page, +limit, status, category, search, {
+      bankOnly:
+        bankOnly === 'true' ? true : bankOnly === 'false' ? false : undefined,
+    });
   }
 
   // Admin - Get exam stats

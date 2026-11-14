@@ -1,8 +1,14 @@
 // นำเข้าชุดข้อสอบจากไฟล์ .zip (exam.json + images/) หรือ .json เดี่ยว
 // pure module: ไม่แตะ DOM / fetch — หน้า /admin/exams/import เป็นคนอัปรูปและเรียก createExam
+//
+// Question Bank (task 20) — field เพิ่มเติม (ไม่ใส่ = ชุด/ข้อปกติ, รับทั้ง snake_case และ camelCase):
+//   exam.bank_only (หรือ exam.bankOnly): true      → ชุดใช้เฉพาะ Question Bank (ซ่อนจากรายการชุดข้อสอบ)
+//   questions[].is_challenge (หรือ isChallenge): true → ข้อ Challenge — มีผลเฉพาะชุดที่ bank_only
+//   ค่าที่ไม่ใช่ boolean → คำเตือน แล้วใช้ false ; ตัวอย่างไฟล์: lib/__fixtures__/exam-import-bank-sample.json
+//   questions[].difficulty: "easy" | "medium" | "hard" (หรือ ง่าย / ปานกลาง / ยาก) ไม่ใส่ = medium ; ค่าอื่น → คำเตือน แล้วใช้ medium
 import { strFromU8, unzipSync } from 'fflate';
 import type { CreateExamInput, ExamPassageInput, ExamQuestionInput } from '@/lib/api/exams';
-import type { QuestionChoice } from '@/lib/api/questions';
+import type { QuestionChoice, QuestionDifficulty } from '@/lib/api/questions';
 import { MAX_QUESTION_IMAGES, toChoiceInput } from '@/lib/question-images';
 import {
   MAX_PASSAGE_BODY,
@@ -81,6 +87,13 @@ export interface ParsedImportQuestion {
   passageGroupRef: string | null;
   /** id บทอ่านที่ผูกจริง (จาก passage_group หรือ applies_to) null = ไม่ใช้บทอ่าน */
   passageId: string | null;
+  /**
+   * `is_challenge` (หรือ `isChallenge`) = true → ข้อ Challenge (task 20)
+   * ส่งเป็นข้อ Challenge จริงเฉพาะเมื่อชุดเป็น bankOnly (ดู buildCreateExamInput)
+   */
+  isChallenge: boolean;
+  /** `difficulty` (round 2) — ไม่ใส่/ค่าที่ไม่รู้จัก = medium */
+  difficulty: QuestionDifficulty;
   issues: ImportIssue[];
 }
 
@@ -123,6 +136,8 @@ export interface ParsedImport {
   passages: ParsedImportPassage[];
   /** รูปที่ต้องอัป (dedupe ตาม path) */
   images: ImportImage[];
+  /** `exam.bank_only` (หรือ `exam.bankOnly`) = true → ชุดใช้เฉพาะ Question Bank (task 20) ค่าเริ่มต้นของสวิตช์ในหน้านำเข้า */
+  bankOnly: boolean;
 }
 
 export interface ResolvedImportQuestion extends ParsedImportQuestion {
@@ -142,6 +157,8 @@ export interface ResolvedImport {
   questions: ResolvedImportQuestion[];
   passages: ParsedImportPassage[];
   images: ImportImage[];
+  /** ค่าจากไฟล์ (หน้านำเข้าให้แอดมินเปลี่ยนได้) */
+  bankOnly: boolean;
   hasFileError: boolean;
   /** จำนวนข้อที่มี error */
   errorQuestionCount: number;
@@ -165,6 +182,38 @@ function asText(v: unknown): string {
 }
 
 /** เลขข้อ: รับ number หรือ string ตัวเลข ("1") */
+/**
+ * อ่าน flag boolean ที่รับได้ทั้ง snake_case และ camelCase (เช่น bank_only / bankOnly)
+ * ไม่มี / null = false ; ค่าที่ไม่ใช่ boolean = invalid (ผู้เรียกเตือนแล้วใช้ false)
+ */
+function readFlag(obj: Record<string, unknown>, keys: string[]): { value: boolean; invalid: unknown } {
+  for (const key of keys) {
+    const v = obj[key];
+    if (v === undefined || v === null) continue;
+    if (typeof v === 'boolean') return { value: v, invalid: undefined };
+    return { value: false, invalid: v };
+  }
+  return { value: false, invalid: undefined };
+}
+
+const DIFFICULTY_ALIASES: Record<string, QuestionDifficulty> = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+  'ง่าย': 'easy',
+  'ปานกลาง': 'medium',
+  'ยาก': 'hard',
+};
+
+/** difficulty ของข้อ: ไม่มี/null/ว่าง = medium (ไม่เตือน) ; ค่าที่ไม่รู้จัก → invalid */
+function readDifficulty(v: unknown): { value: QuestionDifficulty; invalid: unknown } {
+  if (v === undefined || v === null || (typeof v === 'string' && !v.trim())) return { value: 'medium', invalid: undefined };
+  const key = typeof v === 'string' ? v.trim().toLowerCase() : '';
+  // hasOwn: กัน key ของ prototype ("constructor", "__proto__", "toString") ถูกนับว่าใช้ได้
+  const found = Object.hasOwn(DIFFICULTY_ALIASES, key) ? DIFFICULTY_ALIASES[key] : undefined;
+  return found ? { value: found, invalid: undefined } : { value: 'medium', invalid: v };
+}
+
 function parseNo(v: unknown): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   if (typeof v === 'string' && v.trim() !== '') {
@@ -380,7 +429,7 @@ function readSource(fileName: string, bytes: Uint8Array): { source: ImportSource
 export function parseImportFile(fileName: string, bytes: Uint8Array): ParsedImport {
   const read = readSource(fileName, bytes);
   if ('error' in read) {
-    return { fileIssues: [err(read.error)], exam: null, questions: [], passages: [], images: [] };
+    return { fileIssues: [err(read.error)], exam: null, questions: [], passages: [], images: [], bankOnly: false };
   }
   return parseExamJson(read.source.json, read.source.files, read.source.isZip);
 }
@@ -430,7 +479,7 @@ function createImageResolver(files: Map<string, ZipEntry>, fromZip: boolean, ima
 
 function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boolean): ParsedImport {
   const fileIssues: ImportIssue[] = [];
-  const empty: ParsedImport = { fileIssues, exam: null, questions: [], passages: [], images: [] };
+  const empty: ParsedImport = { fileIssues, exam: null, questions: [], passages: [], images: [], bankOnly: false };
 
   if (!isRecord(json)) {
     fileIssues.push(err('รูปแบบ exam.json ไม่ถูกต้อง (ต้องเป็น object)'));
@@ -465,10 +514,17 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
     fileIssues.push(note(`สถานะในไฟล์คือ "${status}" แต่ระบบจะสร้างเป็นแบบร่างเสมอ`));
   }
 
+  // ใช้เฉพาะ Question Bank (task 20)
+  const bankFlag = readFlag(examRaw, ['bank_only', 'bankOnly']);
+  if (bankFlag.invalid !== undefined) {
+    fileIssues.push(warn(`bank_only ต้องเป็น true หรือ false (พบ ${describeJsonValue(bankFlag.invalid)}) จะนำเข้าเป็นชุดปกติ`));
+  }
+  const bankOnly = bankFlag.value;
+
   const rawQuestions = json.questions;
   if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
     fileIssues.push(err('ไม่พบข้อสอบในไฟล์ (questions ว่าง)'));
-    return { ...empty, exam: { title, description, categoryText, durationMinutes } };
+    return { ...empty, exam: { title, description, categoryText, durationMinutes }, bankOnly };
   }
 
   // เรียงตาม no (ข้อที่ไม่มี no ไปท้าย เรียงตามลำดับเดิม)
@@ -503,6 +559,8 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
       imageRefs: [],
       passageGroupRef: null,
       passageId: null,
+      isChallenge: false,
+      difficulty: 'medium',
       issues,
     };
 
@@ -664,6 +722,22 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
     // บทอ่านร่วม (ผูกจริงหลังอ่าน passage_groups — ดู bindPassages)
     base.passageGroupRef = asText(q.passage_group).trim() || null;
 
+    // ข้อ Challenge (task 20)
+    const challengeFlag = readFlag(q, ['is_challenge', 'isChallenge']);
+    if (challengeFlag.invalid !== undefined) {
+      issues.push(warn(`is_challenge ต้องเป็น true หรือ false (พบ ${describeJsonValue(challengeFlag.invalid)}) จะนำเข้าเป็นข้อปกติ`));
+    }
+    base.isChallenge = challengeFlag.value;
+
+    // ระดับความยาก (round 2)
+    const diff = readDifficulty(q.difficulty);
+    if (diff.invalid !== undefined) {
+      issues.push(
+        warn(`ระดับความยาก (difficulty) ${describeJsonValue(diff.invalid)} ไม่รองรับ (ใช้ได้ easy, medium, hard) จะนำเข้าเป็นปานกลาง`),
+      );
+    }
+    base.difficulty = diff.value;
+
     const reviewNote = asText(q.review_note).trim();
     if (reviewNote) issues.push(note(reviewNote));
 
@@ -680,6 +754,7 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
     questions,
     passages,
     images: [...images.values()],
+    bankOnly,
   };
 }
 
@@ -987,6 +1062,7 @@ export function resolveImport(
     questions,
     passages: parsed.passages,
     images: parsed.images,
+    bankOnly: parsed.bankOnly,
     hasFileError: parsed.fileIssues.some((i) => i.level === 'error'),
     errorQuestionCount: questions.filter((q) => q.status === 'error').length,
     warningQuestionCount: questions.filter((q) => q.status === 'warning').length,
@@ -1014,12 +1090,19 @@ export function importImagesToUpload(resolved: Pick<ResolvedImport, 'images' | '
 /** สร้าง payload ของ createExam (สถานะ draft เสมอ) imageUrls: path รูป → url ที่อัปได้ */
 export function buildCreateExamInput(
   resolved: ResolvedImport,
-  opts: { category: string; subjectId: string | null; imageUrls: Record<string, string> },
+  opts: {
+    category: string;
+    subjectId: string | null;
+    imageUrls: Record<string, string>;
+    /** สวิตช์ "ใช้เฉพาะ Question Bank" ในหน้านำเข้า (ไม่ส่ง = ค่าจากไฟล์) */
+    bankOnly?: boolean;
+  },
 ): CreateExamInput {
   if (!resolved.exam || resolved.hasFileError) {
     throw new Error('ไฟล์มีข้อผิดพลาด สร้างชุดข้อสอบไม่ได้');
   }
   const urlOf = (path: string | null) => (path && opts.imageUrls[path]) || null;
+  const bankOnly = opts.bankOnly ?? resolved.bankOnly;
   const questions: ExamQuestionInput[] = resolved.questions.map((q) => {
     const questionImages = q.imagePaths.map(urlOf).filter((u): u is string => !!u);
     return {
@@ -1042,6 +1125,9 @@ export function buildCreateExamInput(
       chapterId: q.chapterId,
       chapter: q.chapter,
       passageId: q.passageId,
+      // ข้อ Challenge ได้เฉพาะชุด bankOnly (ชุดปกติ API ตอบ 400) — ชุดปกติส่ง false
+      isChallenge: bankOnly && q.isChallenge,
+      difficulty: q.difficulty,
     };
   });
 
@@ -1063,5 +1149,6 @@ export function buildCreateExamInput(
     passages,
     subjectId: opts.subjectId || null,
     durationMinutes: resolved.exam.durationMinutes,
+    bankOnly,
   };
 }

@@ -92,6 +92,7 @@ type Exam {
   accessDays: Int
   accessType: ExamAccessType!
   author: User!
+  bankOnly: Boolean!
   bannerImage: String
   category: String!
   codeInstructions: ExamCodeInstructions
@@ -236,6 +237,7 @@ type Question {
   explanation: String
   hint: String
   id: ID!
+  isChallenge: Boolean!
   orderIndex: Int
   passageId: String
   question: String!

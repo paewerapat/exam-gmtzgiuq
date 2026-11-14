@@ -10,6 +10,7 @@ import { ExamAccessType } from '../exams/exam-mock';
 import { ExamAccess } from '../exam-access/exam-access.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
 import { ProAccessService } from '../pro/pro-access.service';
+import { ChallengeAccessService } from '../question-bank/challenge-access.service';
 import { UserRole } from '../users/user.entity';
 import { AnswerLogItemDto } from './dto/answer-log.dto';
 
@@ -62,6 +63,9 @@ describe('AnswerLogsService (task 16)', () => {
   let sessionSql: string[];
   // Next N user locks fail with a lock wait timeout (1205)
   let lockWaitTimeouts: number;
+  // Challenge question ids the user has the right for (task 20)
+  let challengeUnlocked: Set<string>;
+  let unlockedQuestionIds: jest.Mock;
 
   // Lets other pending requests run, like a round trip to MySQL
   const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
@@ -94,6 +98,10 @@ describe('AnswerLogsService (task 16)', () => {
     grants = [];
     stored = [];
     inserted = [];
+    challengeUnlocked = new Set();
+    unlockedQuestionIds = jest.fn((_viewer: unknown, ids: string[]) =>
+      Promise.resolve(new Set(ids.filter((id) => challengeUnlocked.has(id)))),
+    );
 
     findQuestions = jest.fn(
       ({ where }: { where: { id: unknown; examId?: string } }) =>
@@ -242,6 +250,11 @@ describe('AnswerLogsService (task 16)', () => {
                 ),
             ),
           },
+        },
+        // Challenge rights (task 20): the ids in challengeUnlocked
+        {
+          provide: ChallengeAccessService,
+          useValue: { unlockedQuestionIds },
         },
       ],
     }).compile();
@@ -557,6 +570,62 @@ describe('AnswerLogsService (task 16)', () => {
       ).resolves.toEqual({ saved: 0 });
       expect(insert).not.toHaveBeenCalled();
       expect(transaction).not.toHaveBeenCalled();
+    });
+
+    describe('Challenge questions (task 20)', () => {
+      beforeEach(() => {
+        questions.push(
+          {
+            ...mc('q-ch', 'exam-1', ['a']),
+            isChallenge: true,
+          } as Question,
+          // MySQL raw 1 counts as true too
+          {
+            ...mc('q-ch2', 'exam-1', ['a']),
+            isChallenge: 1 as unknown as boolean,
+          } as Question,
+        );
+      });
+
+      it('AC6 skips a Challenge question without the challenge right, keeps the others', async () => {
+        await expect(
+          service.logPractice(user, [
+            item('q-ch', 'a'),
+            item('q-ch2', 'a'),
+            item('q1', 'b'),
+          ]),
+        ).resolves.toEqual({ saved: 1 });
+        expect(allRows()).toEqual([
+          expect.objectContaining({ questionId: 'q1' }),
+        ]);
+        // only the Challenge ones are checked
+        expect(unlockedQuestionIds).toHaveBeenCalledWith(user, [
+          'q-ch',
+          'q-ch2',
+        ]);
+      });
+
+      it('AC7 logs it with the right; never asks when no Challenge question is sent', async () => {
+        challengeUnlocked.add('q-ch');
+        await expect(
+          service.logPractice(user, [item('q-ch', 'a'), item('q-ch2', 'a')]),
+        ).resolves.toEqual({ saved: 1 });
+        expect(allRows()).toEqual([
+          expect.objectContaining({ questionId: 'q-ch', isCorrect: true }),
+        ]);
+
+        unlockedQuestionIds.mockClear();
+        await service.logPractice(user, [item('q1', 'b')]);
+        expect(unlockedQuestionIds).not.toHaveBeenCalled();
+      });
+
+      it('selects isChallenge with the questions', async () => {
+        await service.logPractice(user, [item('q-ch', 'a')]);
+        const [options] = findQuestions.mock.calls[0] as [
+          { select: Record<string, boolean> },
+        ];
+        expect(options.select.isChallenge).toBe(true);
+      });
     });
   });
 

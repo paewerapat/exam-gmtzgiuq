@@ -402,6 +402,26 @@ export class CreateExamQuestionInput {
   @IsString({ message: PASSAGE_ID_MESSAGE })
   @Matches(PASSAGE_ID_PATTERN, { message: PASSAGE_ID_MESSAGE })
   passageId?: string | null;
+
+  // Challenge question (task 20): true only in a bankOnly exam, else 400
+  // CHALLENGE_NOT_IN_BANK_ONLY. Not sent = false (PUT too, like hint).
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean({
+    message: 'ข้อ Challenge (isChallenge) ต้องเป็น true หรือ false',
+  })
+  isChallenge?: boolean | null;
+}
+
+/** `bankOnly` of POST and PUT (task 20). */
+function IsBankOnly() {
+  return applyDecorators(
+    Field(() => Boolean, { nullable: true }),
+    IsOptional(),
+    IsBoolean({
+      message: 'ใช้เฉพาะ Question Bank (bankOnly) ต้องเป็น true หรือ false',
+    }),
+  );
 }
 
 // Create exam input
@@ -442,6 +462,10 @@ export class CreateExamInput extends MockExamFieldsInput {
 
   @IsReleaseDate()
   releaseDate?: string | null;
+
+  // "ใช้เฉพาะ Question Bank" (task 20); not sent = false
+  @IsBankOnly()
+  bankOnly?: boolean | null;
 
   @Field(() => [ExamPassageInput], { nullable: true })
   @IsPassageList()
@@ -494,6 +518,10 @@ export class UpdateExamInput extends MockExamFieldsInput {
 
   @IsReleaseDate()
   releaseDate?: string | null;
+
+  // "ใช้เฉพาะ Question Bank" (task 20); not sent (or null) = unchanged
+  @IsBankOnly()
+  bankOnly?: boolean | null;
 
   // Sent = replaces every passage. Not sent while questions are sent = []
   // (the questions' passageId must refer to this request)

@@ -1,9 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subject } from './subject.entity';
 import { Chapter } from './chapter.entity';
 import { Topic } from './topic.entity';
+import { ProVenue } from '../pro/pro-venue.entity';
+import {
+  CreateSubjectDto,
+  CreateTopicDto,
+  UpdateSubjectDto,
+  UpdateTopicDto,
+} from './dto/curriculum.dto';
+
+/** The keys of `data` whose value is not undefined (for repo.update). */
+function definedFields<T extends object>(data: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}
 
 @Injectable()
 export class CurriculumService {
@@ -14,7 +32,16 @@ export class CurriculumService {
     private chaptersRepo: Repository<Chapter>,
     @InjectRepository(Topic)
     private topicsRepo: Repository<Topic>,
+    @InjectRepository(ProVenue)
+    private venuesRepo: Repository<ProVenue>,
   ) {}
+
+  /** venueId sent for a subject must be a Pro venue (task 20); null clears. */
+  private async assertVenueExists(venueId: string | null | undefined) {
+    if (!venueId) return;
+    const exists = await this.venuesRepo.exists({ where: { id: venueId } });
+    if (!exists) throw new BadRequestException('ไม่พบสนามสอบที่เลือก');
+  }
 
   // ── SUBJECTS ──────────────────────────────────────────────
 
@@ -41,19 +68,18 @@ export class CurriculumService {
     return subject;
   }
 
-  async createSubject(data: {
-    name: string;
-    description?: string;
-    color?: string;
-    iconEmoji?: string;
-    orderIndex?: number;
-  }): Promise<Subject> {
-    const subject = this.subjectsRepo.create(data);
+  async createSubject(data: CreateSubjectDto): Promise<Subject> {
+    await this.assertVenueExists(data.venueId);
+    const subject = this.subjectsRepo.create(definedFields(data));
     return this.subjectsRepo.save(subject);
   }
 
-  async updateSubject(id: string, data: Partial<Subject>): Promise<Subject> {
-    await this.subjectsRepo.update(id, data);
+  async updateSubject(id: string, data: UpdateSubjectDto): Promise<Subject> {
+    await this.assertVenueExists(data.venueId);
+    const fields = definedFields(data);
+    if (Object.keys(fields).length > 0) {
+      await this.subjectsRepo.update(id, fields);
+    }
     const updated = await this.subjectsRepo.findOne({ where: { id } });
     if (!updated) throw new NotFoundException('Subject not found');
     return updated;
@@ -130,23 +156,21 @@ export class CurriculumService {
     return topic;
   }
 
-  async createTopic(data: {
-    chapterId: string;
-    name: string;
-    description?: string;
-    orderIndex?: number;
-  }): Promise<Topic> {
+  async createTopic(data: CreateTopicDto): Promise<Topic> {
     const chapter = await this.chaptersRepo.findOne({
       where: { id: data.chapterId },
     });
     if (!chapter) throw new NotFoundException('Chapter not found');
 
-    const topic = this.topicsRepo.create(data);
+    const topic = this.topicsRepo.create(definedFields(data));
     return this.topicsRepo.save(topic);
   }
 
-  async updateTopic(id: string, data: Partial<Topic>): Promise<Topic> {
-    await this.topicsRepo.update(id, data);
+  async updateTopic(id: string, data: UpdateTopicDto): Promise<Topic> {
+    const fields = definedFields(data);
+    if (Object.keys(fields).length > 0) {
+      await this.topicsRepo.update(id, fields);
+    }
     const updated = await this.topicsRepo.findOne({ where: { id } });
     if (!updated) throw new NotFoundException('Topic not found');
     return updated;
@@ -197,26 +221,28 @@ export class CurriculumService {
     // Mock Exams (task 11) are not counted: they are listed only by /exams/mock
     const placeholders = allTopicIds.map(() => '?').join(',');
 
-    // Count distinct published exam sets per topic (via question.topicId)
+    // Count distinct published exam sets per topic (via question.topicId).
+    // "ใช้เฉพาะ Question Bank" exams are not exam sets (task 20).
     const examRows: { topicId: string; cnt: string }[] =
       await this.topicsRepo.manager.query(
         `SELECT q.topicId AS topicId, COUNT(DISTINCT e.id) AS cnt
          FROM questions q
          INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
-           AND e.isMock = 0
+           AND e.isMock = 0 AND e.bankOnly = 0
          WHERE q.topicId IN (${placeholders})
          GROUP BY q.topicId`,
         allTopicIds,
       );
 
-    // Count distinct questions per topic (via question.topicId)
+    // Count distinct questions per topic (via question.topicId): the ones
+    // topic practice serves, so not Challenge questions (task 20)
     const questionRows: { topicId: string; cnt: string }[] =
       await this.topicsRepo.manager.query(
         `SELECT q.topicId AS topicId, COUNT(DISTINCT q.id) AS cnt
          FROM questions q
          INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
            AND e.isMock = 0
-         WHERE q.topicId IN (${placeholders})
+         WHERE q.topicId IN (${placeholders}) AND q.isChallenge = 0
          GROUP BY q.topicId`,
         allTopicIds,
       );

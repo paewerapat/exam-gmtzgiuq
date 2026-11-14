@@ -24,7 +24,11 @@ import {
 } from './question-images';
 import { Exam } from '../exams/exam.entity';
 import { ExamPassage, normalizeStoredPassages } from '../exams/exam-passage';
-import { LOCKED_ACCESS_TYPES, isLockedExam } from '../exam-access/exam-access';
+import {
+  LOCKED_ACCESS_TYPES,
+  isBankOnlyExam,
+  isLockedExam,
+} from '../exam-access/exam-access';
 
 /** Largest page of the public question list (GET /questions, GraphQL). */
 export const PUBLIC_QUESTIONS_MAX_LIMIT = 100;
@@ -86,13 +90,22 @@ export class QuestionsService {
     // Public lists never include questions of a locked Mock Exam
     // (code/purchase), whoever asks: those are taken from the exam page only
     // (task 15). Questions without an exam stay.
+    // Nor questions of a bankOnly exam (Question Bank only, task 20) or
+    // Challenge questions.
     if (options.excludeLocked) {
       queryBuilder
         .leftJoin('question.exam', 'lockExam')
         .andWhere(
           '(lockExam.id IS NULL OR lockExam.isMock = :lockIsMock OR lockExam.accessType NOT IN (:...lockedTypes))',
           { lockIsMock: false, lockedTypes: [...LOCKED_ACCESS_TYPES] },
-        );
+        )
+        .andWhere(
+          '(lockExam.id IS NULL OR lockExam.bankOnly = :lockBankOnly)',
+          { lockBankOnly: false },
+        )
+        .andWhere('question.isChallenge = :lockIsChallenge', {
+          lockIsChallenge: false,
+        });
     }
 
     if (status) {
@@ -163,8 +176,9 @@ export class QuestionsService {
   }
 
   /**
-   * Public single question: a draft (SEC-9) or a question of a locked Mock
-   * Exam (task 15) is reported as not found.
+   * Public single question: a draft (SEC-9), a question of a locked Mock
+   * Exam (task 15), a Challenge question or a question of a bankOnly exam
+   * (task 20) is reported as not found.
    */
   async findPublishedOne(id: string): Promise<Question> {
     const question = await this.questionsRepository.findOne({
@@ -172,17 +186,17 @@ export class QuestionsService {
       relations: ['author'],
     });
 
-    if (!question) {
+    if (!question || question.isChallenge) {
       throw new NotFoundException('Question not found');
     }
 
     if (question.examId) {
       const exam = await this.examsRepository.findOne({
-        select: { id: true, isMock: true, accessType: true },
+        select: { id: true, isMock: true, accessType: true, bankOnly: true },
         where: { id: question.examId },
         loadEagerRelations: false,
       });
-      if (exam && isLockedExam(exam)) {
+      if (exam && (isLockedExam(exam) || isBankOnlyExam(exam))) {
         throw new NotFoundException('Question not found');
       }
     }
@@ -260,8 +274,9 @@ export class QuestionsService {
    * Set `passage` on each question: the passage of its exam that
    * `passageId` refers to, or null. Loads the passages of all distinct exams
    * in one query, and only from published exams (these lists are public).
+   * Also used by the Question Bank sessions (task 20).
    */
-  private async attachPassages(questions: Question[]): Promise<Question[]> {
+  async attachPassages(questions: Question[]): Promise<Question[]> {
     const examIds = [
       ...new Set(
         questions.filter((q) => q.passageId && q.examId).map((q) => q.examId),
@@ -299,6 +314,8 @@ export class QuestionsService {
       .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
       // Questions of Mock Exams stay in the Mock Exam pages (task 11)
       .andWhere('exam.isMock = :isMock', { isMock: false })
+      // Challenge questions only through the Question Bank (task 20)
+      .andWhere('q.isChallenge = :isChallenge', { isChallenge: false })
       .andWhere('q.topicId = :topicId', { topicId })
       // Oldest release first (task 10), then the old createdAt order
       .orderBy('exam.releaseDate', 'ASC')
@@ -317,6 +334,8 @@ export class QuestionsService {
       .where('exam.status = :status', { status: QuestionStatus.PUBLISHED })
       // Questions of Mock Exams stay in the Mock Exam pages (task 11)
       .andWhere('exam.isMock = :isMock', { isMock: false })
+      // Challenge questions only through the Question Bank (task 20)
+      .andWhere('q.isChallenge = :isChallenge', { isChallenge: false })
       .andWhere('chapter.subjectId = :subjectId', { subjectId })
       // Oldest release first (task 10), then the old createdAt order
       .orderBy('exam.releaseDate', 'ASC')

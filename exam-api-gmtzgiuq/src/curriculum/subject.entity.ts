@@ -31,6 +31,16 @@ export class Subject {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  // Pro venue (pro_venues.id) this subject belongs to in the Question Bank
+  // (task 20, sql/20261116-01-question-bank.sql). null = not in the bank.
+  // No FK: compared by parameter only, never JOINed.
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  venueId: string | null;
+
+  // Name on the Question Bank card (e.g. "ชีวะ"); null/empty = name
+  @Column({ type: 'varchar', length: 60, nullable: true })
+  bankLabel: string | null;
+
   @OneToMany(() => Chapter, (chapter) => chapter.subject, { cascade: true })
   chapters: Chapter[];
 

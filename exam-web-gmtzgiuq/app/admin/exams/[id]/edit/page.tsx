@@ -19,6 +19,7 @@ import FadeIn from '@/components/animations/FadeIn';
 import {
   type QuestionChoice,
   type QuestionStatus,
+  type QuestionDifficulty,
 } from '@/lib/api/questions';
 import { getAdminExam, updateExam, type ExamQuestionInput } from '@/lib/api/exams';
 import { getCategories, type Category } from '@/lib/api/categories';
@@ -58,6 +59,13 @@ import { bangkokInputToIso, examReleaseDate, toBangkokInputValue } from '@/lib/r
 import ReleaseDateField from '@/components/admin/ReleaseDateField';
 import MockExamSettings from '@/components/admin/MockExamSettings';
 import {
+  BankOnlySettings,
+  ChallengeCheckbox,
+  challengeForPayload,
+  DifficultySelect,
+  toDifficultyForm,
+} from '@/components/admin/QuestionBankExamSettings';
+import {
   createMockExamForm,
   detailBlockImageHolders,
   mockFormFromExam,
@@ -88,6 +96,10 @@ interface QuestionForm {
   hint: string;
   /** id บทอ่านร่วม ('' = ไม่ใช้บทอ่าน) */
   passageId: string;
+  /** ข้อ Challenge (task 20) — ส่งเป็น true ได้เฉพาะชุด bankOnly */
+  isChallenge: boolean;
+  /** ระดับความยาก (round 2) — ค่าเริ่มต้นปานกลาง ส่งทุกข้อ */
+  difficulty: QuestionDifficulty;
   expanded: boolean;
 }
 
@@ -123,6 +135,8 @@ function createEmptyQuestion(): QuestionForm {
     explanation: '',
     hint: '',
     passageId: '',
+    isChallenge: false,
+    difficulty: 'medium',
     expanded: true,
   };
 }
@@ -156,6 +170,8 @@ export default function EditExamPage({ params }: PageProps) {
 
   // ตั้งค่า Mock Exam + คำอธิบายแบบ block (ค่าล่าสุดใน ref เหมือน questions — รูป block อัปเสร็จทีหลังได้)
   const [mockForm, setMockForm] = useState<MockExamForm>(createMockExamForm);
+  // ใช้เฉพาะ Question Bank (task 20)
+  const [bankOnly, setBankOnly] = useState(false);
   const mockRef = useRef(mockForm);
   useEffect(() => {
     mockRef.current = mockForm;
@@ -201,6 +217,8 @@ export default function EditExamPage({ params }: PageProps) {
         setStatus(exam.status as QuestionStatus);
 
         // ตั้งค่า Mock Exam (API เก่าที่ยังไม่มี field → ค่าเริ่มต้น)
+        setBankOnly(exam.bankOnly === true);
+
         const loadedMock = mockFormFromExam(exam);
         mockRef.current = loadedMock;
         setMockForm(loadedMock);
@@ -226,6 +244,8 @@ export default function EditExamPage({ params }: PageProps) {
           hint: q.hint || '',
           // อ้างบทอ่านที่ไม่มีใน exam.passages (ไม่ควรเกิด) → ไม่ใช้บทอ่าน
           passageId: q.passageId && passageIds.has(q.passageId) ? q.passageId : '',
+          isChallenge: q.isChallenge === true,
+          difficulty: toDifficultyForm(q.difficulty),
           expanded: false,
         }));
         questionsRef.current = loaded;
@@ -585,6 +605,9 @@ export default function EditExamPage({ params }: PageProps) {
         orderIndex: index,
         // ส่งทุกครั้ง (null = ไม่ใช้บทอ่าน)
         passageId: passageIds.has(q.passageId) ? q.passageId : null,
+        // ส่งทุกครั้ง: ชุดที่ไม่ใช่ bankOnly ส่ง false เสมอ (API ตอบ 400 ถ้าติด Challenge ในชุดปกติ)
+        isChallenge: challengeForPayload(bankOnly, q.isChallenge),
+        difficulty: q.difficulty,
       }));
 
       heldUploads = holdUploads(
@@ -607,6 +630,7 @@ export default function EditExamPage({ params }: PageProps) {
         bannerImage: bannerImage || null,
         durationMinutes: durationMinutes ? Number(durationMinutes) : null,
         ...(releaseDate ? { releaseDate } : {}),
+        bankOnly,
         ...mockInput,
       });
 
@@ -753,6 +777,14 @@ export default function EditExamPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* Question Bank */}
+          <BankOnlySettings
+            value={bankOnly}
+            onChange={setBankOnly}
+            challengeCount={questions.filter((q) => q.isChallenge).length}
+            disabled={saving}
+          />
+
           {/* Mock Exam */}
           <MockExamSettings
             value={mockForm}
@@ -808,6 +840,11 @@ export default function EditExamPage({ params }: PageProps) {
                           </span>
                         );
                       })()}
+                      {bankOnly && q.isChallenge && (
+                        <span className="inline-flex px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-xs font-semibold flex-shrink-0">
+                          Challenge
+                        </span>
+                      )}
                       {q.chapter && (
                         <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-medium flex-shrink-0">
                           {q.chapter}
@@ -855,6 +892,19 @@ export default function EditExamPage({ params }: PageProps) {
                           )}
                         </div>
                       )}
+
+                      {/* ระดับความยาก + ข้อ Challenge (task 20) */}
+                      <DifficultySelect
+                        value={q.difficulty}
+                        onChange={(val) => updateQuestion(q.tempId, 'difficulty', val)}
+                        disabled={saving}
+                      />
+                      <ChallengeCheckbox
+                        checked={q.isChallenge}
+                        onChange={(val) => updateQuestion(q.tempId, 'isChallenge', val)}
+                        bankOnly={bankOnly}
+                        disabled={saving}
+                      />
 
                       {/* Shared passage */}
                       <PassageSelect

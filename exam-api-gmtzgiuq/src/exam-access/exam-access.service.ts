@@ -9,7 +9,9 @@ import { ExamAccess, ExamAccessSource } from './exam-access.entity';
 import {
   AccessViewer,
   LockableExam,
+  bankOnlyExamNotFound,
   examLockedException,
+  isBankOnlyExam,
   isAdminViewer,
   isLockedExam,
 } from './exam-access';
@@ -143,11 +145,18 @@ export class ExamAccessService {
     return result;
   }
 
-  /** 403 EXAM_LOCKED unless the viewer may take this exam. */
+  /**
+   * 403 EXAM_LOCKED unless the viewer may take this exam. A bankOnly exam
+   * (task 20) is 404 for everyone but admins: it is used by the Question
+   * Bank only, never opened as an exam (GET /exams/:id, attempts).
+   */
   async assertCanAccess(
     viewer: AccessViewer | null | undefined,
     exam: LockableExam,
   ): Promise<void> {
+    if (isBankOnlyExam(exam) && !isAdminViewer(viewer)) {
+      throw bankOnlyExamNotFound();
+    }
     if (!isLockedExam(exam)) return;
     const access = await this.getAccess(viewer, exam);
     if (access.status !== 'unlocked') throw examLockedException();
@@ -164,7 +173,13 @@ export class ExamAccessService {
   ): Promise<void> {
     if (!examId) return;
     const exam = await this.examsRepository.findOne({
-      select: { id: true, isMock: true, accessType: true, category: true },
+      select: {
+        id: true,
+        isMock: true,
+        accessType: true,
+        category: true,
+        bankOnly: true,
+      },
       where: { id: examId },
       loadEagerRelations: false,
     });

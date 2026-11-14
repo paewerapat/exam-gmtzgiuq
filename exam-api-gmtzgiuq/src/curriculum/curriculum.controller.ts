@@ -11,6 +11,12 @@ import {
 import { CurriculumService } from './curriculum.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
+import {
+  CreateSubjectDto,
+  CreateTopicDto,
+  UpdateSubjectDto,
+  UpdateTopicDto,
+} from './dto/curriculum.dto';
 
 @Controller('curriculum')
 export class CurriculumController {
@@ -64,22 +70,14 @@ export class CurriculumController {
 
   @Post('admin/subjects')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async createSubject(
-    @Body()
-    body: {
-      name: string;
-      description?: string;
-      color?: string;
-      iconEmoji?: string;
-      orderIndex?: number;
-    },
-  ) {
+  async createSubject(@Body() body: CreateSubjectDto) {
     return this.curriculumService.createSubject(body);
   }
 
+  // venueId / bankLabel: Question Bank (task 20)
   @Put('admin/subjects/:id')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async updateSubject(@Param('id') id: string, @Body() body: any) {
+  async updateSubject(@Param('id') id: string, @Body() body: UpdateSubjectDto) {
     return this.curriculumService.updateSubject(id, body);
   }
 
@@ -123,21 +121,14 @@ export class CurriculumController {
 
   @Post('admin/topics')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async createTopic(
-    @Body()
-    body: {
-      chapterId: string;
-      name: string;
-      description?: string;
-      orderIndex?: number;
-    },
-  ) {
+  async createTopic(@Body() body: CreateTopicDto) {
     return this.curriculumService.createTopic(body);
   }
 
+  // gradeLabel / term: Question Bank groups (task 20)
   @Put('admin/topics/:id')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async updateTopic(@Param('id') id: string, @Body() body: any) {
+  async updateTopic(@Param('id') id: string, @Body() body: UpdateTopicDto) {
     return this.curriculumService.updateTopic(id, body);
   }
 

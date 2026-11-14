@@ -1,8 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BookOpen, Plus, Pencil, Trash2, Loader2, Check, X } from 'lucide-react';
+import { BookOpen, Plus, Pencil, Trash2, Loader2, Check, X, Database, GraduationCap } from 'lucide-react';
+import { toast } from 'react-toastify';
 import FadeIn from '@/components/animations/FadeIn';
+import { getProAdminConfig } from '@/lib/api/pro';
+import {
+  SubjectBankChips,
+  SubjectBankForm,
+  TopicGradeForm,
+  topicGradeText,
+  type BankVenueOption,
+} from '@/components/admin/CurriculumBankFields';
 import {
   getAdminCurriculumTree,
   createSubject,
@@ -67,8 +76,26 @@ export default function AdminCurriculumPage() {
   const [addingTopicFor, setAddingTopicFor] = useState<string | null>(null); // subjectId
   const [addingSubject, setAddingSubject] = useState(false);
   const [newSubjectColor, setNewSubjectColor] = useState(COLORS[0]);
+  // Question Bank (task 20): สนามของวิชา + ชื่อบนการ์ด / ชั้น + เทอมของบท
+  const [venues, setVenues] = useState<BankVenueOption[] | null>(null);
+  const [venuesError, setVenuesError] = useState(false);
+  const [bankEditSubject, setBankEditSubject] = useState<string | null>(null);
+  const [gradeEditTopic, setGradeEditTopic] = useState<string | null>(null);
 
   useEffect(() => { loadTree(); }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getProAdminConfig(controller.signal)
+      .then((cfg) => setVenues(cfg.venues.map((v) => ({ id: v.id, name: v.name, isActive: v.isActive }))))
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.error('Failed to load venues:', err);
+        setVenuesError(true);
+        setVenues([]);
+      });
+    return () => controller.abort();
+  }, []);
 
   async function loadTree() {
     setLoading(true);
@@ -133,6 +160,30 @@ export default function AdminCurriculumPage() {
     await updateTopic(id, { name });
     setEditingTopic(null);
     loadTree();
+  }
+
+  async function handleSaveSubjectBank(id: string, data: { venueId: string | null; bankLabel: string | null }) {
+    try {
+      await updateSubject(id, data);
+      toast.success('บันทึกการตั้งค่า Question Bank ของวิชาแล้ว');
+      setBankEditSubject(null);
+      loadTree();
+    } catch (err) {
+      console.error(err);
+      toast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    }
+  }
+
+  async function handleSaveTopicGrade(id: string, data: { gradeLabel: string | null; term: number | null }) {
+    try {
+      await updateTopic(id, data);
+      toast.success('บันทึกชั้น/เทอมของหัวข้อแล้ว');
+      setGradeEditTopic(null);
+      loadTree();
+    } catch (err) {
+      console.error(err);
+      toast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    }
   }
 
   async function handleDeleteTopic(id: string, name: string) {
@@ -223,10 +274,20 @@ export default function AdminCurriculumPage() {
                           {subject.iconEmoji && <span className="mr-1">{subject.iconEmoji}</span>}
                           {subject.name}
                           <span className="ml-2 text-xs text-gray-400 font-normal">{topics.length} หัวข้อ</span>
+                          <SubjectBankChips subject={subject} venues={venues} />
                         </span>
                       )}
 
                       <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setBankEditSubject((cur) => (cur === subject.id ? null : subject.id))}
+                          title="ตั้งค่า Question Bank"
+                          aria-label={`ตั้งค่า Question Bank ของ ${subject.name}`}
+                          aria-expanded={bankEditSubject === subject.id}
+                          className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-300"
+                        >
+                          <Database className="w-3.5 h-3.5" />
+                        </button>
                         <button onClick={() => setEditingSubject(subject.id)} className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-300">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -236,6 +297,16 @@ export default function AdminCurriculumPage() {
                       </div>
                     </div>
 
+                    {bankEditSubject === subject.id && (
+                      <SubjectBankForm
+                        subject={subject}
+                        venues={venues}
+                        venuesError={venuesError}
+                        onSave={(data) => handleSaveSubjectBank(subject.id, data)}
+                        onCancel={() => setBankEditSubject(null)}
+                      />
+                    )}
+
                     {/* Topics (shown when subject expanded) */}
                     {isOpen && (
                       <div className="bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700">
@@ -244,7 +315,8 @@ export default function AdminCurriculumPage() {
                         )}
 
                         {topics.map((topic) => (
-                          <div key={topic.id} className="flex items-center gap-2 pl-8 pr-4 py-2 hover:bg-gray-100 border-b border-gray-50 dark:hover:bg-gray-700 dark:border-gray-700">
+                          <div key={topic.id} className="border-b border-gray-50 dark:border-gray-700">
+                          <div className="flex items-center gap-2 pl-8 pr-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700">
                             <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0 dark:bg-gray-600" />
                             {editingTopic === topic.id ? (
                               <InlineInput
@@ -254,9 +326,25 @@ export default function AdminCurriculumPage() {
                                 onCancel={() => setEditingTopic(null)}
                               />
                             ) : (
-                              <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">{topic.name}</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 break-words">
+                                {topic.name}
+                                {topicGradeText(topic) && (
+                                  <span className="ml-2 inline-flex px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+                                    {topicGradeText(topic)}
+                                  </span>
+                                )}
+                              </span>
                             )}
                             <div className="flex items-center gap-1 ml-auto">
+                              <button
+                                onClick={() => setGradeEditTopic((cur) => (cur === topic.id ? null : topic.id))}
+                                title="ตั้งชั้น/เทอม"
+                                aria-label={`ตั้งชั้นและเทอมของ ${topic.name}`}
+                                aria-expanded={gradeEditTopic === topic.id}
+                                className="p-1 text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-300"
+                              >
+                                <GraduationCap className="w-3 h-3" />
+                              </button>
                               <button onClick={() => setEditingTopic(topic.id)} className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-300">
                                 <Pencil className="w-3 h-3" />
                               </button>
@@ -264,6 +352,14 @@ export default function AdminCurriculumPage() {
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
+                          </div>
+                          {gradeEditTopic === topic.id && (
+                            <TopicGradeForm
+                              topic={topic}
+                              onSave={(data) => handleSaveTopicGrade(topic.id, data)}
+                              onCancel={() => setGradeEditTopic(null)}
+                            />
+                          )}
                           </div>
                         ))}
 

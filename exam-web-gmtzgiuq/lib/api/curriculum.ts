@@ -9,6 +9,10 @@ export interface Subject {
   iconEmoji: string | null;
   orderIndex: number;
   isActive: boolean;
+  /** สนาม (pro_venues.id) ของวิชา — ใช้จัดวิชาเข้า Question Bank (task 20) null = ไม่ผูก */
+  venueId?: string | null;
+  /** ชื่อบนการ์ด Question Bank เช่น "ชีวะ" (≤ 60) — null/ว่าง = ใช้ name */
+  bankLabel?: string | null;
   chapterCount?: number;
   examCount?: number;
   chapters?: Chapter[];
@@ -34,6 +38,10 @@ export interface Topic {
   description: string | null;
   orderIndex: number;
   isActive: boolean;
+  /** ชั้นของบท เช่น "ม.4" (≤ 30) — ใช้จัดกลุ่มใน Question Bank (task 20) null = ไม่ระบุ */
+  gradeLabel?: string | null;
+  /** เทอม 1 / 2 — null = ไม่ระบุ */
+  term?: number | null;
   examCount?: number;
   questionCount?: number;
   createdAt: string;

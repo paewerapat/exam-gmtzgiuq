@@ -35,6 +35,15 @@ export class Topic {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  // Grade of the topic in the Question Bank, e.g. "ม.4" (task 20); null =
+  // the "อื่น ๆ" group
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  gradeLabel: string | null;
+
+  // Term 1 or 2 (null = not set)
+  @Column({ type: 'tinyint', nullable: true })
+  term: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
