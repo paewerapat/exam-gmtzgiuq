@@ -26,8 +26,12 @@ import {
   saveRealExamSession,
   loadRealExamSession,
   withCurrentQuestionTime,
+  hasSessionProgress,
+  backendResumeTiming,
 } from '@/lib/exam-utils';
 import { getPublicExam } from '@/lib/api/exams';
+import { fetchClockOffset } from '@/lib/api/serverTime';
+import { withTimeout } from '@/lib/with-timeout';
 import {
   submitAttempt,
   startInProgressAttempt,
@@ -37,14 +41,29 @@ import {
   type ExamAttempt,
 } from '@/lib/api/attempts';
 import type { ExamSession } from '@/types/exam';
-import type { QuestionCategory } from '@/lib/api/questions';
+import type { Question, QuestionCategory } from '@/lib/api/questions';
 import { trackEvent } from '@/lib/api/analytics';
 import { getExamBackLink } from '@/lib/mock-exam';
-import { isExamLockedError } from '@/lib/api/apiError';
+import {
+  CAMPAIGN_ENDED_RESUME_TEXT,
+  campaignClosedCode,
+  isExamLockedError,
+  type CampaignClosedCode,
+} from '@/lib/api/apiError';
+import CampaignClosedScreen from '@/components/exam/CampaignClosedScreen';
 import { UNLOCK_TEXT } from '@/lib/unlock-codes';
 import ExamLockedScreen, { type LockedState } from '@/components/exam/ExamLockedScreen';
 
 const BACKEND_ATTEMPT_KEY = 'real_exam_backend_attempt_id';
+
+/** serverNow − clientNow (ms) จาก GET /time — ล้ม/เกิน 3 วินาที → 0 (ใช้นาฬิกาเครื่อง) */
+async function clockOffsetOrZero(): Promise<number> {
+  try {
+    return await withTimeout(fetchClockOffset(), 3000);
+  } catch {
+    return 0;
+  }
+}
 
 interface PageProps {
   params: Promise<{ examId: string }>;
@@ -266,6 +285,8 @@ function RealExamPageContent({ examId }: { examId: string }) {
   const loadedKeyRef = useRef<string | null>(null);
   // ชุด Mock ที่ล็อก (API ตอบ 403 EXAM_LOCKED) — หน้ารายละเอียดชุดอยู่ที่ /dashboard/mock-exams/<id>
   const [locked, setLocked] = useState<LockedState | null>(null);
+  // ชุดแคมเปญนอกช่วงเวลา (403 CAMPAIGN_NOT_OPEN / CAMPAIGN_ENDED — task 21) → หยุด ไม่ให้ทำโดยไม่มี attempt
+  const [campaignClosed, setCampaignClosed] = useState<CampaignClosedCode | null>(null);
   const lockedRef = useRef(false);
   const detailHref = `/dashboard/mock-exams/${examId}`;
 
@@ -390,8 +411,8 @@ function RealExamPageContent({ examId }: { examId: string }) {
           return;
         }
 
-        // 4. Show resume dialog if in-progress exists
-        if (backendAttempt && backendAttempt.currentIndex > 0) {
+        // 4. attempt ค้างบน server ที่ตอบแล้ว/เลื่อนข้อแล้ว → ถามทำต่อ (เริ่มใหม่จะทิ้งคำตอบ)
+        if (backendAttempt && hasSessionProgress(backendAttempt)) {
           setResumeDialog({
             backendAttempt,
             examTitle: exam.title,
@@ -401,11 +422,26 @@ function RealExamPageContent({ examId }: { examId: string }) {
           return;
         }
 
-        await startFreshExam(exam, backendAttempt);
+        try {
+          await startFreshExam(exam, backendAttempt);
+        } catch (err) {
+          // แคมเปญจบแล้วแต่มี attempt ค้าง (เริ่มใหม่ไม่ได้ แต่ API ให้ทำต่อ/ส่งได้ — AC5) → ทำ attempt เดิมต่อ
+          if (backendAttempt && campaignClosedCode(err) === 'CAMPAIGN_ENDED') {
+            await resumeFromBackendAttempt(backendAttempt, exam);
+            return;
+          }
+          throw err;
+        }
       } catch (err: any) {
         clearTimeout(examTimeout);
         if (isExamLockedError(err)) {
           handleLocked('load');
+          return;
+        }
+        const closed = campaignClosedCode(err);
+        if (closed) {
+          setCampaignClosed(closed);
+          setLoading(false);
           return;
         }
         const isTimeout = err?.name === 'AbortError';
@@ -442,12 +478,6 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
     saveRealExamSession(examId, session, exam.questions);
 
-    trackEvent('timer_start', {
-      examId: exam.id,
-      durationSeconds: session.durationSeconds,
-      questionCount: questionIds.length,
-    });
-
     let attemptId: string | null = null;
     if (isLoggedIn()) {
       try {
@@ -464,10 +494,69 @@ function RealExamPageContent({ examId }: { examId: string }) {
       } catch (err) {
         // ไม่มีสิทธิ์ (403 EXAM_LOCKED) → ส่งต่อให้ผู้เรียกพาไปหน้ารายละเอียด / error อื่นเงียบเหมือนเดิม
         if (isExamLockedError(err)) throw err;
+        // แคมเปญยังไม่เปิด/จบแล้ว (task 21) → ทิ้ง session ที่เพิ่งสร้างแล้วส่งต่อให้ผู้เรียกแจ้งผู้ใช้
+        if (campaignClosedCode(err)) {
+          clearRealExamSession(examId);
+          throw err;
+        }
       }
     }
 
+    // นับว่าเริ่มจับเวลาเมื่อเริ่มได้จริง (start ที่ถูกปฏิเสธ — ล็อก/แคมเปญปิด — throw ไปก่อนถึงตรงนี้)
+    trackEvent('timer_start', {
+      examId: exam.id,
+      durationSeconds: session.durationSeconds,
+      questionCount: questionIds.length,
+    });
     await initFromSessionAndAttempt(session, exam.questions, attemptId);
+  }
+
+  /**
+   * สร้าง session จาก attempt ค้างบน server แล้วเข้าหน้าข้อสอบ (ทำ attempt เดิมต่อ)
+   * ชุดมี durationMinutes → นับถอยหลังเวลาที่เหลือ (duration − เวลาที่ใช้ไปใน attempt ไม่นับช่วงที่ปิดหน้า — M2)
+   * เวลาหมดแล้ว → ส่งทันทีด้วย flow complete เดิม (ไม่เปิดหน้าข้อสอบ)
+   */
+  async function resumeFromBackendAttempt(
+    backendAttempt: ExamAttempt,
+    exam: Pick<Awaited<ReturnType<typeof getPublicExam>>, 'questions' | 'durationMinutes'>,
+  ) {
+    const durationSeconds = exam.durationMinutes ? Number(exam.durationMinutes) * 60 : null;
+    // เทียบเวลา server แบบเดียวกับนาฬิกาใน ExamContainer (เช็กไม่ได้/ช้าเกิน 3 วินาที → ใช้นาฬิกาเครื่อง)
+    const clockOffset = durationSeconds ? await clockOffsetOrZero() : 0;
+    const timing = backendResumeTiming({
+      durationSeconds,
+      startedAt: backendAttempt.startedAt,
+      timePerQuestion: backendAttempt.timePerQuestion,
+      nowMs: Date.now() + clockOffset,
+    });
+    const session: ExamSession = {
+      id: generateSessionId(),
+      examId,
+      examTitle: backendAttempt.examTitle,
+      category: backendAttempt.category as QuestionCategory,
+      questionIds: backendAttempt.questionIds,
+      currentIndex: backendAttempt.currentIndex,
+      answers: backendAttempt.answers || {},
+      markedForReview: [],
+      timePerQuestion: backendAttempt.timePerQuestion || {},
+      startedAt: timing.startedAt,
+      // clockOffsetBasisMs: ExamContainer ใช้ offset นี้จนกว่าจะ sync เองได้ แล้วปรับ totalPausedMs ให้เวลาที่เหลือเท่าเดิม
+      ...(timing.durationSeconds
+        ? { durationSeconds: timing.durationSeconds, totalPausedMs: timing.totalPausedMs, clockOffsetBasisMs: clockOffset }
+        : {}),
+      status: 'in_progress',
+    };
+
+    saveRealExamSession(examId, session, exam.questions);
+
+    if (timing.remainingSeconds !== null && timing.remainingSeconds <= 0) {
+      attemptIdRef.current = backendAttempt.id;
+      saveBackendAttemptId(examId, backendAttempt.id);
+      toast.info('หมดเวลาสอบแล้ว ระบบส่งข้อสอบให้อัตโนมัติ');
+      await submitExam({ session, questions: exam.questions });
+      return;
+    }
+    await initFromSessionAndAttempt(session, exam.questions, backendAttempt.id);
   }
 
   async function handleResume() {
@@ -480,25 +569,17 @@ function RealExamPageContent({ examId }: { examId: string }) {
     try {
       const exam = await getPublicExam(examId);
       setIsMock(exam.isMock === true);
-      const session: ExamSession = {
-        id: generateSessionId(),
-        examId,
-        examTitle: backendAttempt.examTitle,
-        category: backendAttempt.category as QuestionCategory,
-        questionIds: backendAttempt.questionIds,
-        currentIndex: backendAttempt.currentIndex,
-        answers: backendAttempt.answers || {},
-        markedForReview: [],
-        timePerQuestion: backendAttempt.timePerQuestion || {},
-        startedAt: backendAttempt.startedAt,
-        status: 'in_progress',
-      };
-
-      saveRealExamSession(examId, session, exam.questions);
-      await initFromSessionAndAttempt(session, exam.questions, backendAttempt.id);
+      await resumeFromBackendAttempt(backendAttempt, exam);
     } catch (err) {
       if (isExamLockedError(err)) {
         handleLocked('load');
+        return;
+      }
+      // GET /exams/:id ตอบ 403 CAMPAIGN_NOT_OPEN ถ้าแอดมินเลื่อนแคมเปญไปอนาคตระหว่างนั้น (task 21 R1)
+      const closed = campaignClosedCode(err);
+      if (closed) {
+        setCampaignClosed(closed);
+        setLoading(false);
         return;
       }
       console.error('Failed to resume:', err);
@@ -509,6 +590,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
 
   async function handleStartFresh() {
     if (!resumeDialog) return;
+    const { backendAttempt } = resumeDialog;
     setLoading(true);
     setResumeDialog(null);
     clearRealExamSession(examId);
@@ -518,10 +600,26 @@ function RealExamPageContent({ examId }: { examId: string }) {
     try {
       const exam = await getPublicExam(examId);
       setIsMock(exam.isMock === true);
-      await startFreshExam(exam);
+      try {
+        await startFreshExam(exam);
+      } catch (err) {
+        // แคมเปญจบแล้ว: เริ่มใหม่ไม่ได้ (403 ทุกครั้ง) แต่ attempt ค้างยังทำต่อ/ส่งได้ (AC5) → แจ้งแล้วทำต่อ (M3)
+        if (campaignClosedCode(err) === 'CAMPAIGN_ENDED') {
+          toast.info(CAMPAIGN_ENDED_RESUME_TEXT);
+          await resumeFromBackendAttempt(backendAttempt, exam);
+          return;
+        }
+        throw err;
+      }
     } catch (err) {
       if (isExamLockedError(err)) {
         handleLocked('load');
+        return;
+      }
+      const closed = campaignClosedCode(err);
+      if (closed) {
+        setCampaignClosed(closed);
+        setLoading(false);
         return;
       }
       console.error('Failed to load exam:', err);
@@ -531,13 +629,14 @@ function RealExamPageContent({ examId }: { examId: string }) {
   }
 
   // ── Complete ─────────────────────────────────────────────────
-  const handleComplete = async () => {
+  // override: ส่งทันทีจาก attempt บน server ที่หมดเวลาแล้ว (ยังไม่ได้ initExam — state.session ไม่ใช่ชุดนี้)
+  const submitExam = async (override?: { session: ExamSession; questions: Question[] }) => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
     // ลำดับ: state ในหน่วยความจำ (ใหม่สุดเสมอ — storage อาจค้างค่าเก่าถ้าเก็บล้มกลางทาง)
     // → real-exam storage → key ทั่วไปที่ ExamContainer เก็บ; ทุกแหล่งต้องเป็นข้อสอบนี้ (examId ตรง) ไม่งั้นข้าม
     // state.session ยังไม่มีเวลาของข้อที่เปิดอยู่ (บันทึกตอนเปลี่ยนข้อเท่านั้น) → ใส่ก่อนคิดผล/ส่ง complete (BUG-22)
-    const picked = pickSessionForExam(examId, [
+    const picked = override ?? pickSessionForExam(examId, [
       { session: withCurrentQuestionTime(state.session, state.currentTimer), questions: state.questions },
       loadRealExamSession(examId),
       loadExamSession(true),
@@ -595,11 +694,20 @@ function RealExamPageContent({ examId }: { examId: string }) {
         handleLocked('during');
         return;
       }
+      const closed = campaignClosedCode(err);
+      if (closed) {
+        // ส่งแบบสร้าง attempt ใหม่ (ไม่มี attempt ค้าง) นอกช่วงแคมเปญ: API ไม่บันทึก → เก็บคำตอบไว้แล้วแจ้ง
+        saveRealExamSession(examId, savedSession, savedQuestions);
+        setCampaignClosed(closed);
+        return;
+      }
       console.error('Failed to submit attempt:', err);
     }
 
     router.push(`/exam/${examId}/results`);
   };
+  // onComplete ของ ExamContainer — ไม่รับอาร์กิวเมนต์ (กันค่าที่ผู้เรียกส่งมา เช่น event ถูกตีความเป็น override)
+  const handleComplete = () => submitExam();
 
   function handleRetry() {
     clearRealExamSession(examId);
@@ -610,6 +718,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
   }
 
   // ── Render ────────────────────────────────────────────────────
+  if (campaignClosed) {
+    return <CampaignClosedScreen code={campaignClosed} detailHref={detailHref} />;
+  }
+
   if (locked) {
     return <ExamLockedScreen kind={locked} detailHref={detailHref} />;
   }

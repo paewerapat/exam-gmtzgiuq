@@ -4,6 +4,7 @@ import {
   formatExamCardDate,
   formatReleaseDate,
   toBangkokInputValue,
+  withEndOfMinute,
 } from './release-date';
 
 describe('release-date — แปลงเวลาไทย ↔ ISO (task 10)', () => {
@@ -72,5 +73,15 @@ describe('release-date — แปลงเวลาไทย ↔ ISO (task 10)',
     expect(formatReleaseDate('2026-11-05T20:15:00.000Z')).toBe('6 พ.ย. 2569 03:15');
     expect(formatReleaseDate(undefined)).toBe('-');
     expect(formatReleaseDate('x')).toBe('-');
+  });
+});
+
+describe('withEndOfMinute (task 21 N3)', () => {
+  it('HH:mm → HH:mm:59 / มีวินาทีแล้วหรือว่าง → คงเดิม', () => {
+    expect(withEndOfMinute('2026-11-30T23:59')).toBe('2026-11-30T23:59:59');
+    expect(withEndOfMinute(' 2026-11-30T18:00 ')).toBe('2026-11-30T18:00:59');
+    expect(withEndOfMinute('2026-11-30T23:59:00')).toBe('2026-11-30T23:59:00');
+    expect(withEndOfMinute('')).toBe('');
+    expect(bangkokInputToIso(withEndOfMinute('2026-11-30T23:59'))).toBe('2026-11-30T16:59:59.000Z');
   });
 });

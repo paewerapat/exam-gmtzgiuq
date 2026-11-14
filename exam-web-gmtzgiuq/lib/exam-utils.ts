@@ -391,6 +391,70 @@ export function getProgress(session: ExamSession): number {
 }
 
 /**
+ * session ในเครื่อง / attempt ค้างบน server มีความคืบหน้าแล้วหรือยัง (ตอบอย่างน้อย 1 ข้อ หรือเลื่อนไปข้อถัดไปแล้ว)
+ * ไม่มี → ใช้/เริ่มได้เลยโดยไม่ต้องถาม "ทำค้างอยู่" (task 21)
+ * คำตอบว่าง ('' / null / undefined / array ว่าง) ไม่นับว่าตอบแล้ว — ตรงกับ isUntouched ของ API (attempts.service)
+ */
+export function hasSessionProgress(
+  s: { currentIndex?: number | null; answers?: Record<string, unknown> | null } | null | undefined,
+): boolean {
+  if (!s) return false;
+  if ((s.currentIndex ?? 0) > 0) return true;
+  return Object.values(s.answers ?? {}).some(
+    (v) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0),
+  );
+}
+
+/**
+ * ข้อใน session ชุดเดียวกับข้อที่ได้จาก API ไหม (id ครบเท่ากัน ไม่สนลำดับ)
+ * ใช้ก่อนใช้ session ที่ยังไม่ได้ตอบซ้ำ — แอดมินแก้ชุดแล้ว (เพิ่ม/ลบข้อ) → เริ่มชุดใหม่ (task 21 M1)
+ */
+export function sameQuestionSet(sessionIds: readonly string[] | null | undefined, questions: readonly { id: string }[]): boolean {
+  if (!sessionIds || sessionIds.length === 0) return false;
+  const fresh = new Set(questions.map((q) => q.id));
+  const mine = new Set(sessionIds);
+  if (mine.size !== fresh.size) return false;
+  return sessionIds.every((id) => fresh.has(id));
+}
+
+/**
+ * เวลาของข้อสอบจริงที่ทำต่อจาก attempt บน server (เช่นเปิดจากเครื่อง/เบราว์เซอร์อื่น — task 21 M2)
+ * เวลาที่ใช้ไป = ผลรวม timePerQuestion ของ attempt; ช่วงที่ปิดหน้าไปไม่นับ → ใส่เป็น totalPausedMs
+ * (ExamContainer นับถอยหลังจาก startedAt + durationSeconds + totalPausedMs เทียบเวลา server) — startedAt เดิมไม่เปลี่ยน
+ * ไม่มี durationSeconds → นับขึ้นแบบเดิม (remainingSeconds = null)
+ * @param nowMs เวลาปัจจุบันฝั่ง server โดยประมาณ (Date.now() + clock offset)
+ */
+export function backendResumeTiming(input: {
+  durationSeconds: number | null | undefined;
+  startedAt: string | null | undefined;
+  timePerQuestion: Record<string, number> | null | undefined;
+  nowMs: number;
+}): { startedAt: string; durationSeconds: number | null; totalPausedMs: number; remainingSeconds: number | null } {
+  const usedSeconds = Object.values(input.timePerQuestion ?? {}).reduce(
+    (sum, v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? sum + v : sum),
+    0,
+  );
+  const duration = input.durationSeconds && input.durationSeconds > 0 ? input.durationSeconds : null;
+  const startMs = input.startedAt ? new Date(input.startedAt).getTime() : NaN;
+  if (Number.isNaN(startMs)) {
+    // startedAt ใช้ไม่ได้ → ตั้งให้เวลาที่ผ่านมาเท่ากับเวลาที่ใช้ไป
+    return {
+      startedAt: new Date(input.nowMs - usedSeconds * 1000).toISOString(),
+      durationSeconds: duration,
+      totalPausedMs: 0,
+      remainingSeconds: duration === null ? null : duration - usedSeconds,
+    };
+  }
+  return {
+    startedAt: input.startedAt as string,
+    durationSeconds: duration,
+    // ไม่ clamp: นาฬิกาเครื่องที่เริ่มเพี้ยนไปข้างหน้าก็ยังได้เวลาที่เหลือ = duration − ที่ใช้ไป
+    totalPausedMs: duration === null ? 0 : input.nowMs - startMs - usedSeconds * 1000,
+    remainingSeconds: duration === null ? null : duration - usedSeconds,
+  };
+}
+
+/**
  * Get choice letter (A, B, C, D, ...)
  */
 export function getChoiceLetter(index: number): string {

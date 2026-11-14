@@ -8,7 +8,8 @@ import React, {
   useCallback,
 } from 'react';
 import type { Question } from '@/lib/api/questions';
-import type { ExamSession, ExamState, ExamAction, ExamResult } from '@/types/exam';
+import type { ExamSession, ExamState, ExamAction, ExamResult, PracticeTimerSettings } from '@/types/exam';
+import { buildPracticeTimer, totalActiveSeconds } from '@/lib/practice-timer';
 import {
   saveExamSession,
   loadExamSession,
@@ -214,6 +215,8 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
       return { ...state, showExplanation: false };
 
     case 'TICK_TIMER':
+      // หยุดชั่วคราว → ไม่นับเวลาของข้อ (timePerQuestion ถูก autosave ขึ้น server และใช้คิดเวลาที่ใช้ไปตอนทำต่อ — M2)
+      if (state.isPaused) return state;
       return {
         ...state,
         currentTimer: state.currentTimer + 1,
@@ -260,6 +263,41 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
       };
     }
 
+    // ตั้งค่าเวลาโหมดฝึก (task 21): นับถอยหลังเริ่มจากค่าที่ตั้ง ณ ตอนกด (ไม่ลบเวลาที่ใช้ไปแล้ว)
+    case 'SET_PRACTICE_TIMER': {
+      if (state.session.status !== 'in_progress') return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          practiceTimer: buildPracticeTimer(action.settings, totalActiveSeconds(state.session, state.currentTimer)),
+        },
+      };
+    }
+
+    // หมดเวลาที่ตั้ง (ไม่ส่งอัตโนมัติ) และแจ้งแล้ว → จำไว้ใน session ไม่ให้ toast ซ้ำหลัง reload (task 21 R7)
+    case 'MARK_PRACTICE_TIMER_NOTIFIED': {
+      const timer = state.session.practiceTimer;
+      if (state.session.status !== 'in_progress' || !timer || timer.mode !== 'down' || timer.expiredNotified) {
+        return state;
+      }
+      return { ...state, session: { ...state.session, practiceTimer: { ...timer, expiredNotified: true } } };
+    }
+
+    // sync เวลา server สำเร็จครั้งแรก: totalPausedMs ที่คิดด้วย offset อื่น (clockOffsetBasisMs) → ปรับให้เวลาที่เหลือเท่าเดิม
+    case 'REBASE_CLOCK': {
+      const basis = state.session.clockOffsetBasisMs;
+      if (basis == null || state.session.status !== 'in_progress') return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          totalPausedMs: (state.session.totalPausedMs ?? 0) + (action.offsetMs - basis),
+          clockOffsetBasisMs: null,
+        },
+      };
+    }
+
     default:
       return state;
   }
@@ -294,6 +332,9 @@ interface ExamContextType {
   clearSession: () => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
+  setPracticeTimer: (settings: Pick<PracticeTimerSettings, 'mode' | 'minutes' | 'autoSubmit'>) => void;
+  markPracticeTimerNotified: () => void;
+  rebaseClock: (offsetMs: number) => void;
 }
 
 const ExamContext = createContext<ExamContextType | undefined>(undefined);
@@ -427,6 +468,21 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'RESUME_TIMER', now: Date.now() });
   }, []);
 
+  const setPracticeTimer = useCallback(
+    (settings: Pick<PracticeTimerSettings, 'mode' | 'minutes' | 'autoSubmit'>) => {
+      dispatch({ type: 'SET_PRACTICE_TIMER', settings });
+    },
+    [],
+  );
+
+  const markPracticeTimerNotified = useCallback(() => {
+    dispatch({ type: 'MARK_PRACTICE_TIMER_NOTIFIED' });
+  }, []);
+
+  const rebaseClock = useCallback((offsetMs: number) => {
+    dispatch({ type: 'REBASE_CLOCK', offsetMs });
+  }, []);
+
   const getResult = useCallback(() => {
     return calculateExamResult(withCurrentQuestionTime(state.session, state.currentTimer), state.questions);
   }, [state.session, state.currentTimer, state.questions]);
@@ -457,6 +513,9 @@ export function ExamProvider({ children }: { children: React.ReactNode }) {
     clearSession,
     pauseTimer,
     resumeTimer,
+    setPracticeTimer,
+    markPracticeTimerNotified,
+    rebaseClock,
   };
 
   return <ExamContext.Provider value={value}>{children}</ExamContext.Provider>;

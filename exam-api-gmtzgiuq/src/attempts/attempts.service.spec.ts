@@ -18,7 +18,10 @@ import { AnswerLogsService } from '../answer-logs/answer-logs.service';
 /** Access check that lets everything through (lock tests: end of file). */
 const openAccess = () => ({
   provide: ExamAccessService,
-  useValue: { assertCanAccessExamId: jest.fn().mockResolvedValue(undefined) },
+  useValue: {
+    assertCanAccessExamId: jest.fn().mockResolvedValue(undefined),
+    assertCanStartExamId: jest.fn().mockResolvedValue(undefined),
+  },
 });
 
 /** Answer log that writes nothing (task 16; its own tests: answer-logs). */

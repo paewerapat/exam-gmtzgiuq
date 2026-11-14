@@ -12,6 +12,7 @@ import {
   clearExamSession,
   generateSessionId,
   calculateExamResult,
+  hasSessionProgress,
 } from '@/lib/exam-utils';
 import { createQbSession, QB_ERROR_LOGIN_REQUIRED } from '@/lib/api/question-bank';
 import { ApiError } from '@/lib/api/apiError';
@@ -128,6 +129,18 @@ function BankPracticeContent({ params }: { params: QbPracticeParams }) {
     // ตัวกรองเดียวกันที่ทำค้างไว้ → ถามว่าจะทำต่อไหม (ใช้ชุดข้อที่เก็บไว้ เพราะเรียกใหม่จะสุ่มได้ชุดใหม่)
     const { session: existing, questions: saved } = loadExamSession();
     if (existing && saved && existing.examId === sessionKey && existing.status === 'in_progress') {
+      if (!hasSessionProgress(existing)) {
+        // ยังไม่ได้ตอบและยังอยู่ข้อแรก → ใช้ชุดเดิมต่อเลย ไม่ต้องถาม "ทำค้างอยู่" (task 21 Q2)
+        // ยกเว้นชุดที่มีข้อล็อก: อาจเพิ่ง Upgrade → สุ่มชุดใหม่ให้ได้ข้อที่ทำได้ (task 21 M1)
+        if (saved.some((q) => q.locked)) {
+          void startNew();
+          return;
+        }
+        setVenueKey(existing.venueKey ?? '');
+        initExam(existing, saved);
+        setLoading(false);
+        return;
+      }
       setVenueKey(existing.venueKey ?? '');
       setPendingSession(existing);
       setPendingQuestions(saved);
@@ -380,6 +393,7 @@ function BankPracticeContent({ params }: { params: QbPracticeParams }) {
           /* handled by useEffect */
         }}
         mode="practice"
+        timerSettings={{}}
         backUrl={backUrl}
         lockedUpgradeHref={upgradeHref(venueKey)}
       />

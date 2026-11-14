@@ -3,7 +3,17 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
-import { AlertTriangle, CheckCircle2, Crown, KeyRound, Loader2, PlayCircle, ShoppingCart } from 'lucide-react';
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  Crown,
+  FileCheck2,
+  KeyRound,
+  Loader2,
+  PlayCircle,
+  ShoppingCart,
+} from 'lucide-react';
 import { authInputClass } from '@/components/auth/AuthShell';
 import { ApiError } from '@/lib/api/apiError';
 import { redeemUnlockCode, type RedeemUnlockCodeResult } from '@/lib/api/unlockCodes';
@@ -26,6 +36,8 @@ import {
   redeemSuccessMessage,
   UNLOCK_TEXT,
 } from '@/lib/unlock-codes';
+import type { MockCampaign, MockCampaignStatus } from '@/lib/api/exams';
+import { campaignDateSegments, segmentsToText } from '@/lib/free-mock';
 
 /** ข้อความกล่องสิทธิ์ตามที่มา (task 17): pro = แพ็กเกจ Pro ของสนาม / admin, purchase, ไม่ทราบ = กลาง ๆ */
 export const ACCESS_VIA_PRO = 'สิทธิ์จากแพ็กเกจ Pro';
@@ -39,6 +51,8 @@ const FOCUS_RING =
 
 // ปุ่มเริ่มทำ = โหมดข้อสอบจริง (rose) ตาม convention ของเว็บ
 const START_CLASS = `flex items-center justify-center gap-2 w-full min-h-12 px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-sm transition ${FOCUS_RING} focus-visible:ring-rose-500`;
+// ทำต่อ attempt โหมดฝึก (indigo ตาม convention ของโหมด practice)
+const RESUME_PRACTICE_CLASS = `flex items-center justify-center gap-2 w-full min-h-12 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition ${FOCUS_RING} focus-visible:ring-indigo-500`;
 
 const LINK_CLASS =
   'font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline underline-offset-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500';
@@ -49,13 +63,21 @@ interface MockAccessPanelProps {
   access: MockExamAccess;
   /** ยังไม่ได้เข้าสู่ระบบ */
   isGuest: boolean;
-  /** มี attempt โหมด exam ค้าง → "ทำต่อ" */
+  /** มี attempt ค้าง (โหมดใดก็ได้) → "ทำต่อ" */
   hasInProgress: boolean;
+  /** โหมดของ attempt ที่ค้าง — practice → ทำต่อที่ /practice/exam/<id> (ตรงกับการ์ด) */
+  inProgressMode?: 'practice' | 'exam' | null;
   /** กำลังเช็ก attempt ค้าง (ปุ่มเริ่มแสดง loading) */
   checkingProgress: boolean;
   /** เพิ่ง Unlock สำเร็จในหน้านี้ → ย้าย focus ไปปุ่มเริ่มทำ */
   focusStart?: boolean;
   onRedeemed: (result: RedeemUnlockCodeResult) => void;
+  /** สถานะแคมเปญ (task 21) — ชุดที่ไม่ใช่โค้ด = null */
+  campaign?: { status: MockCampaignStatus; info: MockCampaign | null } | null;
+  /** attempt ที่ส่งแล้วล่าสุด (แคมเปญจบแล้ว → ปุ่ม "ดูผลและเฉลย") */
+  completedAttemptId?: string | null;
+  /** แอดมินเริ่มทำได้เสมอ (API bypass ช่วงแคมเปญ) */
+  isAdmin?: boolean;
 }
 
 /** ลิงก์ "เข้าสู่ระบบ / สมัครสมาชิก" — login พากลับหน้านี้ (?redirect= ตรวจโดย getSafeRedirect ตาม SEC-13) */
@@ -80,28 +102,67 @@ export default function MockAccessPanel({
   access,
   isGuest,
   hasInProgress,
+  inProgressMode = null,
   checkingProgress,
   focusStart = false,
   onRedeemed,
+  campaign = null,
+  completedAttemptId = null,
+  isAdmin = false,
 }: MockAccessPanelProps) {
   const accessType = normalizeAccessType(exam.accessType);
   const canStart = canStartMock(exam, access);
-  const action = getMockPrimaryAction(exam, { hasInProgress, access });
+  const action = getMockPrimaryAction(exam, { hasInProgress, access, resumeMode: inProgressMode });
+  const resumePractice = action.kind === 'resume' && inProgressMode === 'practice';
   const startRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
     if (focusStart && !checkingProgress) startRef.current?.focus();
   }, [focusStart, checkingProgress]);
 
+  // แคมเปญยังไม่เปิด / จบแล้ว (task 21): เริ่มทำและกรอกโค้ดไม่ได้ — ยกเว้นจบแล้วแต่มี attempt ค้าง (API ให้ส่งได้)
+  if (accessType === 'code' && campaign && campaign.status !== 'open' && !isAdmin) {
+    // จบแล้ว + มีสิทธิ์ แต่ยังเช็ก attempt ค้างไม่เสร็จ → กล่อง loading (อย่าโชว์ "เริ่มทำ" ที่กดไม่ได้จริง)
+    if (campaign.status === 'ended' && canStart && checkingProgress) {
+      return <CheckingPanel />;
+    }
+    const canResumeEnded = campaign.status === 'ended' && canStart && hasInProgress;
+    if (!canResumeEnded) {
+      return (
+        <CampaignClosedPanel
+          status={campaign.status}
+          info={campaign.info}
+          completedAttemptId={campaign.status === 'ended' ? completedAttemptId : null}
+        />
+      );
+    }
+  }
+
   if (canStart && (action.kind === 'start' || action.kind === 'resume')) {
     const unlocked = access.status === 'unlocked';
+    const resuming = action.kind === 'resume' && !checkingProgress;
+    // ปุ่มเป็น "ทำต่อ" → หัวข้อ/คำอธิบายบอกว่าทำค้างอยู่ (แทน "เริ่มทำ…")
+    const title = resuming ? 'ทำข้อสอบต่อ' : unlocked ? UNLOCK_TEXT.unlockedTitle : 'เริ่มทำข้อสอบ';
+    const subtitle = resuming
+      ? resumePractice
+        ? 'คุณฝึกทำชุดนี้ค้างอยู่ (โหมดฝึก) กดเพื่อทำต่อ'
+        : 'คุณทำชุดนี้ค้างอยู่ กดเพื่อทำต่อจากที่ค้างไว้'
+      : unlocked
+        ? UNLOCK_TEXT.unlockedSubtitle
+        : 'พร้อมแล้วกดเริ่มทำข้อสอบได้เลย';
     return (
       <div className={CARD_CLASS} data-testid="mock-access-panel">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          {unlocked ? UNLOCK_TEXT.unlockedTitle : 'เริ่มทำข้อสอบ'}
-        </h2>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {unlocked ? UNLOCK_TEXT.unlockedSubtitle : 'พร้อมแล้วกดเริ่มทำข้อสอบได้เลย'}
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{title}</h2>
+        <p
+          className={`mt-1 text-sm ${
+            resuming
+              ? resumePractice
+                ? 'text-indigo-600 dark:text-indigo-400'
+                : 'text-rose-600 dark:text-rose-400'
+              : 'text-gray-600 dark:text-gray-400'
+          }`}
+        >
+          {subtitle}
         </p>
 
         {/* วันหมดสิทธิ์ null = ไม่หมดอายุ (เช่นแอดมิน) → ไม่แสดงกล่องสิทธิ์ / ข้อความตามที่มาของสิทธิ์ (task 17) */}
@@ -131,13 +192,10 @@ export default function MockAccessPanel({
               กำลังตรวจสอบ...
             </span>
           ) : (
-            <Link ref={startRef} href={action.href} className={START_CLASS}>
+            <Link ref={startRef} href={action.href} className={resumePractice ? RESUME_PRACTICE_CLASS : START_CLASS}>
               <PlayCircle className="w-5 h-5" aria-hidden="true" />
               {action.label}
             </Link>
-          )}
-          {action.kind === 'resume' && !checkingProgress && (
-            <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">คุณมีการทำชุดนี้ค้างอยู่ กดเพื่อทำต่อ</p>
           )}
         </div>
 
@@ -206,6 +264,99 @@ export default function MockAccessPanel({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{UNLOCK_TEXT.purchaseCodeTitle}</h3>
         <RedeemCodeFields examId={exam.id} isGuest={isGuest} onRedeemed={onRedeemed} className="mt-2" />
       </div>
+    </div>
+  );
+}
+
+/** กล่องขวาระหว่างเช็ก attempt ค้างของแคมเปญที่จบแล้ว (ผลจะเป็น "ทำต่อ" หรือกล่องปิด) */
+function CheckingPanel() {
+  return (
+    <div className={CARD_CLASS} data-testid="mock-access-panel" aria-busy="true">
+      <p
+        role="status"
+        className="flex items-center justify-center gap-2 min-h-12 text-sm font-medium text-gray-600 dark:text-gray-300"
+      >
+        <Loader2
+          className="w-5 h-5 animate-spin motion-reduce:animate-none text-indigo-600 dark:text-indigo-400"
+          aria-hidden="true"
+        />
+        กำลังตรวจสอบสถานะการทำข้อสอบ...
+      </p>
+    </div>
+  );
+}
+
+/** กล่องขวาเมื่อแคมเปญยังไม่เปิด/จบแล้ว: เหตุผล + ช่องโค้ดที่ปิดไว้ (+ "ดูผลและเฉลย" ถ้าเคยส่ง) */
+function CampaignClosedPanel({
+  status,
+  info,
+  completedAttemptId,
+}: {
+  status: Exclude<MockCampaignStatus, 'open'>;
+  info: MockCampaign | null;
+  completedAttemptId: string | null;
+}) {
+  const upcoming = status === 'upcoming';
+  const dates = segmentsToText(campaignDateSegments(info));
+  const reasonId = 'campaign-closed-reason';
+  return (
+    <div className={CARD_CLASS} data-testid="mock-access-panel">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        {upcoming ? 'แคมเปญยังไม่เปิด' : 'แคมเปญจบแล้ว'}
+      </h2>
+      <div
+        id={reasonId}
+        className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/50 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
+      >
+        <CalendarClock className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+        <p className="min-w-0">
+          {dates && <span className="block font-semibold">{dates}</span>}
+          <span className="block">
+            {upcoming
+              ? 'กรอกโค้ดและเริ่มทำได้เมื่อแคมเปญเปิด'
+              : 'แคมเปญนี้ปิดแล้ว กรอกโค้ดและเริ่มทำใหม่ไม่ได้'}
+          </span>
+        </p>
+      </div>
+
+      <label htmlFor="unlock-code" className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+        {UNLOCK_TEXT.inputLabel}
+      </label>
+      <div className="flex gap-2">
+        <div className="relative flex-1 min-w-0">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <KeyRound className="h-5 w-5 text-gray-400" aria-hidden="true" />
+          </div>
+          <input
+            id="unlock-code"
+            type="text"
+            disabled
+            value=""
+            readOnly
+            placeholder={upcoming ? 'ยังไม่เปิดให้กรอกโค้ด' : 'ปิดรับโค้ดแล้ว'}
+            aria-describedby={reasonId}
+            className={`${authInputClass({ invalid: false })} placeholder:normal-case`}
+          />
+        </div>
+        <button
+          type="button"
+          disabled
+          aria-describedby={reasonId}
+          className="flex-shrink-0 min-h-11 inline-flex items-center justify-center px-4 sm:px-5 rounded-lg bg-indigo-600 text-white font-semibold opacity-50 cursor-not-allowed"
+        >
+          {UNLOCK_TEXT.submit}
+        </button>
+      </div>
+
+      {completedAttemptId && (
+        <Link
+          href={`/dashboard/history/${encodeURIComponent(completedAttemptId)}`}
+          className={`mt-4 flex items-center justify-center gap-2 w-full min-h-12 px-6 py-3 rounded-xl border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-900/30 font-semibold transition ${FOCUS_RING} focus-visible:ring-emerald-500`}
+        >
+          <FileCheck2 className="w-5 h-5" aria-hidden="true" />
+          ดูผลและเฉลย
+        </Link>
+      )}
     </div>
   );
 }

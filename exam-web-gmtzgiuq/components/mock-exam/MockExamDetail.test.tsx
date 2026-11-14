@@ -40,6 +40,11 @@ const exam = (patch: Partial<MockExamDetailData> = {}): MockExamDetailData => ({
   description: 'คำอธิบายเดิม',
   detailBlocks: [],
   codeInstructions: null,
+  campaign: null,
+  subjectLabel: null,
+  color: null,
+  myProgress: null,
+  topicBreakdown: [],
   ...patch,
 });
 
@@ -108,18 +113,34 @@ describe('MockExamDetail (task 11 + task 15 โครงใหม่)', () => {
   it('ชุดฟรี + login + มี attempt โหมด exam ค้าง → "ทำต่อ" ไม่มีลิงก์ชวน login', async () => {
     setUser({ id: 'u1' });
     (getMockExam as jest.Mock).mockResolvedValue(exam());
+    // API เรียง updatedAt ล่าสุดก่อน: attempt โหมด exam ทำล่าสุด
     (getMyInProgressAttempts as jest.Mock).mockResolvedValue([
-      { id: 'a0', examId: 'm1', mode: 'practice' },
       { id: 'a1', examId: 'm1', mode: 'exam' },
+      { id: 'a0', examId: 'm1', mode: 'practice' },
     ]);
     render(<MockExamDetail id="m1" />);
     const resume = await screen.findByRole('link', { name: /ทำต่อ/ });
     expect(resume).toHaveAttribute('href', '/exam/m1');
     expect(within(panel()).queryByRole('link', { name: 'เข้าสู่ระบบ' })).not.toBeInTheDocument();
     expect(getMyInProgressAttempts).toHaveBeenCalledTimes(1);
+    // nit 6a: กล่องขวาบอกว่าทำค้างอยู่ (ไม่ใช่ "เริ่มทำข้อสอบ / พร้อมแล้วกดเริ่ม…")
+    expect(within(panel()).getByRole('heading', { name: 'ทำข้อสอบต่อ' })).toBeInTheDocument();
+    expect(within(panel()).getByText('คุณทำชุดนี้ค้างอยู่ กดเพื่อทำต่อจากที่ค้างไว้')).toBeInTheDocument();
+    expect(within(panel()).queryByText(/พร้อมแล้วกดเริ่ม/)).not.toBeInTheDocument();
+    expect(within(panel()).queryByRole('heading', { name: 'เริ่มทำข้อสอบ' })).not.toBeInTheDocument();
   });
 
-  it('ชุดฟรี + login แต่ attempt ค้างเป็นชุดอื่น/โหมดฝึก → "เริ่มทำข้อสอบ"', async () => {
+  it('ชุดฟรี + login แต่ attempt ค้างเป็นชุดอื่น → "เริ่มทำข้อสอบ"', async () => {
+    setUser({ id: 'u1' });
+    (getMockExam as jest.Mock).mockResolvedValue(exam());
+    (getMyInProgressAttempts as jest.Mock).mockResolvedValue([{ id: 'a2', examId: 'other', mode: 'exam' }]);
+    render(<MockExamDetail id="m1" />);
+    expect(await screen.findByRole('link', { name: /เริ่มทำข้อสอบ/ })).toHaveAttribute('href', '/exam/m1');
+    expect(within(panel()).getByRole('heading', { name: 'เริ่มทำข้อสอบ' })).toBeInTheDocument();
+    expect(within(panel()).getByText('พร้อมแล้วกดเริ่มทำข้อสอบได้เลย')).toBeInTheDocument();
+  });
+
+  it('task 21 Q3: attempt โหมดฝึกค้าง → "ทำต่อ" ไป /practice/exam (ตรงกับการ์ด) ปุ่มสี indigo', async () => {
     setUser({ id: 'u1' });
     (getMockExam as jest.Mock).mockResolvedValue(exam());
     (getMyInProgressAttempts as jest.Mock).mockResolvedValue([
@@ -127,7 +148,26 @@ describe('MockExamDetail (task 11 + task 15 โครงใหม่)', () => {
       { id: 'a2', examId: 'other', mode: 'exam' },
     ]);
     render(<MockExamDetail id="m1" />);
-    expect(await screen.findByRole('link', { name: /เริ่มทำข้อสอบ/ })).toHaveAttribute('href', '/exam/m1');
+    const resume = await screen.findByRole('link', { name: /ทำต่อ/ });
+    expect(resume).toHaveAttribute('href', '/practice/exam/m1');
+    expect(resume.className).toMatch(/bg-indigo-600/);
+    expect(within(panel()).getByText('คุณฝึกทำชุดนี้ค้างอยู่ (โหมดฝึก) กดเพื่อทำต่อ')).toBeInTheDocument();
+    expect(within(panel()).getByRole('heading', { name: 'ทำข้อสอบต่อ' })).toBeInTheDocument();
+  });
+
+  it('task 21 Q3: มีค้างทั้งสองโหมด → ใช้ attempt เดียวกับการ์ด (myProgress) ก่อนลำดับจาก API', async () => {
+    setUser({ id: 'u1' });
+    (getMockExam as jest.Mock).mockResolvedValue(
+      exam({
+        myProgress: { status: 'in_progress', mode: 'practice', answered: 3, total: 30, scorePercent: null, attemptId: 'a0' },
+      }),
+    );
+    (getMyInProgressAttempts as jest.Mock).mockResolvedValue([
+      { id: 'a1', examId: 'm1', mode: 'exam' },
+      { id: 'a0', examId: 'm1', mode: 'practice' },
+    ]);
+    render(<MockExamDetail id="m1" />);
+    expect(await screen.findByRole('link', { name: /ทำต่อ/ })).toHaveAttribute('href', '/practice/exam/m1');
   });
 
   it('ชุดโค้ด: กล่อง "วิธีรับโค้ด" เป็นการ์ดเรียงลำดับ + ปุ่มลิงก์เปิดแท็บใหม่ + หมายเหตุ', async () => {

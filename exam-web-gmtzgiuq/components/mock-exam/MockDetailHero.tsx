@@ -1,6 +1,8 @@
 import { BookOpen } from 'lucide-react';
 import { getMockPriceLabel, normalizeAccessType, type MockAccessType, type MockExamAccess } from '@/lib/mock-exam';
 import { formatThaiShortDate, UNLOCK_TEXT, UNLOCKED_WORD } from '@/lib/unlock-codes';
+import type { MockCampaign, MockCampaignStatus } from '@/lib/api/exams';
+import { CAMPAIGN_STATUS_LABELS, campaignDateSegments, segmentsToText } from '@/lib/free-mock';
 
 interface MockDetailHeroProps {
   title: string;
@@ -11,7 +13,16 @@ interface MockDetailHeroProps {
   questionCount: number;
   durationMinutes: number | null;
   access: MockExamAccess;
+  /** แคมเปญ (task 21) — ชุดที่ไม่ใช่โค้ดไม่ต้องส่ง */
+  campaign?: MockCampaign | null;
+  campaignStatus?: MockCampaignStatus | null;
 }
+
+const CAMPAIGN_PILL_CLASS: Record<MockCampaignStatus, string> = {
+  open: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/70 dark:text-emerald-200',
+  upcoming: 'bg-amber-100 text-amber-900 dark:bg-amber-900/70 dark:text-amber-200',
+  ended: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
+};
 
 const PILL = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold whitespace-nowrap';
 
@@ -47,9 +58,15 @@ export default function MockDetailHero({
   questionCount,
   durationMinutes,
   access,
+  campaign = null,
+  campaignStatus = null,
 }: MockDetailHeroProps) {
   const accessType = normalizeAccessType(rawAccessType);
   const pills = heroPills(accessType, price, access);
+  if (campaignStatus) {
+    pills.push({ label: CAMPAIGN_STATUS_LABELS[campaignStatus], className: CAMPAIGN_PILL_CLASS[campaignStatus] });
+  }
+  const campaignLine = segmentsToText(campaignDateSegments(campaign));
   const stats: { value: string; label: string }[] = [{ value: questionCount.toLocaleString('th-TH'), label: 'ข้อ' }];
   // ไม่ตั้งเวลา → ไม่แสดงช่องนาที (กล่องรายละเอียดด้านล่างแสดง "ไม่จับเวลา")
   if (durationMinutes && durationMinutes > 0) {
@@ -92,6 +109,11 @@ export default function MockDetailHero({
             </p>
           )}
           <h1 className="mt-1 text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-tight break-words">{title}</h1>
+          {campaignLine && (
+            <p className="mt-2 text-sm font-medium text-white/90" data-testid="hero-campaign-dates">
+              {campaignLine}
+            </p>
+          )}
         </div>
 
         <dl className="flex flex-shrink-0 gap-6 sm:gap-8" data-testid="mock-hero-stats">

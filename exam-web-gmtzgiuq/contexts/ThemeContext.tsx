@@ -12,11 +12,10 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  // ค่าก่อน mount = 'light' (ตรงกับ HTML ฝั่ง server จึงไม่ hydration mismatch) แล้ว effect ด้านล่างอ่านค่าจริง
   const [theme, setTheme] = useState<Theme>('light');
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     // Load from localStorage
     const stored = localStorage.getItem('theme') as Theme | null;
     if (stored === 'dark' || stored === 'light') {
@@ -47,10 +46,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(newTheme);
   }
 
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
+  // ครอบ Provider ตั้งแต่ render แรกเสมอ — เดิมคืน children เปล่าก่อน mount แล้วค่อยครอบ Provider
+  // ทำให้ทั้งแอปถูก unmount/mount ใหม่ 1 ครั้งทุก hard load (ref/state ในหน้ารีเซ็ต, effect ยิง API ซ้ำ)
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}

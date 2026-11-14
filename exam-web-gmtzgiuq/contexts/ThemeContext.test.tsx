@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider, useTheme } from './ThemeContext';
@@ -63,5 +64,46 @@ describe('ThemeContext', () => {
     expect(screen.getByText('current: dark')).toBeInTheDocument();
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(localStorage.getItem('theme')).toBe('dark');
+  });
+
+  // task 21 Q2: เดิมคืน children เปล่าก่อน mount แล้วค่อยครอบ Provider → ทั้งแอป remount 1 ครั้งทุก hard load
+  it('ไม่ remount children หลังอ่านธีม (state/ref ของหน้าคงอยู่, effect ที่เรียก API ไม่ยิงซ้ำ)', async () => {
+    mockMatchMedia(true);
+    const mounts = jest.fn();
+    const unmounts = jest.fn();
+    function Page() {
+      const [instance] = useState(() => Math.random());
+      useEffect(() => {
+        mounts(instance);
+        return () => unmounts(instance);
+      }, [instance]);
+      return <ThemeConsumer />;
+    }
+    render(
+      <ThemeProvider>
+        <Page />
+      </ThemeProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('current: dark')).toBeInTheDocument());
+    expect(mounts).toHaveBeenCalledTimes(1);
+    expect(unmounts).not.toHaveBeenCalled();
+  });
+
+  it('render แรก (ก่อนอ่าน localStorage) ได้ค่า light ตรงกับ HTML ฝั่ง server แล้วเปลี่ยนเป็นค่าที่เก็บไว้', async () => {
+    localStorage.setItem('theme', 'dark');
+    const seen: string[] = [];
+    function Probe() {
+      const { theme } = useTheme();
+      seen.push(theme);
+      return null;
+    }
+    render(
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>,
+    );
+    expect(seen[0]).toBe('light');
+    await waitFor(() => expect(seen[seen.length - 1]).toBe('dark'));
   });
 });

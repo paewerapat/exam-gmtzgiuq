@@ -39,7 +39,19 @@ describe('exams API — Mock Exam (task 11)', () => {
     expect(url.searchParams.get('limit')).toBe('12');
     expect(res).toEqual({
       // API ก่อน task 15 ไม่มี access → ชุดไม่ฟรีถือว่า locked
-      items: [{ ...rawItem, price: 150, access: { status: 'locked', expiresAt: null, via: null }, venueKey: null }],
+      items: [
+        {
+          ...rawItem,
+          price: 150,
+          access: { status: 'locked', expiresAt: null, via: null },
+          venueKey: null,
+          // API ก่อน task 21 ไม่มี field กลุ่มนี้ → null
+          campaign: null,
+          subjectLabel: null,
+          color: null,
+          myProgress: null,
+        },
+      ],
       total: 1,
       page: 2,
       limit: 12,

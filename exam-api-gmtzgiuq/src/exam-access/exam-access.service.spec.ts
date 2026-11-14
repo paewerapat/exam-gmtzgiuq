@@ -368,6 +368,137 @@ describe('ExamAccessService (task 15)', () => {
     });
   });
 
+  describe('assertCanStartExamId — campaign window (task 21)', () => {
+    const at = new Date('2026-11-14T05:00:00.000Z');
+    const future = new Date('2026-11-20T02:00:00.000Z');
+    const past = new Date('2026-11-10T02:00:00.000Z');
+    const campaign = (window: Record<string, unknown>) => ({
+      ...codeExam,
+      bankOnly: false,
+      campaignStartsAt: null,
+      campaignEndsAt: null,
+      ...window,
+    });
+
+    async function rejection(promise: Promise<unknown>) {
+      const err = await promise.then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(err).toBeInstanceOf(ForbiddenException);
+      return (err as ForbiddenException).getResponse();
+    }
+
+    it('loads the lock + window fields only', async () => {
+      examFindOne.mockResolvedValue(null);
+      await service.assertCanStartExamId(student, 'code-1', at);
+      expect(examFindOne).toHaveBeenCalledWith({
+        select: {
+          id: true,
+          isMock: true,
+          accessType: true,
+          category: true,
+          bankOnly: true,
+          campaignStartsAt: true,
+          campaignEndsAt: true,
+        },
+        where: { id: 'code-1' },
+        loadEagerRelations: false,
+      });
+    });
+
+    it('upcoming → 403 CAMPAIGN_NOT_OPEN, even with a code (and without one)', async () => {
+      examFindOne.mockResolvedValue(campaign({ campaignStartsAt: future }));
+      grant({ examId: 'code-1', expiresAt: null });
+      expect(
+        await rejection(service.assertCanStartExamId(student, 'code-1', at)),
+      ).toEqual({
+        statusCode: 403,
+        message: 'แคมเปญนี้ยังไม่เปิด เริ่มทำข้อสอบได้เมื่อถึงวันเปิดแคมเปญ',
+        errorCode: 'CAMPAIGN_NOT_OPEN',
+      });
+      grants.length = 0;
+      expect(
+        await rejection(service.assertCanStartExamId(student, 'code-1', at)),
+      ).toMatchObject({ errorCode: 'CAMPAIGN_NOT_OPEN' });
+    });
+
+    it('ended → 403 CAMPAIGN_ENDED', async () => {
+      examFindOne.mockResolvedValue(
+        campaign({ campaignStartsAt: past, campaignEndsAt: past }),
+      );
+      grant({ examId: 'code-1', expiresAt: null });
+      expect(
+        await rejection(service.assertCanStartExamId(student, 'code-1', at)),
+      ).toEqual({
+        statusCode: 403,
+        message: 'แคมเปญนี้จบแล้ว เริ่มทำข้อสอบชุดนี้ใหม่ไม่ได้',
+        errorCode: 'CAMPAIGN_ENDED',
+      });
+    });
+
+    it('open (or no window): the access rules as before', async () => {
+      examFindOne.mockResolvedValue(
+        campaign({ campaignStartsAt: past, campaignEndsAt: future }),
+      );
+      expect(
+        await rejection(service.assertCanStartExamId(student, 'code-1', at)),
+      ).toMatchObject({ errorCode: 'EXAM_LOCKED' });
+      grant({ examId: 'code-1', expiresAt: null });
+      await expect(
+        service.assertCanStartExamId(student, 'code-1', at),
+      ).resolves.toBe(undefined);
+      examFindOne.mockResolvedValue(campaign({}));
+      await expect(
+        service.assertCanStartExamId(student, 'code-1', at),
+      ).resolves.toBe(undefined);
+    });
+
+    it('admins bypass the window', async () => {
+      for (const window of [
+        { campaignStartsAt: future },
+        { campaignEndsAt: past },
+      ]) {
+        examFindOne.mockResolvedValue(campaign(window));
+        await expect(
+          service.assertCanStartExamId(admin, 'code-1', at),
+        ).resolves.toBe(undefined);
+      }
+    });
+
+    it('the window has no effect on free / purchase / normal exams; bankOnly stays 404', async () => {
+      const window = { campaignStartsAt: future, campaignEndsAt: null };
+      examFindOne.mockResolvedValue({ ...freeMock, ...window });
+      await expect(
+        service.assertCanStartExamId(student, 'free-1', at),
+      ).resolves.toBe(undefined);
+      examFindOne.mockResolvedValue({ ...normalExam, ...window });
+      await expect(
+        service.assertCanStartExamId(student, 'normal-1', at),
+      ).resolves.toBe(undefined);
+      examFindOne.mockResolvedValue({ ...purchaseExam, ...window });
+      expect(
+        await rejection(service.assertCanStartExamId(student, 'buy-1', at)),
+      ).toMatchObject({ errorCode: 'EXAM_LOCKED' });
+      examFindOne.mockResolvedValue(
+        campaign({ bankOnly: true, campaignEndsAt: past }),
+      );
+      await expect(
+        service.assertCanStartExamId(student, 'code-1', at),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('unknown exam / no id passes (callers report 404)', async () => {
+      examFindOne.mockResolvedValue(null);
+      await expect(
+        service.assertCanStartExamId(student, 'missing', at),
+      ).resolves.toBe(undefined);
+      await expect(
+        service.assertCanStartExamId(student, null, at),
+      ).resolves.toBe(undefined);
+    });
+  });
+
   describe('purchase exams and Pro plans (task 17)', () => {
     const netsatBuy = {
       ...exam('buy-netsat', ExamAccessType.PURCHASE),

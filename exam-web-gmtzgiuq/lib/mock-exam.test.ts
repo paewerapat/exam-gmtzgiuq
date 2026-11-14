@@ -103,6 +103,22 @@ describe('getMockPrimaryAction', () => {
     });
   });
 
+  it('task 21 Q3: ทำต่อ attempt โหมดฝึก → /practice/exam ; โหมด exam / ไม่ระบุ → /exam ; เริ่มใหม่ไม่ขึ้นกับโหมด', () => {
+    const free = { id: 'e1', accessType: 'free' };
+    expect(getMockPrimaryAction(free, { hasInProgress: true, resumeMode: 'practice' })).toEqual({
+      kind: 'resume',
+      label: 'ทำต่อ',
+      href: '/practice/exam/e1',
+    });
+    expect(getMockPrimaryAction(free, { hasInProgress: true, resumeMode: 'exam' })).toMatchObject({ href: '/exam/e1' });
+    expect(getMockPrimaryAction(free, { hasInProgress: true, resumeMode: null })).toMatchObject({ href: '/exam/e1' });
+    expect(getMockPrimaryAction(free, { hasInProgress: false, resumeMode: 'practice' })).toEqual({
+      kind: 'start',
+      label: 'เริ่มทำข้อสอบ',
+      href: '/exam/e1',
+    });
+  });
+
   it('ชุดโค้ด → Unlock, ชุดซื้อ → ซื้อ (ไม่มี href)', () => {
     const unlock = getMockPrimaryAction({ id: 'e1', accessType: 'code' }, { hasInProgress: true });
     expect(unlock).toMatchObject({ kind: 'unlock', label: 'Unlock' });
@@ -219,6 +235,8 @@ describe('ฟอร์มแอดมิน', () => {
       level: null,
       detailBlocks: [],
       codeInstructions: null,
+      campaignStartsAt: null,
+      campaignEndsAt: null,
     });
   });
 
@@ -232,6 +250,8 @@ describe('ฟอร์มแอดมิน', () => {
       blocks: [createDetailBlock('text', 'x'), createDetailBlock('image', '/uploads/a.png')],
       codeSteps: [],
       codeNote: '',
+      campaignStartsAt: '',
+      campaignEndsAt: '',
     });
     expect(input).toEqual({
       isMock: false,
@@ -244,6 +264,8 @@ describe('ฟอร์มแอดมิน', () => {
         { type: 'image', url: '/uploads/a.png' },
       ],
       codeInstructions: null,
+      campaignStartsAt: null,
+      campaignEndsAt: null,
     });
   });
 
@@ -275,6 +297,8 @@ describe('ฟอร์มแอดมิน', () => {
       ],
       codeSteps: [],
       codeNote: '',
+      campaignStartsAt: '',
+      campaignEndsAt: '',
     });
     expect(input).toEqual({
       isMock: false,
@@ -284,6 +308,8 @@ describe('ฟอร์มแอดมิน', () => {
       level: null,
       detailBlocks: [{ type: 'text', text: 'เก็บ' }],
       codeInstructions: null,
+      campaignStartsAt: null,
+      campaignEndsAt: null,
     });
   });
 
@@ -314,6 +340,8 @@ describe('ฟอร์มแอดมิน', () => {
         { type: 'text', text: 'บรรทัด 1\nบรรทัด 2' },
       ],
       codeInstructions: null,
+      campaignStartsAt: null,
+      campaignEndsAt: null,
     });
     expect(toMockExamInput(mockForm()).price).toBeNull();
     expect(toMockExamInput(mockForm()).level).toBeNull();

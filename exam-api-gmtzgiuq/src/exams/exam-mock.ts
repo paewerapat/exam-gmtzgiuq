@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
+// Type only (erased at runtime): exam-campaign imports this file
+import type { MockExamCampaign } from './exam-campaign';
 
 /**
  * Mock Exam settings (task 11). Only `isMock` exams use `accessType`;
@@ -288,6 +290,12 @@ export interface MockExamItem {
   // Key of the active Pro venue of the exam's category (task 17): the web
   // links a locked purchase exam to /upgrade?venue=<key>; null = none
   venueKey: string | null;
+  // Subject shown on the card (task 21): subjects.bankLabel, else its name;
+  // null without a subject
+  subjectLabel: string | null;
+  // Banner colour (task 21): the subject's colour, else by accessType
+  // (MOCK_ACCESS_COLORS); always a #hex
+  color: string;
 }
 
 /** Raw row of the Mock Exam card query (ExamsService.mockExamQuery). */
@@ -306,10 +314,40 @@ export interface MockExamRow {
   price: number | string | null;
   releaseDate: Date;
   venueKey?: string | null;
+  // task 21
+  subjectBankLabel?: string | null;
+  subjectColor?: string | null;
+  campaignStartsAt?: Date | string | null;
+  campaignEndsAt?: Date | string | null;
+}
+
+/** Banner colour of a Mock Exam without a subject colour (task 21). */
+export const MOCK_ACCESS_COLORS: Record<ExamAccessType, string> = {
+  [ExamAccessType.FREE]: '#10b981',
+  [ExamAccessType.CODE]: '#f59e0b',
+  [ExamAccessType.PURCHASE]: '#6366f1',
+};
+
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+/**
+ * `color` of a card: the subject colour when it is a #hex (it ends up in a
+ * style attribute), else the colour of the access type.
+ */
+export function mockExamColor(
+  subjectColor: string | null | undefined,
+  accessType: ExamAccessType,
+): string {
+  const color = typeof subjectColor === 'string' ? subjectColor.trim() : '';
+  if (HEX_COLOR_PATTERN.test(color)) return color;
+  return MOCK_ACCESS_COLORS[accessType] ?? MOCK_ACCESS_COLORS.free;
 }
 
 /** Card fields of a raw row, with numbers as numbers (DECIMAL → number). */
 export function toMockExamItem(row: MockExamRow): MockExamItem {
+  const accessType = row.accessType ?? ExamAccessType.FREE;
+  const subjectLabel =
+    (row.subjectBankLabel ?? '').trim() || (row.subjectName ?? '').trim();
   return {
     id: row.id,
     title: row.title,
@@ -324,10 +362,12 @@ export function toMockExamItem(row: MockExamRow): MockExamItem {
         ? null
         : Number(row.durationMinutes),
     level: row.level ?? null,
-    accessType: row.accessType ?? ExamAccessType.FREE,
+    accessType,
     price: toPrice(row.price),
     releaseDate: row.releaseDate,
     venueKey: row.venueKey ?? null,
+    subjectLabel: row.subjectId && subjectLabel ? subjectLabel : null,
+    color: mockExamColor(row.subjectColor, accessType),
   };
 }
 
@@ -355,15 +395,115 @@ export interface MockExamAccess {
   via: MockExamAccessVia | null;
 }
 
+/**
+ * The logged-in viewer's latest attempt of a Mock Exam (task 21), by
+ * attempt date (createdAt), abandoned attempts left out; null for guests and
+ * when there is none. in_progress: `answered` = answers given so far;
+ * completed: `scorePercent` = the score of that attempt (0–100).
+ */
+export interface MockExamProgress {
+  status: 'in_progress' | 'completed';
+  // 'practice' | 'exam': which page resumes it / shows its result
+  mode: string;
+  answered: number;
+  total: number;
+  scorePercent: number | null;
+  attemptId: string;
+}
+
 export interface MockExamListItem extends MockExamItem {
   access: MockExamAccess;
+  // task 21: null unless accessType = code
+  campaign: MockExamCampaign | null;
+  myProgress: MockExamProgress | null;
 }
+
+/**
+ * One row of "เนื้อหาที่ออก" (task 21): questions of the exam per topic.
+ * topicId null = questions without a (known) topic, named "อื่น ๆ".
+ */
+export interface MockExamTopicCount {
+  topicId: string | null;
+  name: string;
+  count: number;
+}
+
+export const OTHER_TOPIC_NAME = 'อื่น ๆ';
 
 /** `GET /exams/mock/:id`: the card fields + description + detail blocks. */
 export interface MockExamDetail extends MockExamListItem {
   description: string | null;
   detailBlocks: ExamDetailBlock[];
   codeInstructions: ExamCodeInstructions | null;
+  topicBreakdown: MockExamTopicCount[];
+}
+
+/** `?sort=` of GET /exams/mock (task 21); anything else = newest. */
+export type MockExamSort = 'recommended' | 'newest' | 'name';
+export const MOCK_EXAM_SORTS: readonly MockExamSort[] = [
+  'recommended',
+  'newest',
+  'name',
+];
+
+export function parseMockExamSort(value: unknown): MockExamSort {
+  return MOCK_EXAM_SORTS.includes(value as MockExamSort)
+    ? (value as MockExamSort)
+    : 'newest';
+}
+
+/** Raw row of the attempts read for `myProgress`. */
+export interface MockProgressRow {
+  id: string;
+  examId: string;
+  status: string;
+  mode: string | null;
+  answers: unknown;
+  questionIds: unknown;
+  totalQuestions: number | string | null;
+  score: number | string | null;
+}
+
+/** JSON column of a raw row (MariaDB returns json as text) → value. */
+function parseJsonColumn(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `myProgress` of one attempt row (rows passed newest first per exam by the
+ * caller). Answers count when not null/empty, like the attempt page.
+ */
+export function toMockExamProgress(row: MockProgressRow): MockExamProgress {
+  const answers = parseJsonColumn(row.answers);
+  const answered =
+    answers && typeof answers === 'object' && !Array.isArray(answers)
+      ? Object.values(answers as Record<string, unknown>).filter(
+          (v) => v !== null && v !== undefined && v !== '',
+        ).length
+      : 0;
+  const questionIds = parseJsonColumn(row.questionIds);
+  const totalQuestions = Number(row.totalQuestions);
+  const total =
+    Number.isFinite(totalQuestions) && totalQuestions > 0
+      ? totalQuestions
+      : Array.isArray(questionIds)
+        ? questionIds.length
+        : 0;
+  const completed = row.status === 'completed';
+  const score = Number(row.score);
+  return {
+    status: completed ? 'completed' : 'in_progress',
+    mode: row.mode || 'practice',
+    answered: total > 0 ? Math.min(answered, total) : answered,
+    total,
+    scorePercent: completed && Number.isFinite(score) ? score : null,
+    attemptId: row.id,
+  };
 }
 
 export interface PaginatedMockExams {

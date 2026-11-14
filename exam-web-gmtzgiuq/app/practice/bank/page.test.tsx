@@ -132,6 +132,12 @@ describe('/practice/bank — ฝึกจาก Question Bank (task 20)', () => 
       expect(saved.venueKey).toBe('a-level');
     });
     expect(Object.keys(localStorage).some((k) => k.endsWith('_venue'))).toBe(false);
+    // ตอบข้อแรกไว้ (มีความคืบหน้า → เปิดใหม่ต้องถาม "ทำค้างอยู่")
+    await user.click(screen.getByRole('button', { name: /ตัวเลือก ก/ }));
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem('exam_current_session') ?? '{}');
+      expect(saved.answers).toEqual({ q1: 'a' });
+    });
     first.unmount();
 
     // เปิดลิงก์เดิมอีกครั้ง → กล่องทำต่อใช้ชื่อ venueName และไม่เรียก session ใหม่
@@ -142,6 +148,56 @@ describe('/practice/bank — ฝึกจาก Question Bank (task 20)', () => 
     await user.click(await screen.findByRole('button', { name: /ข้อถัดไป/ }, FIND));
     const dialog = await screen.findByRole('dialog', undefined, FIND);
     expect(within(dialog).getByRole('link', { name: 'Unlock' })).toHaveAttribute('href', '/upgrade?venue=a-level');
+  });
+
+  it('task 21 Q2: เปิดใหม่ขณะ session เดิมยังไม่ได้ตอบ (ข้อแรก) → ใช้ชุดเดิมต่อเลย ไม่ถาม "ทำค้างอยู่" และไม่สุ่มชุดใหม่', async () => {
+    (createQbSession as jest.Mock).mockResolvedValue({
+      venueKey: 'netsat',
+      subjectLabel: 'ชีวะ',
+      total: 1,
+      questions: [mcq('q1')],
+    });
+    const first = render(<BankPracticePage />);
+    await screen.findByText('โจทย์ q1', undefined, FIND);
+    const firstId = JSON.parse(localStorage.getItem('exam_current_session') ?? '{}').id;
+    first.unmount();
+
+    render(<BankPracticePage />);
+    expect(await screen.findByText('โจทย์ q1', undefined, FIND)).toBeInTheDocument();
+    expect(screen.queryByText('ทำค้างอยู่')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ทำต่อจากข้อที่/ })).not.toBeInTheDocument();
+    expect(createQbSession).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem('exam_current_session') ?? '{}').id).toBe(firstId);
+  });
+
+  it('task 21 M1: session เดิมยังไม่ได้ตอบแต่มีข้อล็อก (อาจเพิ่ง Upgrade) → สุ่มชุดใหม่ ไม่ใช้ชุดที่ล็อกซ้ำ', async () => {
+    (createQbSession as jest.Mock)
+      .mockResolvedValueOnce({
+        venueKey: 'netsat',
+        subjectLabel: 'ชีวะ',
+        total: 2,
+        questions: [toLockedQuestion({ id: 'L1', topicId: 't1' }), mcq('q2')],
+      })
+      .mockResolvedValueOnce({
+        venueKey: 'netsat',
+        subjectLabel: 'ชีวะ',
+        total: 2,
+        questions: [mcq('c1'), mcq('q2')],
+      });
+    const first = render(<BankPracticePage />);
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem('exam_current_session') ?? '{}').questionIds).toEqual(['L1', 'q2']),
+    );
+    const firstId = JSON.parse(localStorage.getItem('exam_current_session') ?? '{}').id;
+    first.unmount();
+
+    render(<BankPracticePage />);
+    expect(await screen.findByText('โจทย์ c1', undefined, FIND)).toBeInTheDocument();
+    expect(screen.queryByText('ทำค้างอยู่')).not.toBeInTheDocument();
+    expect(createQbSession).toHaveBeenCalledTimes(2);
+    const saved = JSON.parse(localStorage.getItem('exam_current_session') ?? '{}');
+    expect(saved.id).not.toBe(firstId);
+    expect(saved.questionIds).toEqual(['c1', 'q2']);
   });
 
   it('ไม่มีข้อที่ตรงตัวกรอง → ข้อความ + ปุ่มกลับไปหน้าเลือกบท', async () => {

@@ -6,6 +6,13 @@
 //   questions[].is_challenge (หรือ isChallenge): true → ข้อ Challenge — มีผลเฉพาะชุดที่ bank_only
 //   ค่าที่ไม่ใช่ boolean → คำเตือน แล้วใช้ false ; ตัวอย่างไฟล์: lib/__fixtures__/exam-import-bank-sample.json
 //   questions[].difficulty: "easy" | "medium" | "hard" (หรือ ง่าย / ปานกลาง / ยาก) ไม่ใส่ = medium ; ค่าอื่น → คำเตือน แล้วใช้ medium
+//
+// ช่วงแคมเปญ (task 21) — exam.campaign_starts_at / exam.campaign_ends_at (หรือ campaignStartsAt / campaignEndsAt):
+//   ISO 8601 ที่มี timezone (เช่น "2026-12-01T00:00:00+07:00") หรือ "YYYY-MM-DD HH:mm" / "YYYY-MM-DD" = เวลาไทย
+//   วันอย่างเดียว: campaign_starts_at = 00:00 ของวันนั้น, campaign_ends_at = 23:59:59 ของวันนั้น (เปิดทั้งวัน)
+//   campaign_ends_at แบบ "HH:mm" นับรวมทั้งนาทีนั้น (เก็บเป็น HH:mm:59 เหมือนฟอร์มแอดมิน)
+//   ค่าไม่ถูกต้อง → คำเตือนแล้วไม่ใช้ช่องนั้น ; ปิดไม่หลังเปิด → คำเตือนแล้วไม่ใช้ทั้งคู่
+//   มีผลเฉพาะชุด Mock แบบใช้โค้ด (ตั้ง Mock ในหน้าแก้ไขหลังนำเข้า)
 import { strFromU8, unzipSync } from 'fflate';
 import type { CreateExamInput, ExamPassageInput, ExamQuestionInput } from '@/lib/api/exams';
 import type { QuestionChoice, QuestionDifficulty } from '@/lib/api/questions';
@@ -19,6 +26,7 @@ import {
 } from '@/lib/exam-passages';
 import type { Category } from '@/lib/api/categories';
 import type { Subject } from '@/lib/api/curriculum';
+import { bangkokInputToIso, withEndOfMinute } from '@/lib/release-date';
 
 export const MAX_IMPORT_FILE_BYTES = 100 * 1024 * 1024; // ไฟล์ที่เลือก (.zip/.json)
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // ตรงกับ limit ของ POST /upload
@@ -131,6 +139,9 @@ export interface ParsedImport {
     description: string | null;
     categoryText: string | null;
     durationMinutes: number | null;
+    /** ช่วงแคมเปญ ISO (task 21) — null = ไม่ระบุ */
+    campaignStartsAt?: string | null;
+    campaignEndsAt?: string | null;
   } | null;
   questions: ParsedImportQuestion[];
   passages: ParsedImportPassage[];
@@ -179,6 +190,72 @@ function asText(v: unknown): string {
   if (typeof v === 'string') return v;
   if (typeof v === 'number' && Number.isFinite(v)) return String(v);
   return '';
+}
+
+const ZONED_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
+const ZONED_NO_SECONDS = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * วันเวลาในไฟล์นำเข้า → ISO (UTC): ISO ที่มี timezone ใช้ตามนั้น / ไม่มี timezone = เวลาไทย
+ * ("YYYY-MM-DD HH:mm", "YYYY-MM-DDTHH:mm", "YYYY-MM-DD") ค่าไม่ถูกต้อง → null
+ * boundary 'end' (วันปิดแคมเปญ): วันอย่างเดียว → 23:59:59 ของวันนั้น, "HH:mm" (มีหรือไม่มี timezone) → HH:mm:59 (นับรวมทั้งนาที)
+ * ค่าเริ่มต้น 'start': วันอย่างเดียว → 00:00
+ */
+export function parseImportDateTime(value: unknown, boundary: 'start' | 'end' = 'start'): string | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim();
+  if (!v) return null;
+  if (ZONED_ISO.test(v)) {
+    // มี timezone แต่ไม่มีวินาที + วันปิด → เติม :59 เหมือนค่าที่ไม่มี timezone (task 21 M4)
+    const zoned = boundary === 'end' ? v.replace(ZONED_NO_SECONDS, '$1:59$2') : v;
+    const d = new Date(zoned);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    return bangkokInputToIso(boundary === 'end' ? `${v}T23:59:59` : `${v}T00:00`);
+  }
+  const local = v.replace(' ', 'T');
+  return bangkokInputToIso(boundary === 'end' ? withEndOfMinute(local) : local);
+}
+
+/** อ่านช่วงแคมเปญจาก exam ในไฟล์ (คำเตือนใส่ใน issues) */
+function readCampaignWindow(
+  examRaw: Record<string, unknown>,
+  issues: ImportIssue[],
+): { campaignStartsAt?: string; campaignEndsAt?: string } {
+  const read = (keys: string[], label: string, boundary: 'start' | 'end'): { iso: string | null; raw: unknown } => {
+    for (const key of keys) {
+      const raw = examRaw[key];
+      if (raw === undefined || raw === null || raw === '') continue;
+      const iso = parseImportDateTime(raw, boundary);
+      if (!iso) {
+        issues.push(warn(`${key} ${describeJsonValue(raw)} ไม่ใช่วันเวลาที่ถูกต้อง จะไม่ตั้ง${label}`));
+      }
+      return { iso, raw };
+    }
+    return { iso: null, raw: undefined };
+  };
+  const starts = read(['campaign_starts_at', 'campaignStartsAt'], 'วันเปิดแคมเปญ', 'start');
+  const ends = read(['campaign_ends_at', 'campaignEndsAt'], 'วันปิดแคมเปญ', 'end');
+  let campaignStartsAt = starts.iso;
+  let campaignEndsAt = ends.iso;
+  // "ปิดต้องหลังเปิด" เทียบเวลาที่เขียนในไฟล์ก่อนเติม :59 (นาทีเดียวกัน = ผิด เหมือนฟอร์ม — M4)
+  // วันอย่างเดียวยังเทียบแบบ 23:59:59 (เปิด/ปิดวันเดียวกัน = เปิดทั้งวัน)
+  const isDateOnly = typeof ends.raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ends.raw.trim());
+  const endsAsWritten = campaignEndsAt && !isDateOnly ? parseImportDateTime(ends.raw, 'start') : campaignEndsAt;
+  if (campaignStartsAt && endsAsWritten && new Date(endsAsWritten) <= new Date(campaignStartsAt)) {
+    issues.push(warn('ช่วงแคมเปญ: วันปิดต้องหลังวันเปิด จะไม่ตั้งช่วงแคมเปญ'));
+    campaignStartsAt = null;
+    campaignEndsAt = null;
+  }
+  if (campaignStartsAt || campaignEndsAt) {
+    issues.push(note('ช่วงแคมเปญมีผลเฉพาะชุด Mock แบบใช้โค้ด — ตั้งเป็น Mock ได้ในหน้าแก้ไขหลังนำเข้า'));
+  }
+  // ใส่เฉพาะช่องที่มี (ไฟล์ที่ไม่มีช่วงแคมเปญได้ exam แบบเดิมทุกอย่าง)
+  return {
+    ...(campaignStartsAt ? { campaignStartsAt } : {}),
+    ...(campaignEndsAt ? { campaignEndsAt } : {}),
+  };
 }
 
 /** เลขข้อ: รับ number หรือ string ตัวเลข ("1") */
@@ -521,10 +598,13 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
   }
   const bankOnly = bankFlag.value;
 
+  // ช่วงแคมเปญ (task 21)
+  const campaign = readCampaignWindow(examRaw, fileIssues);
+
   const rawQuestions = json.questions;
   if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
     fileIssues.push(err('ไม่พบข้อสอบในไฟล์ (questions ว่าง)'));
-    return { ...empty, exam: { title, description, categoryText, durationMinutes }, bankOnly };
+    return { ...empty, exam: { title, description, categoryText, durationMinutes, ...campaign }, bankOnly };
   }
 
   // เรียงตาม no (ข้อที่ไม่มี no ไปท้าย เรียงตามลำดับเดิม)
@@ -750,7 +830,7 @@ function parseExamJson(json: unknown, files: Map<string, ZipEntry>, fromZip: boo
 
   return {
     fileIssues,
-    exam: { title, description, categoryText, durationMinutes },
+    exam: { title, description, categoryText, durationMinutes, ...campaign },
     questions,
     passages,
     images: [...images.values()],
@@ -1150,5 +1230,8 @@ export function buildCreateExamInput(
     subjectId: opts.subjectId || null,
     durationMinutes: resolved.exam.durationMinutes,
     bankOnly,
+    // ช่วงแคมเปญ (task 21) ส่งเฉพาะที่มีในไฟล์
+    ...(resolved.exam.campaignStartsAt ? { campaignStartsAt: resolved.exam.campaignStartsAt } : {}),
+    ...(resolved.exam.campaignEndsAt ? { campaignEndsAt: resolved.exam.campaignEndsAt } : {}),
   };
 }

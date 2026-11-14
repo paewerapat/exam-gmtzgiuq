@@ -35,14 +35,18 @@ export class ExamsController {
   }
 
   // Public - Mock Exam pages (task 11). MUST be before :id.
-  // Card fields only: no questions or answers. With a token, `access` is the
-  // logged-in user's (task 15); without one, locked exams are `locked`.
+  // Card fields only: no questions or answers. With a token, `access` and
+  // `myProgress` are the logged-in user's (task 15/21); without one, locked
+  // exams are `locked` and myProgress is null.
+  // task 21: ?sort=recommended|newest|name (else newest), ?venue=<venue key>
   @Get('mock')
   @UseGuards(OptionalJwtAuthGuard)
   async findMockExams(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 12,
     @Query('category') category?: string,
+    @Query('sort') sort?: string,
+    @Query('venue') venue?: string,
     @CurrentUser() user?: User | null,
   ) {
     return this.examsService.findMockExams(
@@ -50,6 +54,10 @@ export class ExamsController {
       +limit,
       category,
       user ?? null,
+      {
+        sort: typeof sort === 'string' ? sort : undefined,
+        venue: typeof venue === 'string' ? venue : undefined,
+      },
     );
   }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
+  CalendarClock,
   ArrowLeft,
   FileUp,
   Loader2,
@@ -27,6 +28,7 @@ import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
 import { useAuth } from '@/contexts/AuthContext';
 import { createExam } from '@/lib/api/exams';
+import { formatReleaseDate } from '@/lib/release-date';
 import { getCategories, type Category } from '@/lib/api/categories';
 import { getPublicCurriculumTree, type Subject } from '@/lib/api/curriculum';
 import { uploadImage, deleteUploadedImage, type UploadResult } from '@/lib/api/upload';
@@ -372,6 +374,26 @@ export default function ImportExamPage() {
               <li>ไม่ใส่ = ชุด/ข้อปกติ และเปลี่ยนสวิตช์ &quot;ใช้เฉพาะ Question Bank&quot; ในหน้านี้ได้ก่อนสร้าง</li>
             </ul>
           </details>
+          <details className="mb-6 -mt-4 text-sm text-gray-600 dark:text-gray-400">
+            <summary className="cursor-pointer text-indigo-600 dark:text-indigo-400 hover:underline w-fit">
+              ช่วงแคมเปญ (ชุด Mock แบบใช้โค้ด)
+            </summary>
+            <ul className="mt-2 ml-5 list-disc space-y-1">
+              <li>
+                <code className="px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">exam.campaign_starts_at</code>{' '}
+                / <code className="px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">exam.campaign_ends_at</code>{' '}
+                = วันเวลาเปิด / ปิด เช่น &quot;2026-12-01 09:00&quot; (เวลาไทย) หรือ ISO ที่มี timezone
+              </li>
+              <li>
+                ใส่วันอย่างเดียว (&quot;2026-12-31&quot;): วันเปิด = 00:00 น. ของวันนั้น, วันปิด = 23:59:59 น. ของวันนั้น (เปิดทั้งวัน)
+                · วันปิดแบบมีเวลา (ไม่ระบุวินาที รวมถึง ISO ที่มี timezone) นับรวมทั้งนาทีนั้น เช่น &quot;23:59&quot; ทำได้ถึง 23:59:59 น.
+              </li>
+              <li>
+                ไม่บังคับ วันปิดต้องหลังวันเปิดอย่างน้อย 1 นาที (เปิด/ปิดนาทีเดียวกัน = ไม่ตั้งช่วงแคมเปญ) มีผลเมื่อตั้งชุดเป็น Mock
+                แบบใช้โค้ดในหน้าแก้ไขหลังนำเข้า
+              </li>
+            </ul>
+          </details>
 
           {/* Result */}
           {result && (
@@ -539,6 +561,18 @@ export default function ImportExamPage() {
                       <ImageIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                       <span>{importImagesToUpload(resolved).length} รูป</span>
                     </div>
+                    {(exam.campaignStartsAt || exam.campaignEndsAt) && (
+                      <div
+                        className="col-span-2 sm:col-span-3 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300"
+                        data-testid="import-campaign-window"
+                      >
+                        <CalendarClock className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-500 dark:text-indigo-400" />
+                        <span className="min-w-0 break-words">
+                          ช่วงแคมเปญ (เวลาไทย): {exam.campaignStartsAt ? formatReleaseDate(exam.campaignStartsAt) : 'ไม่ระบุวันเปิด'} –{' '}
+                          {exam.campaignEndsAt ? formatReleaseDate(exam.campaignEndsAt) : 'ไม่ระบุวันปิด'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -94,6 +94,8 @@ type Exam {
   author: User!
   bankOnly: Boolean!
   bannerImage: String
+  campaignEndsAt: DateTime
+  campaignStartsAt: DateTime
   category: String!
   codeInstructions: ExamCodeInstructions
   createdAt: DateTime!

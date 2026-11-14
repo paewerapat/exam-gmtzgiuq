@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, RotateCcw, BookOpen, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
 import { ExamProvider, useExam } from '@/contexts/ExamContext';
@@ -11,6 +11,8 @@ import {
   clearExamSession,
   generateSessionId,
   calculateExamResult,
+  hasSessionProgress,
+  sameQuestionSet,
 } from '@/lib/exam-utils';
 import { getQuestionsBySubject } from '@/lib/api/questions';
 import { getPublicCurriculumTree } from '@/lib/api/curriculum';
@@ -38,8 +40,12 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
   const [result, setResult] = useState<ExamResult | null>(null);
 
   const sessionKey = `subject_${subjectId}`;
+  // StrictMode (dev) รัน effect ซ้ำ: รอบที่ 2 จะเจอ session ที่รอบแรกเพิ่งสร้างแล้วโชว์ "ทำค้างอยู่" ผิด ๆ → โหลดครั้งเดียว
+  const loadedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (loadedKeyRef.current === sessionKey) return;
+    loadedKeyRef.current = sessionKey;
     async function load() {
       try {
         const [questions, subjects] = await Promise.all([
@@ -57,8 +63,21 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
         const subjectName = subject?.name ?? 'ฝึกทำข้อสอบ';
 
         const { session: existing } = loadExamSession();
-        if (existing && existing.examId === sessionKey && existing.status === 'in_progress') {
+        // ยังไม่ได้ตอบแต่ข้อในชุดไม่ตรงกับที่ API ส่งมาแล้ว (แอดมินแก้ชุด) → เริ่มชุดใหม่ (task 21 M1)
+        // ตอบแล้ว → ถามทำต่อแบบเดิมแม้ id จะไม่ตรง
+        if (
+          existing &&
+          existing.examId === sessionKey &&
+          existing.status === 'in_progress' &&
+          (hasSessionProgress(existing) || sameQuestionSet(existing.questionIds, questions))
+        ) {
           saveExamSession(existing, questions);
+          // ยังไม่ได้ตอบและยังอยู่ข้อแรก → ใช้ต่อเลย ไม่ต้องถาม "ทำค้างอยู่" (task 21 Q2)
+          if (!hasSessionProgress(existing)) {
+            initExam(existing, questions);
+            setLoading(false);
+            return;
+          }
           setPendingSession(existing);
           setPendingQuestions(questions);
           setShowResume(true);
@@ -266,6 +285,7 @@ function SubjectExamContent({ subjectId }: { subjectId: string }) {
     <ExamContainer
       onComplete={() => { /* handled by useEffect */ }}
       mode="practice"
+      timerSettings={{}}
       backUrl="/dashboard/library"
     />
   );

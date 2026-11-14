@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, RotateCcw, BookOpen, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
 import { ExamProvider, useExam } from '@/contexts/ExamContext';
@@ -11,6 +11,8 @@ import {
   clearExamSession,
   generateSessionId,
   calculateExamResult,
+  hasSessionProgress,
+  sameQuestionSet,
 } from '@/lib/exam-utils';
 import { getQuestionsByTopic } from '@/lib/api/questions';
 import { getTopic } from '@/lib/api/curriculum';
@@ -41,8 +43,13 @@ function TopicExamContent({ topicId }: { topicId: string }) {
 
   // Topic sessions use "topic_<id>" as the examId so they don't collide with exam sessions
   const sessionKey = `topic_${topicId}`;
+  // StrictMode (dev) รัน effect ซ้ำ: รอบที่ 2 จะเจอ session ที่รอบแรกเพิ่งสร้างแล้วโชว์ "ทำค้างอยู่" ผิด ๆ
+  // (และไม่เห็นนาฬิกา/ปุ่มตั้งเวลาจนกว่าจะกด) → โหลดครั้งเดียวต่อหัวข้อ
+  const loadedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (loadedKeyRef.current === sessionKey) return;
+    loadedKeyRef.current = sessionKey;
     async function load() {
       try {
         const [questions, topic] = await Promise.all([
@@ -61,9 +68,22 @@ function TopicExamContent({ topicId }: { topicId: string }) {
         // Check if there's an in-progress session for this topic
         const { session: existing } = loadExamSession();
 
-        if (existing && existing.examId === sessionKey && existing.status === 'in_progress') {
+        // ยังไม่ได้ตอบแต่ข้อในชุดไม่ตรงกับที่ API ส่งมาแล้ว (แอดมินแก้ชุด) → เริ่มชุดใหม่ (task 21 M1)
+        // ตอบแล้ว → ถามทำต่อแบบเดิมแม้ id จะไม่ตรง
+        if (
+          existing &&
+          existing.examId === sessionKey &&
+          existing.status === 'in_progress' &&
+          (hasSessionProgress(existing) || sameQuestionSet(existing.questionIds, questions))
+        ) {
           // Refresh questions from API but keep session progress
           saveExamSession(existing, questions);
+          // ยังไม่ได้ตอบและยังอยู่ข้อแรก → ใช้ต่อเลย ไม่ต้องถาม "ทำค้างอยู่" (task 21 Q2)
+          if (!hasSessionProgress(existing)) {
+            initExam(existing, questions);
+            setLoading(false);
+            return;
+          }
           setPendingSession(existing);
           setPendingQuestions(questions);
           setShowResume(true);
@@ -272,6 +292,7 @@ function TopicExamContent({ topicId }: { topicId: string }) {
     <ExamContainer
       onComplete={() => { /* handled by useEffect */ }}
       mode="practice"
+      timerSettings={{}}
       backUrl="/dashboard/library"
     />
   );

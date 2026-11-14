@@ -2,6 +2,7 @@
 // + สิทธิ์ของบัญชี (`access`) และ "วิธีรับโค้ด" (`codeInstructions`) ของ task 15
 // ไฟล์นี้ไม่ import อะไรจาก lib/api เพื่อให้ lib/api/exams ใช้ตัวแปลงค่าได้โดยไม่วนกัน
 import { UNLOCK_WORD, UNLOCKED_WORD } from './unlock-codes';
+import { bangkokInputToIso, toBangkokInputValue, withEndOfMinute } from './release-date';
 
 export type MockAccessType = 'free' | 'code' | 'purchase';
 export type ExamLevel = 'easy' | 'medium' | 'hard';
@@ -33,6 +34,9 @@ export interface MockExamInput {
   detailBlocks: DetailBlock[];
   /** null = ไม่มีขั้นตอนและหมายเหตุ */
   codeInstructions: CodeInstructions | null;
+  /** ช่วงแคมเปญ ISO (task 21) null = ไม่จำกัด — มีผลกับชุด code เท่านั้น */
+  campaignStartsAt: string | null;
+  campaignEndsAt: string | null;
 }
 
 // ตรงกับ validation ของ API (task 11)
@@ -267,19 +271,26 @@ export type MockPrimaryAction =
   | { kind: 'buy'; label: string; note: string };
 
 /**
- * ชุดฟรี (หรือบัญชีมีสิทธิ์ที่ยังไม่หมด) → "เริ่มทำข้อสอบ" / "ทำต่อ" (มี attempt โหมด exam ค้าง)
+ * ชุดฟรี (หรือบัญชีมีสิทธิ์ที่ยังไม่หมด) → "เริ่มทำข้อสอบ" / "ทำต่อ" (มี attempt ค้าง — โหมด practice ไป `/practice/exam/<id>`)
  * ไปหน้าทำข้อสอบจับเวลา `/exam/<id>` · ชุดโค้ด → กรอกโค้ด · ชุดซื้อ → "ซื้อ" (ยังกดไม่ได้ — งานที่ 3)
  */
 export function getMockPrimaryAction(
   exam: { id: string; accessType?: MockAccessType | string | null },
-  opts: { hasInProgress?: boolean; access?: MockExamAccess | null } = {},
+  opts: {
+    hasInProgress?: boolean;
+    access?: MockExamAccess | null;
+    /** โหมดของ attempt ที่ค้าง — practice → ทำต่อที่ /practice/exam (ตรงกับปุ่มบนการ์ด, task 21) */
+    resumeMode?: 'practice' | 'exam' | null;
+  } = {},
 ): MockPrimaryAction {
   const accessType = normalizeAccessType(exam.accessType);
   if (canStartMock(exam, opts.access)) {
     const href = `/exam/${exam.id}`;
-    return opts.hasInProgress
-      ? { kind: 'resume', label: 'ทำต่อ', href }
-      : { kind: 'start', label: 'เริ่มทำข้อสอบ', href };
+    if (opts.hasInProgress) {
+      const resumeHref = opts.resumeMode === 'practice' ? `/practice/exam/${exam.id}` : href;
+      return { kind: 'resume', label: 'ทำต่อ', href: resumeHref };
+    }
+    return { kind: 'start', label: 'เริ่มทำข้อสอบ', href };
   }
   if (accessType === 'code') {
     return { kind: 'unlock', label: UNLOCK_WORD, note: `กรอกโค้ดเพื่อ ${UNLOCK_WORD} ชุดนี้` };
@@ -318,6 +329,9 @@ export interface MockExamForm {
   /** "วิธีรับโค้ด" (แก้ได้เมื่อ accessType = code) */
   codeSteps: CodeStepForm[];
   codeNote: string;
+  /** ช่วงแคมเปญ (task 21) ค่า `datetime-local` เวลาไทย — ว่าง = ไม่จำกัด */
+  campaignStartsAt: string;
+  campaignEndsAt: string;
 }
 
 let blockSeq = 0;
@@ -352,6 +366,8 @@ export function createMockExamForm(): MockExamForm {
     blocks: [],
     codeSteps: [],
     codeNote: '',
+    campaignStartsAt: '',
+    campaignEndsAt: '',
   };
 }
 
@@ -363,6 +379,8 @@ interface MockExamFieldsLike {
   level?: ExamLevel | string | null;
   detailBlocks?: unknown;
   codeInstructions?: unknown;
+  campaignStartsAt?: string | null;
+  campaignEndsAt?: string | null;
 }
 
 /** ค่าจาก GET /exams/admin/:id → ฟอร์ม (API เก่าที่ยังไม่มี field → ค่าเริ่มต้น) */
@@ -378,6 +396,8 @@ export function mockFormFromExam(exam: MockExamFieldsLike): MockExamForm {
       b.type === 'text' ? createDetailBlock('text', b.text) : createDetailBlock('image', b.url),
     ),
     ...codeFormFromInstructions(exam.codeInstructions),
+    campaignStartsAt: toBangkokInputValue(exam.campaignStartsAt),
+    campaignEndsAt: toBangkokInputValue(exam.campaignEndsAt),
   };
 }
 
@@ -525,9 +545,44 @@ export function validateMockForm(form: MockExamForm): string | null {
     const err = blockError(form.blocks[i]);
     if (err) return `คำอธิบายชุดข้อสอบ ช่องที่ ${i + 1}: ${err}`;
   }
-  // "วิธีรับโค้ด" ตรวจเฉพาะชุดโค้ด (ชุดอื่นเก็บค่าที่กรอกไว้แบบไม่ตรวจ)
-  if (form.accessType === 'code') return validateCodeInstructionsForm(form);
+  // "วิธีรับโค้ด" และช่วงแคมเปญ ตรวจเฉพาะชุดโค้ด (ชุดอื่นเก็บค่าที่กรอกไว้แบบไม่ตรวจ)
+  if (form.accessType === 'code') return validateCodeInstructionsForm(form) ?? campaignWindowError(form);
   return null;
+}
+
+/**
+ * ตรวจช่วงแคมเปญ (task 21): ว่างได้ทั้งสองช่อง, ค่าที่กรอกต้องเป็นวันเวลาที่มีจริง, ปิดต้องหลังเปิด
+ * ใช้ได้ทั้งฟอร์ม Mock และหน้านำเข้า ผ่าน → null
+ */
+export function campaignWindowError(form: Pick<MockExamForm, 'campaignStartsAt' | 'campaignEndsAt'>): string | null {
+  const startRaw = form.campaignStartsAt.trim();
+  const endRaw = form.campaignEndsAt.trim();
+  const start = startRaw ? bangkokInputToIso(startRaw) : null;
+  const end = endRaw ? bangkokInputToIso(endRaw) : null;
+  if (startRaw && !start) return 'ช่วงแคมเปญ: วัน-เวลาเปิดไม่ถูกต้อง';
+  if (endRaw && !end) return 'ช่วงแคมเปญ: วัน-เวลาปิดไม่ถูกต้อง';
+  if (start && end && new Date(end).getTime() <= new Date(start).getTime()) {
+    return 'ช่วงแคมเปญ: วัน-เวลาปิดต้องหลังวัน-เวลาเปิด';
+  }
+  return null;
+}
+
+/**
+ * ช่วงแคมเปญในฟอร์ม → ISO ที่ส่ง API (ว่าง/ไม่ถูกต้อง → null)
+ * วันปิด "HH:mm" ส่งเป็น HH:mm:59 — ปิด 23:59 ยังเปิดตลอดนาทีนั้น (API ถือว่าจบเมื่อ now > endsAt)
+ * กลับมาแก้ไขยังแสดง 23:59 (ช่อง datetime-local ตัดวินาที) และบรรทัดวันที่ยังซ่อนเวลา 23:59 ตามเดิม
+ */
+function campaignWindowInput(form: Pick<MockExamForm, 'campaignStartsAt' | 'campaignEndsAt'>): {
+  campaignStartsAt: string | null;
+  campaignEndsAt: string | null;
+} {
+  const start = bangkokInputToIso(form.campaignStartsAt);
+  const end = bangkokInputToIso(withEndOfMinute(form.campaignEndsAt));
+  // ไม่ได้ตรวจ (ชุดที่ไม่ใช่โค้ด) แต่ API ตอบ 400 ถ้าปิดไม่หลังเปิด → ไม่ส่งวันปิดที่ผิด
+  if (start && end && new Date(end).getTime() <= new Date(start).getTime()) {
+    return { campaignStartsAt: start, campaignEndsAt: null };
+  }
+  return { campaignStartsAt: start, campaignEndsAt: end };
 }
 
 const toDetailBlock = (b: DetailBlockForm): DetailBlock =>
@@ -552,6 +607,7 @@ export function toMockExamInput(form: MockExamForm): MockExamInput {
       level: form.level || null,
       detailBlocks: form.blocks.map(toDetailBlock),
       codeInstructions: toCodeInstructions(form, form.accessType === 'code'),
+      ...campaignWindowInput(form),
     };
   }
   const safePrice = price !== '' && !priceError(price) ? Number(price) : null;
@@ -567,6 +623,7 @@ export function toMockExamInput(form: MockExamForm): MockExamInput {
       .slice(0, MAX_DETAIL_BLOCKS)
       .map(toDetailBlock),
     codeInstructions: toCodeInstructions(form, false),
+    ...campaignWindowInput(form),
   };
 }
 
@@ -579,7 +636,9 @@ export function mockFormHasSettings(form: MockExamForm): boolean {
     form.level !== '' ||
     form.blocks.length > 0 ||
     form.codeSteps.length > 0 ||
-    form.codeNote.trim() !== ''
+    form.codeNote.trim() !== '' ||
+    form.campaignStartsAt.trim() !== '' ||
+    form.campaignEndsAt.trim() !== ''
   );
 }
 

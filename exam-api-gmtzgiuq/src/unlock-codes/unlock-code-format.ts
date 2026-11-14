@@ -91,6 +91,15 @@ export const REDEEM_ERRORS = {
     status: 409,
     message: 'แพ็กเกจของโค้ดนี้ไม่เปิดให้ใช้แล้ว กรุณาติดต่อผู้ดูแลระบบ',
   },
+  // ── campaign window of the exam typed on (task 21) ──
+  CAMPAIGN_NOT_OPEN: {
+    status: 400,
+    message: 'แคมเปญนี้ยังไม่เปิด กรอกโค้ดได้เมื่อถึงวันเปิดแคมเปญ',
+  },
+  CAMPAIGN_ENDED: {
+    status: 400,
+    message: 'แคมเปญนี้จบแล้ว ใช้โค้ดกับชุดนี้ไม่ได้',
+  },
 } as const;
 
 export type RedeemErrorCode = keyof typeof REDEEM_ERRORS;

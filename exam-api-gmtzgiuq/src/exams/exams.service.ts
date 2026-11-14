@@ -38,6 +38,11 @@ import {
   ExamAccessType,
   MockExamCategory,
   MockExamDetail,
+  MockExamListItem,
+  MockExamProgress,
+  MockExamTopicCount,
+  MockProgressRow,
+  OTHER_TOPIC_NAME,
   PaginatedMockExams,
   assertMockAccess,
   collectDetailBlockImageUrls,
@@ -45,10 +50,20 @@ import {
   prepareDetailBlocks,
   MockExamRow,
   normalizeStoredCodeInstructions,
+  parseMockExamSort,
   prepareCodeInstructions,
   toMockExamItem,
+  toMockExamProgress,
 } from './exam-mock';
+import {
+  assertCampaignWindow,
+  buildCampaign,
+  campaignClosedForAttempt,
+  enforcedCampaignStatus,
+  parseCampaignDate,
+} from './exam-campaign';
 import { ExamAccessService } from '../exam-access/exam-access.service';
+import { ExamAttempt } from '../attempts/attempt.entity';
 import { ProVenue } from '../pro/pro-venue.entity';
 import { isAdminViewer, type AccessViewer } from '../exam-access/exam-access';
 import { challengeNotInBankOnly } from '../question-bank/question-bank-errors';
@@ -130,6 +145,21 @@ function isTrue(value: unknown): boolean {
   return value === true || Number(value) === 1;
 }
 
+/**
+ * `myProgress` (task 21): keeps only the latest in_progress/completed
+ * attempt of the user per exam — no later one by createdAt, then updatedAt
+ * (the order findMockProgress reads in). Uses the `:...statuses` parameter
+ * of that query.
+ */
+export const LATER_ATTEMPT_MISSING =
+  'NOT EXISTS (SELECT 1 FROM exam_attempts later' +
+  ' WHERE later.userId = attempt.userId' +
+  ' AND later.examId = attempt.examId' +
+  ' AND later.status IN (:...statuses)' +
+  ' AND (later.createdAt > attempt.createdAt' +
+  ' OR (later.createdAt = attempt.createdAt' +
+  ' AND later.updatedAt > attempt.updatedAt)))';
+
 @Injectable()
 export class ExamsService {
   constructor(
@@ -140,6 +170,8 @@ export class ExamsService {
     private dataSource: DataSource,
     private uploadService: UploadService,
     private examAccessService: ExamAccessService,
+    @InjectRepository(ExamAttempt)
+    private attemptsRepository: Repository<ExamAttempt>,
   ) {}
 
   async create(input: CreateExamInput, author: User): Promise<Exam> {
@@ -151,6 +183,16 @@ export class ExamsService {
     assertMockAccess(accessType, input.price);
     const bankOnly = input.bankOnly ?? false;
     assertChallengeInBankOnly(bankOnly, input.questions);
+    // Campaign window (task 21): not sent = none
+    const campaignStartsAt = parseCampaignDate(
+      input.campaignStartsAt,
+      'วันเปิดแคมเปญ',
+    );
+    const campaignEndsAt = parseCampaignDate(
+      input.campaignEndsAt,
+      'วันปิดแคมเปญ',
+    );
+    assertCampaignWindow(campaignStartsAt, campaignEndsAt);
 
     const savedExamId = await this.dataSource.transaction(async (manager) => {
       const exam = manager.create(Exam, {
@@ -172,6 +214,8 @@ export class ExamsService {
         level: input.level ?? null,
         detailBlocks: prepareDetailBlocks(input.detailBlocks),
         codeInstructions: prepareCodeInstructions(input.codeInstructions),
+        campaignStartsAt,
+        campaignEndsAt,
         author,
         authorId: author.id,
       });
@@ -307,10 +351,17 @@ export class ExamsService {
    * Published exam with its questions and answers (GET /exams/:id). A locked
    * Mock Exam (code/purchase) → 403 EXAM_LOCKED unless the viewer is an
    * admin or has access that has not expired (task 15); guests too.
+   *
+   * A campaign that has not opened yet (task 21) → 403 CAMPAIGN_NOT_OPEN for
+   * everyone but admins, checked before access (as POST /attempts/start):
+   * holders of an all-Mock or multi-exam code, or of a code redeemed before
+   * an admin moved the window, must not see the questions early. An ended
+   * campaign stays readable (resume an attempt / result and answers).
    */
   async findPublishedOne(
     id: string,
     viewer: AccessViewer | null = null,
+    now: Date = new Date(),
   ): Promise<Exam> {
     const exam = await this.examsRepository.findOne({
       where: { id, status: QuestionStatus.PUBLISHED },
@@ -320,6 +371,13 @@ export class ExamsService {
 
     if (!exam) {
       throw new NotFoundException('Exam not found');
+    }
+
+    if (
+      !isAdminViewer(viewer) &&
+      enforcedCampaignStatus(exam, now) === 'upcoming'
+    ) {
+      throw campaignClosedForAttempt('upcoming');
     }
 
     await this.examAccessService.assertCanAccess(viewer, exam);
@@ -373,6 +431,17 @@ export class ExamsService {
     const accessType = input.accessType ?? exam.accessType;
     const price = input.price !== undefined ? input.price : exam.price;
     assertMockAccess(accessType, price);
+    // Campaign window (task 21): sent = replaced (null clears), not sent =
+    // unchanged; end after start checked on the values the exam will have
+    const campaignStartsAt =
+      input.campaignStartsAt !== undefined
+        ? parseCampaignDate(input.campaignStartsAt, 'วันเปิดแคมเปญ')
+        : (exam.campaignStartsAt ?? null);
+    const campaignEndsAt =
+      input.campaignEndsAt !== undefined
+        ? parseCampaignDate(input.campaignEndsAt, 'วันปิดแคมเปญ')
+        : (exam.campaignEndsAt ?? null);
+    assertCampaignWindow(campaignStartsAt, campaignEndsAt);
     const replaceDetailBlocks = input.detailBlocks !== undefined;
     const detailBlocks = replaceDetailBlocks
       ? prepareDetailBlocks(input.detailBlocks)
@@ -521,6 +590,8 @@ export class ExamsService {
         price: exam.price,
         accessDays: exam.accessDays,
         level: exam.level,
+        campaignStartsAt,
+        campaignEndsAt,
         ...(releaseDate ? { releaseDate } : {}),
         ...(passages ? { passages } : {}),
         ...(replaceDetailBlocks ? { detailBlocks } : {}),
@@ -611,46 +682,72 @@ export class ExamsService {
   }
 
   /**
-   * Published Mock Exams (GET /exams/mock), newest release first. Only the
-   * card fields are selected (no questions, answers or author). `category`
-   * matches the exam category slug, or the category name.
+   * Published Mock Exams (GET /exams/mock). Only the card fields are
+   * selected (no questions, answers or author). `category` matches the exam
+   * category slug, or the category name; `venue` (task 21) the key of the
+   * active Pro venue of the category.
+   *
+   * `sort` (task 21): newest (default) = newest release first, then newest
+   * created (task 10); name = title A–Z; recommended = campaigns open (and
+   * every non-campaign exam) → upcoming → ended, then newest release.
    */
   async findMockExams(
     page = 1,
     limit = 12,
     category?: string,
     viewer: AccessViewer | null = null,
+    options: { sort?: string; venue?: string } = {},
+    now: Date = new Date(),
   ): Promise<PaginatedMockExams> {
     const safePage = Math.max(1, Math.floor(page) || 1);
     const safeLimit = Math.min(100, Math.max(1, Math.floor(limit) || 12));
+    const sort = parseMockExamSort(options.sort);
+    const venue =
+      typeof options.venue === 'string' && options.venue.trim() !== ''
+        ? options.venue.trim()
+        : undefined;
+
+    const listQuery = this.mockExamQuery(category, venue);
+    if (sort === 'recommended') {
+      // Same rule as getCampaignStatus, on the same clock (now is a
+      // parameter, never the DB's NOW())
+      listQuery
+        .addSelect(
+          `CASE
+            WHEN exam.accessType <> :campaignType THEN 0
+            WHEN exam.campaignStartsAt IS NOT NULL AND exam.campaignStartsAt > :now THEN 1
+            WHEN exam.campaignEndsAt IS NOT NULL AND exam.campaignEndsAt < :now THEN 2
+            ELSE 0
+          END`,
+          'campaignRank',
+        )
+        .setParameters({ campaignType: ExamAccessType.CODE, now })
+        .orderBy('campaignRank', 'ASC')
+        .addOrderBy('exam.releaseDate', 'DESC')
+        .addOrderBy('exam.createdAt', 'DESC');
+    } else if (sort === 'name') {
+      listQuery
+        .orderBy('exam.title', 'ASC')
+        .addOrderBy('exam.releaseDate', 'DESC');
+    } else {
+      // Newest release first, then newest created (task 10)
+      listQuery
+        .orderBy('exam.releaseDate', 'DESC')
+        .addOrderBy('exam.createdAt', 'DESC');
+    }
+    // Deterministic pages when everything above ties
+    listQuery.addOrderBy('exam.id', 'ASC');
 
     const [rows, total] = await Promise.all([
-      this.mockExamQuery(category)
-        // Newest release first, then newest created (task 10)
-        .orderBy('exam.releaseDate', 'DESC')
-        .addOrderBy('exam.createdAt', 'DESC')
+      listQuery
         .offset((safePage - 1) * safeLimit)
         .limit(safeLimit)
         .getRawMany<MockExamRow>(),
-      this.mockExamQuery(category).getCount(),
+      this.mockExamQuery(category, venue).getCount(),
     ]);
 
-    // Access of the viewer to every card, one query (task 15)
-    const items = rows.map(toMockExamItem);
-    const access = await this.examAccessService.getAccessMany(
-      viewer,
-      items.map((item) => ({ ...item, isMock: true })),
-    );
-
     return {
-      items: items.map((item) => ({
-        ...item,
-        access: access.get(item.id) ?? {
-          status: 'locked',
-          expiresAt: null,
-          via: null,
-        },
-      })),
+      items: await this.toMockListItems(rows, viewer, now),
       total,
       page: safePage,
       limit: safeLimit,
@@ -709,6 +806,7 @@ export class ExamsService {
   async findMockOne(
     id: string,
     viewer: AccessViewer | null = null,
+    now: Date = new Date(),
   ): Promise<MockExamDetail> {
     const row = await this.mockExamQuery()
       .addSelect('exam.description', 'description')
@@ -728,22 +826,146 @@ export class ExamsService {
     }
 
     const item = toMockExamItem(row);
-    const access = await this.examAccessService.getAccess(viewer, {
-      ...item,
-      isMock: true,
-    });
+    const [access, progress, topicBreakdown] = await Promise.all([
+      this.examAccessService.getAccess(viewer, { ...item, isMock: true }),
+      this.findMockProgress(viewer, [item.id]),
+      this.findTopicBreakdown(item.id),
+    ]);
 
     return {
       ...item,
       access,
+      campaign: buildCampaign(row, now),
+      myProgress: progress.get(item.id) ?? null,
       description: row.description ?? null,
       detailBlocks: normalizeStoredDetailBlocks(row.detailBlocks),
       codeInstructions: normalizeStoredCodeInstructions(row.codeInstructions),
+      topicBreakdown,
     };
   }
 
+  /**
+   * Cards of GET /exams/mock: card fields + the viewer's access (one query,
+   * task 15) + campaign status + the viewer's latest attempt (one query,
+   * task 21).
+   */
+  private async toMockListItems(
+    rows: MockExamRow[],
+    viewer: AccessViewer | null,
+    now: Date,
+  ): Promise<MockExamListItem[]> {
+    const items = rows.map(toMockExamItem);
+    const ids = items.map((item) => item.id);
+    const [access, progress] = await Promise.all([
+      this.examAccessService.getAccessMany(
+        viewer,
+        items.map((item) => ({ ...item, isMock: true })),
+      ),
+      this.findMockProgress(viewer, ids),
+    ]);
+
+    return items.map((item, index) => ({
+      ...item,
+      access: access.get(item.id) ?? {
+        status: 'locked',
+        expiresAt: null,
+        via: null,
+      },
+      campaign: buildCampaign(rows[index], now),
+      myProgress: progress.get(item.id) ?? null,
+    }));
+  }
+
+  /**
+   * `myProgress` per exam (task 21): the viewer's latest in_progress or
+   * completed attempt of each exam by attempt date (createdAt, which a
+   * restart moves to the time of that start; then updatedAt). Only those
+   * rows are read (NOT EXISTS a later one of the same exam), so the JSON
+   * answers of older attempts are never loaded; rows tied on both dates
+   * are reduced to the first one here. Guests: none, no query.
+   */
+  private async findMockProgress(
+    viewer: AccessViewer | null,
+    examIds: string[],
+  ): Promise<Map<string, MockExamProgress>> {
+    const result = new Map<string, MockExamProgress>();
+    if (!viewer?.id || examIds.length === 0) return result;
+    const statuses = ['in_progress', 'completed'];
+
+    const rows = await this.attemptsRepository
+      .createQueryBuilder('attempt')
+      .select('attempt.id', 'id')
+      .addSelect('attempt.examId', 'examId')
+      .addSelect('attempt.status', 'status')
+      .addSelect('attempt.mode', 'mode')
+      .addSelect('attempt.answers', 'answers')
+      .addSelect('attempt.questionIds', 'questionIds')
+      .addSelect('attempt.totalQuestions', 'totalQuestions')
+      .addSelect('attempt.score', 'score')
+      .where('attempt.userId = :userId', { userId: viewer.id })
+      .andWhere('attempt.examId IN (:...examIds)', { examIds })
+      .andWhere('attempt.status IN (:...statuses)', { statuses })
+      .andWhere(LATER_ATTEMPT_MISSING)
+      .orderBy('attempt.createdAt', 'DESC')
+      .addOrderBy('attempt.updatedAt', 'DESC')
+      .getRawMany<MockProgressRow>();
+
+    for (const row of rows) {
+      if (!result.has(row.examId)) {
+        result.set(row.examId, toMockExamProgress(row));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * "เนื้อหาที่ออก" of a Mock Exam (task 21): number of questions per topic
+   * (questions.topicId → topics.name), most first; questions without a topic
+   * (or whose topic was deleted) are counted together as "อื่น ๆ", listed
+   * last. Counts only, never question content. Challenge questions are left
+   * out as on GET /exams/:id.
+   */
+  private async findTopicBreakdown(
+    examId: string,
+  ): Promise<MockExamTopicCount[]> {
+    const rows = await this.questionsRepository
+      .createQueryBuilder('q')
+      .leftJoin('topics', 'topic', 'topic.id = q.topicId')
+      .select('topic.id', 'topicId')
+      .addSelect('topic.name', 'name')
+      .addSelect('COUNT(*)', 'count')
+      .where('q.examId = :examId', { examId })
+      .andWhere('q.isChallenge = :isChallenge', { isChallenge: false })
+      .groupBy('topic.id')
+      .addGroupBy('topic.name')
+      .getRawMany<{
+        topicId: string | null;
+        name: string | null;
+        count: number | string;
+      }>();
+
+    let other = 0;
+    const topics: MockExamTopicCount[] = [];
+    for (const row of rows) {
+      const count = Number(row.count) || 0;
+      if (count <= 0) continue;
+      if (row.topicId && row.name) {
+        topics.push({ topicId: row.topicId, name: row.name, count });
+      } else {
+        other += count;
+      }
+    }
+    topics.sort(
+      (a, b) => b.count - a.count || a.name.localeCompare(b.name, 'th'),
+    );
+    if (other > 0) {
+      topics.push({ topicId: null, name: OTHER_TOPIC_NAME, count: other });
+    }
+    return topics;
+  }
+
   /** Published Mock Exams with the card fields selected (raw rows). */
-  private mockExamQuery(category?: string) {
+  private mockExamQuery(category?: string, venue?: string) {
     const qb = this.examsRepository
       .createQueryBuilder('exam')
       .leftJoin('subjects', 'subject', 'subject.id = exam.subjectId')
@@ -769,6 +991,11 @@ export class ExamsService {
       .addSelect('exam.price', 'price')
       .addSelect('exam.releaseDate', 'releaseDate')
       .addSelect('venue.key', 'venueKey')
+      // task 21: card subject label / colour and the campaign window
+      .addSelect('subject.bankLabel', 'subjectBankLabel')
+      .addSelect('subject.color', 'subjectColor')
+      .addSelect('exam.campaignStartsAt', 'campaignStartsAt')
+      .addSelect('exam.campaignEndsAt', 'campaignEndsAt')
       .where('exam.isMock = :isMock', { isMock: true })
       .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED })
       // bankOnly exams are hidden from every exam list (task 20)
@@ -778,6 +1005,10 @@ export class ExamsService {
       qb.andWhere('(exam.category = :category OR cat.name = :category)', {
         category,
       });
+    }
+    // Venue tab (task 21): exams whose category belongs to that active venue
+    if (venue) {
+      qb.andWhere('venue.key = :venueKey', { venueKey: venue });
     }
     return qb;
   }

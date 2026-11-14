@@ -37,6 +37,29 @@ describe('AttemptsService — locked Mock Exams (task 15)', () => {
       accessType: ExamAccessType.FREE,
     },
     normal: { id: 'normal', isMock: false, accessType: ExamAccessType.FREE },
+    // task 21: code Mock Exams with a campaign window (relative to the
+    // real clock: the service uses new Date())
+    'campaign-soon': {
+      id: 'campaign-soon',
+      isMock: true,
+      accessType: ExamAccessType.CODE,
+      campaignStartsAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      campaignEndsAt: null,
+    },
+    'campaign-ended': {
+      id: 'campaign-ended',
+      isMock: true,
+      accessType: ExamAccessType.CODE,
+      campaignStartsAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000),
+      campaignEndsAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    },
+    'campaign-open': {
+      id: 'campaign-open',
+      isMock: true,
+      accessType: ExamAccessType.CODE,
+      campaignStartsAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      campaignEndsAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    },
   };
 
   let service: AttemptsService;
@@ -266,6 +289,79 @@ describe('AttemptsService — locked Mock Exams (task 15)', () => {
       await run(student, 'free-mock');
       await run(student, 'normal');
     });
+  });
+
+  describe('campaign window (task 21)', () => {
+    const forever = (examId: string) =>
+      grants.push({
+        userId: 'user-a',
+        examId,
+        allMock: false,
+        expiresAt: null,
+      });
+
+    async function expectCampaign(
+      promise: Promise<unknown>,
+      errorCode: 'CAMPAIGN_NOT_OPEN' | 'CAMPAIGN_ENDED',
+    ) {
+      const err = await promise.then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).getResponse()).toEqual({
+        statusCode: 403,
+        message: expect.stringMatching(/แคมเปญนี้/) as string,
+        errorCode,
+      });
+    }
+
+    it.each(['start', 'submit'] as const)(
+      '%s (creates an attempt): upcoming → 403 CAMPAIGN_NOT_OPEN, ended → 403 CAMPAIGN_ENDED, nothing written',
+      async (name) => {
+        forever('campaign-soon');
+        forever('campaign-ended');
+        await expectCampaign(
+          calls[name](student, 'campaign-soon'),
+          'CAMPAIGN_NOT_OPEN',
+        );
+        await expectCampaign(
+          calls[name](student, 'campaign-ended'),
+          'CAMPAIGN_ENDED',
+        );
+        expect(writes).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['start', 'submit'] as const)(
+      '%s: a student without a code learns why too (window before access)',
+      async (name) => {
+        await expectCampaign(
+          calls[name](student, 'campaign-ended'),
+          'CAMPAIGN_ENDED',
+        );
+      },
+    );
+
+    it.each(['start', 'submit'] as const)(
+      '%s: open window with access → allowed; admins bypass the window',
+      async (name) => {
+        forever('campaign-open');
+        await calls[name](student, 'campaign-open');
+        await calls[name](admin, 'campaign-soon');
+        await calls[name](admin, 'campaign-ended');
+        expect(writes).toHaveBeenCalled();
+      },
+    );
+
+    it.each(['progress', 'complete'] as const)(
+      '%s of an attempt started before the end → still allowed after it ended',
+      async (name) => {
+        forever('campaign-ended');
+        await calls[name](student, 'campaign-ended');
+        expect(writes).toHaveBeenCalled();
+      },
+    );
   });
 
   it('progress of an attempt that is no longer in progress is still ignored (no lock check needed)', async () => {

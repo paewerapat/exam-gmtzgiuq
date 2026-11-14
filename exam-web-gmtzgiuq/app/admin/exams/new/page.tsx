@@ -643,10 +643,13 @@ export default function NewExamPage() {
 
               {/* Exam duration */}
               <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
                   <Timer className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">เวลาทำข้อสอบ (นาที)</span>
                   <span className="text-xs text-gray-400">(ปล่อยว่างไว้ = ไม่จับเวลาถอยหลัง)</span>
+                  <span className="basis-full text-xs text-gray-500 dark:text-gray-400">
+                    ใช้เป็นเวลาแนะนำในหน้าทำข้อสอบด้วย (ตอนผู้ใช้ตั้งนับถอยหลังในโหมดฝึก)
+                  </span>
                 </div>
                 <input
                   type="number"

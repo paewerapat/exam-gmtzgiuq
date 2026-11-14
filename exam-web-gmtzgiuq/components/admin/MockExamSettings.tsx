@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  CalendarClock,
   ChevronDown,
   ChevronUp,
   ClipboardCheck,
@@ -17,6 +18,7 @@ import CodeInstructionsEditor from './CodeInstructionsEditor';
 import { moveItem } from '@/lib/question-images';
 import {
   ACCESS_TYPE_LABELS,
+  campaignWindowError,
   createDetailBlock,
   EXAM_LEVELS,
   LEVEL_LABELS,
@@ -63,6 +65,8 @@ export default function MockExamSettings({
   const [preview, setPreview] = useState(false);
   const { blocks } = value;
   const isFull = blocks.length >= MAX_DETAIL_BLOCKS;
+  // แจ้งทันทีใต้ช่อง (ตอนบันทึกหน้าแม่ตรวจซ้ำด้วย validateMockForm)
+  const campaignError = value.accessType === 'code' ? campaignWindowError(value) : null;
 
   const set = <K extends keyof MockExamForm>(field: K, v: MockExamForm[K]) =>
     onChange((prev) => ({ ...prev, [field]: v }));
@@ -220,6 +224,56 @@ export default function MockExamSettings({
               </select>
             </div>
           </div>
+
+          {/* ช่วงแคมเปญ (task 21) — เฉพาะชุดที่ต้องใช้โค้ด (ชนิดอื่นค่าที่กรอกไว้ยังถูกเก็บ แต่ไม่มีผล) */}
+          {value.accessType === 'code' && (
+            <fieldset className="border-t border-gray-100 dark:border-gray-700 pt-4" aria-describedby="mock-campaign-hint">
+              <legend className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <CalendarClock className="w-4 h-4 text-indigo-500 dark:text-indigo-400" aria-hidden="true" />
+                ช่วงแคมเปญ
+              </legend>
+              <p id="mock-campaign-hint" className="mt-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
+                ไม่บังคับ · เวลาไทย · ว่างทั้งสองช่อง = เปิดตลอด ก่อนวันเปิดผู้ใช้เห็นสถานะ &quot;เร็ว ๆ นี้&quot; และหลังวันปิดเป็น
+                &quot;จบแล้ว&quot; (เริ่มทำ/กรอกโค้ดไม่ได้) วัน-เวลาปิดต้องหลังวัน-เวลาเปิด และนับรวมทั้งนาทีนั้น (ปิด 23:59 =
+                ทำได้ถึง 23:59:59 น.)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="mock-campaign-starts" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    วัน-เวลาเปิด
+                  </label>
+                  <input
+                    id="mock-campaign-starts"
+                    type="datetime-local"
+                    value={value.campaignStartsAt}
+                    onChange={(e) => set('campaignStartsAt', e.target.value)}
+                    disabled={disabled}
+                    className={`${INPUT_CLASS} dark:[color-scheme:dark]`}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="mock-campaign-ends" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    วัน-เวลาปิด
+                  </label>
+                  <input
+                    id="mock-campaign-ends"
+                    type="datetime-local"
+                    value={value.campaignEndsAt}
+                    onChange={(e) => set('campaignEndsAt', e.target.value)}
+                    disabled={disabled}
+                    aria-invalid={campaignError ? true : undefined}
+                    aria-describedby={campaignError ? 'mock-campaign-error' : undefined}
+                    className={`${INPUT_CLASS} dark:[color-scheme:dark]`}
+                  />
+                </div>
+              </div>
+              {campaignError && (
+                <p id="mock-campaign-error" role="alert" className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  {campaignError}
+                </p>
+              )}
+            </fieldset>
+          )}
 
           {/* วิธีรับโค้ด (task 15) — เฉพาะชุดที่ต้องใช้โค้ด (ชนิดอื่นค่าที่กรอกไว้ยังถูกเก็บ) */}
           {value.accessType === 'code' && (

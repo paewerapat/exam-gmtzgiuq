@@ -71,6 +71,9 @@ export interface Exam {
   codeInstructions?: CodeInstructions | null;
   /** ชุดที่ใช้เฉพาะ Question Bank (task 20) — ซ่อนจากรายการชุดข้อสอบทุกที่ ข้อในชุดนี้ติดป้าย Challenge ได้ */
   bankOnly?: boolean;
+  /** ช่วงแคมเปญ ISO (task 21) — มีผลกับชุด accessType code, null = ไม่จำกัด */
+  campaignStartsAt?: string | null;
+  campaignEndsAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -150,6 +153,9 @@ export interface CreateExamInput {
   level?: MockExamInput['level'];
   detailBlocks?: MockExamInput['detailBlocks'];
   codeInstructions?: MockExamInput['codeInstructions'];
+  /** ช่วงแคมเปญ ISO หรือ null (task 21) — ปิดต้องหลังเปิด ไม่งั้น API ตอบ 400 */
+  campaignStartsAt?: MockExamInput['campaignStartsAt'];
+  campaignEndsAt?: MockExamInput['campaignEndsAt'];
 }
 
 export interface UpdateExamInput {
@@ -175,6 +181,9 @@ export interface UpdateExamInput {
   level?: MockExamInput['level'];
   detailBlocks?: MockExamInput['detailBlocks'];
   codeInstructions?: MockExamInput['codeInstructions'];
+  /** ช่วงแคมเปญ ISO หรือ null (task 21) — ปิดต้องหลังเปิด ไม่งั้น API ตอบ 400 */
+  campaignStartsAt?: MockExamInput['campaignStartsAt'];
+  campaignEndsAt?: MockExamInput['campaignEndsAt'];
 }
 
 export interface GetExamsParams {
@@ -399,7 +408,54 @@ export interface MockExamSummary {
   access: MockExamAccess;
   /** key ของสนาม Pro ของหมวดชุดนี้ (category.venueId) null = หมวดไม่ได้ผูกสนาม — task 17 */
   venueKey: string | null;
+  /** สถานะแคมเปญ (task 21) — null สำหรับชุดที่ไม่ใช่ accessType code (API ก่อน task 21 ไม่มี → null) */
+  campaign: MockCampaign | null;
+  /** ชื่อวิชา (subject.bankLabel / name) — null = ไม่มีวิชา */
+  subjectLabel: string | null;
+  /** สีวิชา/หมวดสำหรับแบนเนอร์ (เฉพาะ hex ที่ปลอดภัย ไม่งั้น null → เว็บใช้สีตาม accessType) */
+  color: string | null;
+  /** attempt ล่าสุดของบัญชีกับชุดนี้ (guest / ยังไม่เคยทำ → null) */
+  myProgress: MockProgress | null;
 }
+
+// ── Free Mock (task 21) ─────────────────────────────────────
+
+export type MockCampaignStatus = 'upcoming' | 'open' | 'ended';
+export const MOCK_CAMPAIGN_STATUSES: MockCampaignStatus[] = ['upcoming', 'open', 'ended'];
+
+/** สถานะแคมเปญที่ server คำนวณ (ไม่มีวันเปิด/ปิด = open) */
+export interface MockCampaign {
+  status: MockCampaignStatus;
+  /** ISO — null = ไม่มีวันเปิด */
+  startsAt: string | null;
+  /** ISO — null = ไม่มีวันปิด */
+  endsAt: string | null;
+  /** วันที่เหลือจนปิด (open + มีวันปิด) */
+  daysLeft: number | null;
+  /** วันที่เหลือจนเปิด (upcoming) */
+  daysUntilOpen: number | null;
+}
+
+/** ความคืบหน้าของบัญชี: in_progress นับข้อที่ตอบ / completed ใช้คะแนนล่าสุด */
+export interface MockProgress {
+  status: 'in_progress' | 'completed';
+  /** โหมดของ attempt — ทำต่อที่ /practice/exam (practice) หรือ /exam (exam) */
+  mode: 'practice' | 'exam';
+  answered: number;
+  total: number;
+  scorePercent: number | null;
+  attemptId: string;
+}
+
+/** จำนวนข้อต่อบทของชุด (GET /exams/mock/:id) เรียงมากไปน้อย — ข้อที่ไม่มีบทรวมเป็น "อื่น ๆ" (topicId null) */
+export interface MockTopicBreakdownItem {
+  topicId: string | null;
+  name: string;
+  count: number;
+}
+
+export type MockExamSort = 'recommended' | 'newest' | 'name';
+export const MOCK_EXAM_SORTS: MockExamSort[] = ['recommended', 'newest', 'name'];
 
 /** หน้ารายละเอียด (GET /exams/mock/:id) */
 export interface MockExamDetail extends MockExamSummary {
@@ -408,6 +464,8 @@ export interface MockExamDetail extends MockExamSummary {
   detailBlocks: DetailBlock[];
   /** "วิธีรับโค้ด" ที่แอดมินตั้ง (null = ไม่มี) — task 15 */
   codeInstructions: CodeInstructions | null;
+  /** เนื้อหาที่ออก (task 21) — API เก่า/ไม่มีข้อ → [] */
+  topicBreakdown: MockTopicBreakdownItem[];
 }
 
 export interface PaginatedMockExams {
@@ -431,6 +489,10 @@ export interface GetMockExamsParams {
   category?: string;
   page?: number;
   limit?: number;
+  /** task 21 — ไม่ส่ง = ลำดับเดิมของ API */
+  sort?: MockExamSort;
+  /** task 21 — กรองตาม venueKey (ไม่ส่ง = ทุกสนาม) */
+  venue?: string;
 }
 
 type RawRecord = Record<string, unknown>;
@@ -452,6 +514,68 @@ export function normalizeMockAccessWithVia(value: unknown, accessType: MockAcces
   return { ...access, via };
 }
 
+const isRawRecord = (v: unknown): v is RawRecord => !!v && typeof v === 'object' && !Array.isArray(v);
+const toCount = (v: unknown): number => Math.max(0, Math.floor(toNumberOrNull(v) ?? 0));
+
+/** campaign จาก API — ชุดที่ไม่ใช่ code เป็น null เสมอ, สถานะที่ไม่รู้จัก/ผิดรูป → null */
+export function normalizeMockCampaign(value: unknown, accessType: MockAccessType): MockCampaign | null {
+  if (accessType !== 'code' || !isRawRecord(value)) return null;
+  const status = MOCK_CAMPAIGN_STATUSES.includes(value.status as MockCampaignStatus)
+    ? (value.status as MockCampaignStatus)
+    : null;
+  if (!status) return null;
+  const days = (v: unknown) => {
+    const n = toNumberOrNull(v);
+    return n == null ? null : Math.max(0, Math.floor(n));
+  };
+  return {
+    status,
+    startsAt: toStringOrNull(value.startsAt),
+    endsAt: toStringOrNull(value.endsAt),
+    daysLeft: days(value.daysLeft),
+    daysUntilOpen: days(value.daysUntilOpen),
+  };
+}
+
+/** myProgress จาก API — ไม่มี attemptId / สถานะไม่รู้จัก → null */
+export function normalizeMockProgress(value: unknown): MockProgress | null {
+  if (!isRawRecord(value)) return null;
+  const status = value.status === 'in_progress' || value.status === 'completed' ? value.status : null;
+  const attemptId = toStringOrNull(value.attemptId);
+  if (!status || !attemptId) return null;
+  const score = toNumberOrNull(value.scorePercent);
+  return {
+    status,
+    // ไม่ระบุ/ไม่รู้จัก → exam (ชุด Mock เริ่มจากหน้าทำข้อสอบจับเวลา)
+    mode: value.mode === 'practice' ? 'practice' : 'exam',
+    answered: toCount(value.answered),
+    total: toCount(value.total),
+    scorePercent: score == null ? null : Math.min(100, Math.max(0, score)),
+    attemptId,
+  };
+}
+
+/** topicBreakdown จาก API — แถวผิดรูป/จำนวน ≤ 0 ไม่เอา, เรียงมากไปน้อย (คงลำดับเดิมเมื่อเท่ากัน) */
+export function normalizeTopicBreakdown(value: unknown): MockTopicBreakdownItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isRawRecord)
+    .map((row) => ({
+      topicId: toStringOrNull(row.topicId),
+      name: (typeof row.name === 'string' && row.name.trim()) || 'อื่น ๆ',
+      count: toCount(row.count),
+    }))
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
+
+/** สีแบนเนอร์จาก API ใช้ใน style ได้เฉพาะ hex (#rgb / #rrggbb / #rrggbbaa) */
+export function normalizeBannerColor(value: unknown): string | null {
+  return typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value.trim())
+    ? value.trim()
+    : null;
+}
+
 /** แปลง item จาก API ให้ชนิดตรง (price string → number, enum ที่ไม่รู้จัก → ค่าเริ่มต้น) */
 export function normalizeMockExamSummary(raw: RawRecord): MockExamSummary {
   const accessType = normalizeAccessType(raw.accessType);
@@ -471,6 +595,10 @@ export function normalizeMockExamSummary(raw: RawRecord): MockExamSummary {
     releaseDate: typeof raw.releaseDate === 'string' ? raw.releaseDate : '',
     access: normalizeMockAccessWithVia(raw.access, accessType),
     venueKey: toStringOrNull(raw.venueKey),
+    campaign: normalizeMockCampaign(raw.campaign, accessType),
+    subjectLabel: toStringOrNull(raw.subjectLabel),
+    color: normalizeBannerColor(raw.color),
+    myProgress: normalizeMockProgress(raw.myProgress),
   };
 }
 
@@ -480,17 +608,20 @@ export function normalizeMockExamDetail(raw: RawRecord): MockExamDetail {
     description: toStringOrNull(raw.description),
     detailBlocks: normalizeDetailBlocks(raw.detailBlocks),
     codeInstructions: normalizeCodeInstructions(raw.codeInstructions),
+    topicBreakdown: normalizeTopicBreakdown(raw.topicBreakdown),
   };
 }
 
-// Public - รายการชุด Mock ที่เผยแพร่ (เรียงวันเผยแพร่ใหม่สุดก่อน)
+// Public - รายการชุด Mock ที่เผยแพร่ (เรียงวันเผยแพร่ใหม่สุดก่อน / ตาม sort)
 export async function getMockExams(
   params: GetMockExamsParams = {},
   signal?: AbortSignal,
 ): Promise<PaginatedMockExams> {
-  const { page = 1, limit = 12, category } = params;
+  const { page = 1, limit = 12, category, sort, venue } = params;
   const query = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (category) query.set('category', category);
+  if (sort) query.set('sort', sort);
+  if (venue) query.set('venue', venue);
 
   const response = await fetchWithAuth(`${API_URL}/exams/mock?${query.toString()}`, {
     cache: 'no-store',
@@ -507,6 +638,31 @@ export async function getMockExams(
     limit: toNumberOrNull(data.limit) ?? limit,
     totalPages: toNumberOrNull(data.totalPages) ?? 1,
   };
+}
+
+const ALL_MOCK_PAGE_SIZE = 100; // limit สูงสุดของ GET /exams/mock
+const ALL_MOCK_MAX_PAGES = 10;
+
+/**
+ * Public - ชุด Mock ทั้งหมดตามสนาม/ตัวเรียง (หน้า Free Mock แบ่งกลุ่มฝั่งเว็บจึงต้องได้ครบ)
+ * ไล่หน้าละ 100 ชุด (สูงสุด 1,000 ชุด) ลำดับตามที่ API เรียง
+ */
+export async function getAllMockExams(
+  params: Pick<GetMockExamsParams, 'sort' | 'venue'> = {},
+  signal?: AbortSignal,
+): Promise<MockExamSummary[]> {
+  const out: MockExamSummary[] = [];
+  const seen = new Set<string>();
+  for (let page = 1; page <= ALL_MOCK_MAX_PAGES; page++) {
+    const res = await getMockExams({ ...params, page, limit: ALL_MOCK_PAGE_SIZE }, signal);
+    for (const item of res.items) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      out.push(item);
+    }
+    if (page >= res.totalPages || res.items.length === 0) break;
+  }
+  return out;
 }
 
 // Public - หมวด (สนามสอบ) ที่มีชุด Mock เผยแพร่อยู่

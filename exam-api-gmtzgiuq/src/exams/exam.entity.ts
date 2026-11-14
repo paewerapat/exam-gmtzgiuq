@@ -155,6 +155,19 @@ export class Exam {
   @Column({ type: 'json', nullable: true, select: false })
   codeInstructions?: ExamCodeInstructions | null;
 
+  // Campaign window of a code Mock Exam (task 21,
+  // sql/20261117-01-campaign-window.sql), stored like releaseDate. null =
+  // no limit on that side. Outside the window the exam cannot be started
+  // and its codes cannot be redeemed (see exam-campaign.ts). Stored but
+  // without effect on other exams.
+  @Field(() => Date, { nullable: true })
+  @Column({ type: 'datetime', nullable: true })
+  campaignStartsAt: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  @Column({ type: 'datetime', nullable: true })
+  campaignEndsAt: Date | null;
+
   @Field()
   @CreateDateColumn()
   createdAt: Date;

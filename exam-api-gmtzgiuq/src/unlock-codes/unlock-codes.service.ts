@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { isUUID } from 'class-validator';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Exam } from '../exams/exam.entity';
+import { enforcedCampaignStatus } from '../exams/exam-campaign';
 import { QuestionStatus } from '../questions/question.entity';
 import { User } from '../users/user.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
@@ -66,6 +67,9 @@ const GENERATE_ATTEMPTS = 3;
 const NOT_A_GUESS: readonly RedeemErrorCode[] = [
   'ALREADY_HIGHER_PLAN',
   'PLAN_UNAVAILABLE',
+  // task 21: a valid exam code for this exam, typed outside the campaign
+  'CAMPAIGN_NOT_OPEN',
+  'CAMPAIGN_ENDED',
 ];
 
 /** Redeem of an exam campaign (task 15). */
@@ -327,7 +331,14 @@ export class UnlockCodesService {
 
     // The code must unlock the exam of the page it is typed on
     const exam = await this.examsRepository.findOne({
-      select: { id: true, isMock: true, accessType: true },
+      select: {
+        id: true,
+        isMock: true,
+        accessType: true,
+        bankOnly: true,
+        campaignStartsAt: true,
+        campaignEndsAt: true,
+      },
       where: { id: examId },
       loadEagerRelations: false,
     });
@@ -342,7 +353,19 @@ export class UnlockCodesService {
     const applies =
       !!exam &&
       (batch.allMock ? isLockedExam(exam) : batchExamIds.includes(examId));
-    if (!applies) throw new RedeemException('NOT_FOR_THIS_EXAM');
+    if (!applies || !exam) throw new RedeemException('NOT_FOR_THIS_EXAM');
+
+    // Campaign window of the exam the code is typed on (task 21): a code
+    // Mock Exam that is upcoming / ended → 400 before anything is consumed,
+    // so access cannot start counting before the campaign opens. Exam codes
+    // only (a Pro code returned above, whatever page it is typed on), and
+    // only the exam sent, also for all-Mock and multi-exam codes. Checked
+    // after the code was found and proved to unlock this exam, so a wrong
+    // guess is still NOT_FOUND / NOT_FOR_THIS_EXAM and counted; only the
+    // holder of a valid code sees this (not counted, NOT_A_GUESS).
+    const campaign = enforcedCampaignStatus(exam, now);
+    if (campaign === 'upcoming') throw new RedeemException('CAMPAIGN_NOT_OPEN');
+    if (campaign === 'ended') throw new RedeemException('CAMPAIGN_ENDED');
 
     // One code per campaign per account (also enforced by the unique index)
     const usedOther = await this.codesRepository.exists({

@@ -62,14 +62,42 @@ describe('ExamsController routes (HTTP)', () => {
       .expect(200);
 
     expect(res.body).toEqual({ route: 'mock-list' });
-    expect(service.findMockExams).toHaveBeenCalledWith(2, 6, 'tgat', null);
+    expect(service.findMockExams).toHaveBeenCalledWith(2, 6, 'tgat', null, {
+      sort: undefined,
+      venue: undefined,
+    });
     expect(service.findPublishedOne).not.toHaveBeenCalled();
+  });
+
+  it('GET /exams/mock?sort=&venue= (task 21) passes both to the service', async () => {
+    await request(app.getHttpServer())
+      .get('/exams/mock?sort=recommended&venue=tgat')
+      .expect(200);
+
+    expect(service.findMockExams).toHaveBeenCalledWith(1, 12, undefined, null, {
+      sort: 'recommended',
+      venue: 'tgat',
+    });
+  });
+
+  it('GET /exams/mock?sort[]= (not a string) is ignored', async () => {
+    await request(app.getHttpServer())
+      .get('/exams/mock?sort[]=name&venue[]=a')
+      .expect(200);
+
+    expect(service.findMockExams).toHaveBeenCalledWith(1, 12, undefined, null, {
+      sort: undefined,
+      venue: undefined,
+    });
   });
 
   it('GET /exams/mock defaults to page 1, limit 12, no category', async () => {
     await request(app.getHttpServer()).get('/exams/mock').expect(200);
 
-    expect(service.findMockExams).toHaveBeenCalledWith(1, 12, undefined, null);
+    expect(service.findMockExams).toHaveBeenCalledWith(1, 12, undefined, null, {
+      sort: undefined,
+      venue: undefined,
+    });
   });
 
   it('GET /exams/mock/categories → categories (not mock/:id)', async () => {
@@ -129,6 +157,7 @@ describe('ExamsController routes (HTTP)', () => {
         12,
         undefined,
         viewer,
+        { sort: undefined, venue: undefined },
       );
       expect(service.findMockOne).toHaveBeenCalledWith('m1', viewer);
     });

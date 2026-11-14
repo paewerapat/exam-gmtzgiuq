@@ -33,3 +33,23 @@ export async function toApiError(response: Response, fallbackMessage: string): P
 export function isExamLockedError(err: unknown): boolean {
   return err instanceof ApiError && err.status === 403 && err.errorCode === EXAM_LOCKED;
 }
+
+// ── ช่วงแคมเปญ (task 21) ────────────────────────────────────
+// POST /attempts/start และ POST /attempts ตอบ 403, POST /unlock-codes/redeem ตอบ 400 เมื่อชุดโค้ดอยู่นอกช่วงแคมเปญ
+export const CAMPAIGN_NOT_OPEN = 'CAMPAIGN_NOT_OPEN';
+export const CAMPAIGN_ENDED = 'CAMPAIGN_ENDED';
+export type CampaignClosedCode = typeof CAMPAIGN_NOT_OPEN | typeof CAMPAIGN_ENDED;
+
+export const CAMPAIGN_CLOSED_MESSAGES: Record<CampaignClosedCode, string> = {
+  CAMPAIGN_NOT_OPEN: 'แคมเปญนี้ยังไม่เปิด เริ่มทำได้เมื่อแคมเปญเปิด',
+  CAMPAIGN_ENDED: 'แคมเปญนี้จบแล้ว เริ่มทำใหม่ไม่ได้',
+};
+
+/** กด "เริ่มทำใหม่" บนแคมเปญที่จบแล้วแต่มี attempt ค้าง → ทำ attempt เดิมต่อแทน (task 21 M3) */
+export const CAMPAIGN_ENDED_RESUME_TEXT = 'แคมเปญจบแล้ว เริ่มใหม่ไม่ได้ ทำต่อจากที่ค้างไว้ได้';
+
+/** รหัสแคมเปญปิด (ยังไม่เปิด / จบแล้ว) จาก ApiError — อย่างอื่น → null */
+export function campaignClosedCode(err: unknown): CampaignClosedCode | null {
+  if (!(err instanceof ApiError)) return null;
+  return err.errorCode === CAMPAIGN_NOT_OPEN || err.errorCode === CAMPAIGN_ENDED ? err.errorCode : null;
+}

@@ -7,10 +7,13 @@ import {
   getAnswerStatus,
   getCorrectChoiceId,
   getCorrectChoiceIds,
+  backendResumeTiming,
+  hasSessionProgress,
   isAnswerCorrect,
   isMultiAnswer,
   nextChoiceId,
   parseChoiceAnswer,
+  sameQuestionSet,
   toggleChoiceAnswer,
   withCurrentQuestionTime,
 } from '@/lib/exam-utils';
@@ -193,5 +196,82 @@ describe('withCurrentQuestionTime — นับเวลาข้อที่เ
     expect(withCurrentQuestionTime(empty, 5)).toBe(empty);
     const s = session(['s'], {});
     expect(withCurrentQuestionTime(s, Number.NaN)).toBe(s);
+  });
+});
+
+describe('hasSessionProgress (task 21 Q1/Q2)', () => {
+  it('ข้อแรกและยังไม่ตอบ → false / ตอบแล้วหรือเลื่อนข้อแล้ว → true', () => {
+    expect(hasSessionProgress(null)).toBe(false);
+    expect(hasSessionProgress(undefined)).toBe(false);
+    expect(hasSessionProgress({ currentIndex: 0, answers: {} })).toBe(false);
+    expect(hasSessionProgress({ currentIndex: 0, answers: null })).toBe(false);
+    expect(hasSessionProgress({})).toBe(false);
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: 'a' } })).toBe(true);
+    expect(hasSessionProgress({ currentIndex: 2, answers: {} })).toBe(true);
+  });
+  it('M4: คำตอบว่าง (สตริงว่าง / null / undefined / array ว่าง) ไม่นับ — ตรงกับ isUntouched ของ API', () => {
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: '' } })).toBe(false);
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: null } })).toBe(false);
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: undefined } })).toBe(false);
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: [] } })).toBe(false);
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: '', q2: 'b' } })).toBe(true);
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: ['a'] } })).toBe(true);
+    expect(hasSessionProgress({ currentIndex: 0, answers: { q1: '0' } })).toBe(true);
+  });
+});
+
+describe('sameQuestionSet (task 21 M1)', () => {
+  const qs = (...ids: string[]) => ids.map((id) => ({ id }));
+  it('id ครบเท่ากัน (ลำดับต่างได้) → true / เพิ่ม ลบ เปลี่ยนข้อ / ว่าง → false', () => {
+    expect(sameQuestionSet(['a', 'b'], qs('a', 'b'))).toBe(true);
+    expect(sameQuestionSet(['b', 'a'], qs('a', 'b'))).toBe(true);
+    expect(sameQuestionSet(['a'], qs('a', 'b'))).toBe(false);
+    expect(sameQuestionSet(['a', 'b'], qs('a'))).toBe(false);
+    expect(sameQuestionSet(['a', 'x'], qs('a', 'b'))).toBe(false);
+    expect(sameQuestionSet(['a', 'a'], qs('a', 'b'))).toBe(false);
+    expect(sameQuestionSet([], qs())).toBe(false);
+    expect(sameQuestionSet(null, qs('a'))).toBe(false);
+  });
+});
+
+describe('backendResumeTiming (task 21 M2)', () => {
+  const now = Date.parse('2026-11-14T10:00:00.000Z');
+  const startedAt = '2026-11-14T08:00:00.000Z'; // 2 ชั่วโมงก่อน
+  const remainingAt = (t: ReturnType<typeof backendResumeTiming>, nowMs: number) =>
+    (Date.parse(t.startedAt) + (t.durationSeconds ?? 0) * 1000 + t.totalPausedMs - nowMs) / 1000;
+
+  it('เหลือเวลาบางส่วน: เวลาที่เหลือ = duration − ผลรวม timePerQuestion ไม่นับช่วงปิดหน้า ; startedAt เดิม', () => {
+    const t = backendResumeTiming({ durationSeconds: 3600, startedAt, timePerQuestion: { q1: 400, q2: 200 }, nowMs: now });
+    expect(t.startedAt).toBe(startedAt);
+    expect(t.durationSeconds).toBe(3600);
+    expect(t.remainingSeconds).toBe(3000);
+    // สูตรเดียวกับ ExamContainer ให้ผลตรงกัน
+    expect(remainingAt(t, now)).toBe(3000);
+    // ผ่านไป 10 วินาที → เหลือ 2990
+    expect(remainingAt(t, now + 10_000)).toBe(2990);
+  });
+
+  it('ใช้เวลาครบ/เกินแล้ว → remainingSeconds ≤ 0', () => {
+    expect(backendResumeTiming({ durationSeconds: 600, startedAt, timePerQuestion: { q1: 600 }, nowMs: now }).remainingSeconds).toBe(0);
+    expect(backendResumeTiming({ durationSeconds: 600, startedAt, timePerQuestion: { q1: 700 }, nowMs: now }).remainingSeconds).toBe(-100);
+  });
+
+  it('ไม่มี duration → นับขึ้น (remaining null, ไม่มี paused) ; ค่า timePerQuestion ที่ผิดไม่นับ', () => {
+    const t = backendResumeTiming({ durationSeconds: null, startedAt, timePerQuestion: { q1: 50 }, nowMs: now });
+    expect(t).toEqual({ startedAt, durationSeconds: null, totalPausedMs: 0, remainingSeconds: null });
+    const odd = backendResumeTiming({
+      durationSeconds: 100,
+      startedAt,
+      timePerQuestion: { a: -5, b: Number.NaN, c: 30 } as Record<string, number>,
+      nowMs: now,
+    });
+    expect(odd.remainingSeconds).toBe(70);
+  });
+
+  it('startedAt ใช้ไม่ได้ → ตั้ง startedAt = now − เวลาที่ใช้ไป', () => {
+    const t = backendResumeTiming({ durationSeconds: 100, startedAt: 'xx', timePerQuestion: { q1: 30 }, nowMs: now });
+    expect(t.startedAt).toBe(new Date(now - 30_000).toISOString());
+    expect(t.totalPausedMs).toBe(0);
+    expect(remainingAt(t, now)).toBe(70);
   });
 });

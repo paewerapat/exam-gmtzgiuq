@@ -4,6 +4,10 @@ import { EntityManager, In, Repository } from 'typeorm';
 import { Exam } from '../exams/exam.entity';
 import type { MockExamAccess, MockExamAccessVia } from '../exams/exam-mock';
 import { ExamAccessType } from '../exams/exam-mock';
+import {
+  campaignClosedForAttempt,
+  enforcedCampaignStatus,
+} from '../exams/exam-campaign';
 import { ProAccessService } from '../pro/pro-access.service';
 import { ExamAccess, ExamAccessSource } from './exam-access.entity';
 import {
@@ -184,6 +188,43 @@ export class ExamAccessService {
       loadEagerRelations: false,
     });
     if (!exam) return;
+    await this.assertCanAccess(viewer, exam);
+  }
+
+  /**
+   * Starting a new attempt (POST /attempts/start, legacy POST /attempts):
+   * assertCanAccessExamId + the campaign window of a code Mock Exam
+   * (task 21): upcoming → 403 CAMPAIGN_NOT_OPEN, ended → 403 CAMPAIGN_ENDED,
+   * checked before access so a student without a code also learns why.
+   * Admins bypass the window. Continuing or submitting an attempt that was
+   * already started never checks the window (assertCanAccessExamId only).
+   */
+  async assertCanStartExamId(
+    viewer: AccessViewer | null | undefined,
+    examId: string | null | undefined,
+    now: Date = new Date(),
+  ): Promise<void> {
+    if (!examId) return;
+    const exam = await this.examsRepository.findOne({
+      select: {
+        id: true,
+        isMock: true,
+        accessType: true,
+        category: true,
+        bankOnly: true,
+        campaignStartsAt: true,
+        campaignEndsAt: true,
+      },
+      where: { id: examId },
+      loadEagerRelations: false,
+    });
+    if (!exam) return;
+    if (!isAdminViewer(viewer)) {
+      const status = enforcedCampaignStatus(exam, now);
+      if (status === 'upcoming' || status === 'ended') {
+        throw campaignClosedForAttempt(status);
+      }
+    }
     await this.assertCanAccess(viewer, exam);
   }
 

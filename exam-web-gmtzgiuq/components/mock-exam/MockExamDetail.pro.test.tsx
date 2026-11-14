@@ -41,6 +41,11 @@ const exam = (patch: Partial<MockExamDetailData> = {}): MockExamDetailData => ({
   description: 'คำอธิบาย',
   detailBlocks: [],
   codeInstructions: null,
+  campaign: null,
+  subjectLabel: null,
+  color: null,
+  myProgress: null,
+  topicBreakdown: [],
   ...patch,
 });
 

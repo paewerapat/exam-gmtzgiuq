@@ -4,6 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ExamsService, assertChallengeInBankOnly } from './exams.service';
 import { Exam } from './exam.entity';
+import { ExamAttempt } from '../attempts/attempt.entity';
 import { Question, QuestionStatus } from '../questions/question.entity';
 import { UploadService } from '../upload/upload.service';
 import { CreateExamInput, UpdateExamInput } from './dto/exam.dto';
@@ -14,6 +15,27 @@ import { ExamAccess } from '../exam-access/exam-access.entity';
 import { CHALLENGE_NOT_IN_BANK_ONLY } from '../question-bank/question-bank-errors';
 
 /** Task 20: "ใช้เฉพาะ Question Bank" exams and Challenge questions. */
+
+/** Repository whose query builder reads no rows (task 21 queries). */
+function emptyQueryRepo() {
+  const qb: Record<string, jest.Mock> = {};
+  for (const m of [
+    'select',
+    'addSelect',
+    'leftJoin',
+    'where',
+    'andWhere',
+    'groupBy',
+    'addGroupBy',
+    'orderBy',
+    'addOrderBy',
+  ]) {
+    qb[m] = jest.fn(() => qb);
+  }
+  qb.getRawMany = jest.fn().mockResolvedValue([]);
+  return { createQueryBuilder: jest.fn(() => qb) };
+}
+
 describe('ExamsService — bankOnly / isChallenge (task 20)', () => {
   let service: ExamsService;
   let examFindOne: jest.Mock;
@@ -70,6 +92,11 @@ describe('ExamsService — bankOnly / isChallenge (task 20)', () => {
           },
         },
         { provide: getRepositoryToken(Question), useValue: {} },
+        // myProgress of the Mock Exam pages (task 21): no attempts
+        {
+          provide: getRepositoryToken(ExamAttempt),
+          useValue: emptyQueryRepo(),
+        },
         {
           provide: DataSource,
           useValue: {

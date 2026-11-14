@@ -12,10 +12,17 @@ import {
   generateSessionId,
   calculateExamResult,
   withCurrentQuestionTime,
+  hasSessionProgress,
 } from '@/lib/exam-utils';
 import { getPublicExam } from '@/lib/api/exams';
 import { toast } from 'react-toastify';
-import { isExamLockedError } from '@/lib/api/apiError';
+import {
+  CAMPAIGN_ENDED_RESUME_TEXT,
+  campaignClosedCode,
+  isExamLockedError,
+  type CampaignClosedCode,
+} from '@/lib/api/apiError';
+import CampaignClosedScreen from '@/components/exam/CampaignClosedScreen';
 import { UNLOCK_TEXT } from '@/lib/unlock-codes';
 import ExamLockedScreen from '@/components/exam/ExamLockedScreen';
 import {
@@ -132,8 +139,14 @@ function ExamPageContent({ examId }: { examId: string }) {
   // examId ที่โหลด/เริ่มไปแล้วใน instance นี้ — StrictMode (dev) รัน effect ซ้ำแต่ ref คงอยู่
   // กันไม่ให้ยิง GET in-progress / POST /attempts/start ซ้ำ
   const loadedExamIdRef = useRef<string | null>(null);
+  // กำลังส่งข้อสอบ — กัน handleComplete ซ้ำ (กดส่งซ้ำ / นาฬิกาเดิมของ session เก่าเรียก onComplete ซ้ำ) ระหว่างรอ API (N2)
+  const submittingRef = useRef(false);
   // ชุด Mock ที่ล็อก (403 EXAM_LOCKED) → แจ้งแล้วพาไปหน้ารายละเอียด Mock (task 15)
   const [locked, setLocked] = useState(false);
+  // ชุดแคมเปญนอกช่วงเวลา (403 CAMPAIGN_NOT_OPEN / CAMPAIGN_ENDED — task 21) → หยุด ไม่ให้ทำโดยไม่บันทึก
+  const [campaignClosed, setCampaignClosed] = useState<CampaignClosedCode | null>(null);
+  // เวลาสอบจริงของชุด = ค่าแนะนำในหน้าต่างตั้งค่าเวลา (task 21)
+  const [recommendedMinutes, setRecommendedMinutes] = useState<number | null>(null);
   const detailHref = `/dashboard/mock-exams/${examId}`;
 
   function handleLocked() {
@@ -205,6 +218,7 @@ function ExamPageContent({ examId }: { examId: string }) {
       // 3. Fetch the exam from API (always fresh to get latest questions/choices)
       try {
         const exam = await getPublicExam(examId);
+        setRecommendedMinutes(exam.durationMinutes ? Number(exam.durationMinutes) : null);
 
         // Resume in-progress session with fresh questions from API
         if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
@@ -224,8 +238,8 @@ function ExamPageContent({ examId }: { examId: string }) {
           return;
         }
 
-        // 4. If backend has in-progress, show resume dialog
-        if (backendAttempt && backendAttempt.currentIndex > 0) {
+        // 4. attempt ค้างบน server ที่ตอบแล้ว/เลื่อนข้อแล้ว → ถามทำต่อ (เริ่มใหม่จะทิ้งคำตอบ)
+        if (backendAttempt && hasSessionProgress(backendAttempt)) {
           setResumeDialog({
             backendAttempt,
             examTitle: exam.title,
@@ -235,11 +249,26 @@ function ExamPageContent({ examId }: { examId: string }) {
           return;
         }
 
-        // 5. Start fresh
-        await startFreshExam(exam, backendAttempt);
+        // 5. Start fresh (attempt ค้างที่ยังไม่ได้ตอบ server ใช้แถวเดิมต่อ)
+        try {
+          await startFreshExam(exam, backendAttempt);
+        } catch (err) {
+          // แคมเปญจบแล้วแต่มี attempt ค้าง (เริ่มใหม่ไม่ได้ แต่ API ให้ทำต่อ/ส่งได้ — AC5) → ทำ attempt เดิมต่อ
+          if (backendAttempt && campaignClosedCode(err) === 'CAMPAIGN_ENDED') {
+            await resumeFromBackendAttempt(backendAttempt, exam);
+            return;
+          }
+          throw err;
+        }
       } catch (err) {
         if (isExamLockedError(err)) {
           handleLocked();
+          return;
+        }
+        const closed = campaignClosedCode(err);
+        if (closed) {
+          setCampaignClosed(closed);
+          setLoading(false);
           return;
         }
         console.error('Failed to load exam:', err);
@@ -267,7 +296,8 @@ function ExamPageContent({ examId }: { examId: string }) {
       markedForReview: [],
       timePerQuestion: {},
       startedAt,
-      durationSeconds: exam.durationMinutes ? Number(exam.durationMinutes) * 60 : null,
+      // โหมดฝึกนับขึ้นเป็นค่าเริ่มต้น ตั้งนับถอยหลังเองได้ที่นาฬิกา (task 21) — ไม่จับเวลาตาม durationMinutes แล้ว
+      durationSeconds: null,
       status: 'in_progress',
     };
 
@@ -289,10 +319,39 @@ function ExamPageContent({ examId }: { examId: string }) {
       } catch (err) {
         // ไม่มีสิทธิ์ (403 EXAM_LOCKED) → ส่งต่อให้ผู้เรียกพาไปหน้ารายละเอียด / error อื่นทำต่อโดยไม่ติดตาม
         if (isExamLockedError(err)) throw err;
+        // แคมเปญยังไม่เปิด/จบแล้ว (task 21) → ทิ้ง session ที่เพิ่งสร้างแล้วส่งต่อให้ผู้เรียกแจ้งผู้ใช้
+        if (campaignClosedCode(err)) {
+          clearExamSession();
+          throw err;
+        }
       }
     }
 
     await initFromSessionAndAttempt(session, exam.questions, attemptId);
+  }
+
+  /** สร้าง session จาก attempt ค้างบน server แล้วเข้าหน้าข้อสอบ (ทำ attempt เดิมต่อ) */
+  async function resumeFromBackendAttempt(
+    backendAttempt: ExamAttempt,
+    exam: Pick<Awaited<ReturnType<typeof getPublicExam>>, 'questions'>,
+  ) {
+    const session: ExamSession = {
+      id: generateSessionId(),
+      examId,
+      examTitle: backendAttempt.examTitle,
+      category: backendAttempt.category as QuestionCategory,
+      questionIds: backendAttempt.questionIds,
+      currentIndex: backendAttempt.currentIndex,
+      answers: backendAttempt.answers || {},
+      markedForReview: [],
+      timePerQuestion: backendAttempt.timePerQuestion || {},
+      startedAt: backendAttempt.startedAt,
+      durationSeconds: null,
+      status: 'in_progress',
+    };
+
+    saveExamSession(session, exam.questions);
+    await initFromSessionAndAttempt(session, exam.questions, backendAttempt.id);
   }
 
   async function handleResume() {
@@ -304,28 +363,18 @@ function ExamPageContent({ examId }: { examId: string }) {
 
     try {
       const exam = await getPublicExam(examId);
-
-      // Restore session from backend state
-      const session: ExamSession = {
-        id: generateSessionId(),
-        examId,
-        examTitle: backendAttempt.examTitle,
-        category: backendAttempt.category as QuestionCategory,
-        questionIds: backendAttempt.questionIds,
-        currentIndex: backendAttempt.currentIndex,
-        answers: backendAttempt.answers || {},
-        markedForReview: [],
-        timePerQuestion: backendAttempt.timePerQuestion || {},
-        startedAt: backendAttempt.startedAt,
-        durationSeconds: exam.durationMinutes ? Number(exam.durationMinutes) * 60 : null,
-        status: 'in_progress',
-      };
-
-      saveExamSession(session, exam.questions);
-      await initFromSessionAndAttempt(session, exam.questions, backendAttempt.id);
+      setRecommendedMinutes(exam.durationMinutes ? Number(exam.durationMinutes) : null);
+      await resumeFromBackendAttempt(backendAttempt, exam);
     } catch (err) {
       if (isExamLockedError(err)) {
         handleLocked();
+        return;
+      }
+      // GET /exams/:id ตอบ 403 CAMPAIGN_NOT_OPEN ถ้าแอดมินเลื่อนแคมเปญไปอนาคตระหว่างนั้น (task 21 R1)
+      const closed = campaignClosedCode(err);
+      if (closed) {
+        setCampaignClosed(closed);
+        setLoading(false);
         return;
       }
       console.error('Failed to resume:', err);
@@ -336,6 +385,7 @@ function ExamPageContent({ examId }: { examId: string }) {
 
   async function handleStartFresh() {
     if (!resumeDialog) return;
+    const { backendAttempt } = resumeDialog;
     setLoading(true);
     setResumeDialog(null);
     clearExamSession();
@@ -344,10 +394,27 @@ function ExamPageContent({ examId }: { examId: string }) {
 
     try {
       const exam = await getPublicExam(examId);
-      await startFreshExam(exam);
+      setRecommendedMinutes(exam.durationMinutes ? Number(exam.durationMinutes) : null);
+      try {
+        await startFreshExam(exam);
+      } catch (err) {
+        // แคมเปญจบแล้ว: เริ่มใหม่ไม่ได้ (403 ทุกครั้ง) แต่ attempt ค้างยังทำต่อ/ส่งได้ (AC5) → แจ้งแล้วทำต่อ (M3)
+        if (campaignClosedCode(err) === 'CAMPAIGN_ENDED') {
+          toast.info(CAMPAIGN_ENDED_RESUME_TEXT);
+          await resumeFromBackendAttempt(backendAttempt, exam);
+          return;
+        }
+        throw err;
+      }
     } catch (err) {
       if (isExamLockedError(err)) {
         handleLocked();
+        return;
+      }
+      const closed = campaignClosedCode(err);
+      if (closed) {
+        setCampaignClosed(closed);
+        setLoading(false);
         return;
       }
       console.error('Failed to load exam:', err);
@@ -357,7 +424,9 @@ function ExamPageContent({ examId }: { examId: string }) {
   }
 
   // ── Complete ──────────────────────────────────────────────
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
 
     const { session: storedSession, questions: savedQuestions } =
@@ -401,16 +470,31 @@ function ExamPageContent({ examId }: { examId: string }) {
       );
       clearBackendAttemptId(examId);
     } else {
-      // Fallback: submit as new attempt
-      submitAttempt(payload).catch((err) =>
-        console.error('Failed to submit attempt:', err),
-      );
+      // Fallback: submit as new attempt — รอผลเพื่อจับกรณีแคมเปญนอกช่วงเวลา (task 21 R3)
+      try {
+        await submitAttempt(payload);
+      } catch (err) {
+        const closed = campaignClosedCode(err);
+        if (closed) {
+          // API ไม่บันทึกผล → คืน session เป็น "กำลังทำ" (คำตอบยังอยู่ในเครื่อง) แล้วแจ้ง แทนการไปหน้าผลเหมือนส่งสำเร็จ
+          saveExamSession({ ...savedSession, status: 'in_progress', completedAt: undefined }, savedQuestions);
+          toast.error('ส่งข้อสอบไม่สำเร็จ ผลนี้ยังไม่ได้บันทึก (คำตอบเก็บไว้ในเครื่องนี้)');
+          setCampaignClosed(closed);
+          submittingRef.current = false;
+          return;
+        }
+        console.error('Failed to submit attempt:', err);
+      }
     }
 
     router.push(`/practice/exam/${examId}/results`);
   };
 
   // ── Render ────────────────────────────────────────────────
+  if (campaignClosed) {
+    return <CampaignClosedScreen code={campaignClosed} detailHref={detailHref} />;
+  }
+
   if (locked) {
     return <ExamLockedScreen kind="load" detailHref={detailHref} />;
   }
@@ -454,7 +538,7 @@ function ExamPageContent({ examId }: { examId: string }) {
     );
   }
 
-  return <ExamContainer onComplete={handleComplete} />;
+  return <ExamContainer onComplete={handleComplete} timerSettings={{ recommendedMinutes }} />;
 }
 
 export default function ExamPage({ params }: PageProps) {

@@ -47,6 +47,12 @@ export function bangkokInputToIso(value: string): string | null {
   return new Date(utcMs - BANGKOK_OFFSET_MS).toISOString();
 }
 
+/** "YYYY-MM-DDTHH:mm" (ไม่มีวินาที) → ต่อ ":59" ให้เวลาปิดนับรวมทั้งนาทีนั้น / มีวินาทีอยู่แล้ว → คงเดิม */
+export function withEndOfMinute(local: string): string {
+  const v = local.trim();
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? `${v}:59` : v;
+}
+
 /** วันที่ใช้จัดลำดับ/แสดงของชุดข้อสอบ: releaseDate ถ้ามี ไม่งั้น createdAt (ข้อมูลจาก API เก่า) */
 export function examReleaseDate(exam: { releaseDate?: string | null; createdAt?: string | null }): string | null {
   if (exam.releaseDate && toDate(exam.releaseDate)) return exam.releaseDate;

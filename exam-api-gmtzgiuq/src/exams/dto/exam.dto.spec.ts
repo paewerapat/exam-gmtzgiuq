@@ -257,6 +257,45 @@ describe('CreateExamInput / UpdateExamInput validation (task 07)', () => {
     ).toContain('ใส่รูปโจทย์ได้ไม่เกิน 6 รูปต่อข้อ');
   });
 
+  describe('campaignStartsAt / campaignEndsAt (task 21)', () => {
+    it('accepts ISO with a timezone or null, keeps them; not sent = undefined', async () => {
+      const body = {
+        campaignStartsAt: '2026-11-20T09:00:00+07:00',
+        campaignEndsAt: '2026-11-30T16:59:00.000Z',
+      };
+      const created = await validate(CreateExamInput, {
+        ...examWith({}),
+        ...body,
+      });
+      expect(created).toMatchObject(body);
+      const nulled = await validate(UpdateExamInput, {
+        campaignStartsAt: null,
+        campaignEndsAt: null,
+      });
+      expect(nulled.campaignStartsAt).toBeNull();
+      expect(nulled.campaignEndsAt).toBeNull();
+      const untouched = await validate(UpdateExamInput, { title: 'x' });
+      expect(untouched.campaignStartsAt).toBeUndefined();
+    });
+
+    it.each([
+      ['campaignStartsAt', '2026-11-20T09:00', 'วันเปิดแคมเปญ'],
+      ['campaignEndsAt', 'เดือนหน้า', 'วันปิดแคมเปญ'],
+      ['campaignEndsAt', 1762311600000, 'วันปิดแคมเปญ'],
+    ])(
+      'rejects %s = %p (no timezone / not a date) with 400 and the Thai message',
+      async (field, value, label) => {
+        const error = await validate(UpdateExamInput, { [field]: value }).catch(
+          (err: unknown) => err,
+        );
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(
+          JSON.stringify((error as BadRequestException).getResponse()),
+        ).toContain(label);
+      },
+    );
+  });
+
   describe('releaseDate (task 10)', () => {
     const exam = (extra: Record<string, unknown>) => ({
       ...examWith({}),

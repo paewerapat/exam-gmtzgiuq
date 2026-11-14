@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   AlertCircle,
   ArrowLeft,
+  CalendarClock,
   ChevronLeft,
   Clock,
   FileQuestion,
@@ -27,7 +28,10 @@ import {
   type MockExamAccess,
 } from '@/lib/mock-exam';
 import { formatAccessUntil } from '@/lib/unlock-codes';
+import { formatReleaseDate } from '@/lib/release-date';
+import { campaignStatusOf } from '@/lib/free-mock';
 import DetailBlocksView from './DetailBlocksView';
+import { AfterExamBox, TopicBreakdownBox } from './MockDetailExtras';
 import MockDetailHero from './MockDetailHero';
 import MockAccessPanel from './MockAccessPanel';
 import CodeInstructionsView from './CodeInstructionsView';
@@ -39,6 +43,15 @@ function isAbortError(err: unknown) {
 }
 
 const BACK_HREF = '/dashboard/mock-exams';
+
+/** แถว "ช่วงแคมเปญ" (เวลาไทย) — ไม่มีวันเปิด/ปิด = เปิดตลอด */
+function campaignWindowText(campaign: MockExamDetailData['campaign']): string {
+  const start = campaign?.startsAt ? formatReleaseDate(campaign.startsAt) : null;
+  const end = campaign?.endsAt ? formatReleaseDate(campaign.endsAt) : null;
+  if (!start && !end) return 'เปิดตลอด ไม่จำกัดช่วงเวลา';
+  if (start && end) return `${start} – ${end}`;
+  return start ? `เปิด ${start} เป็นต้นไป` : `ถึง ${end}`;
+}
 
 /** แถว "การเข้าถึง" ในกล่องรายละเอียด */
 function accessSummary(exam: MockExamDetailData, access: MockExamAccess): string {
@@ -52,6 +65,7 @@ function accessSummary(exam: MockExamDetailData, access: MockExamAccess): string
 export default function MockExamDetail({ id }: { id: string }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
 
   const [reloadKey, setReloadKey] = useState(0);
   // ผลของคำขอล่าสุด ผูกกับ key — key ไม่ตรง (กดลองใหม่ / login-logout) = กำลังโหลด
@@ -73,8 +87,13 @@ export default function MockExamDetail({ id }: { id: string }) {
       : exam.access
     : null;
 
-  // attempt โหมด exam ที่ค้างของชุดนี้ (เฉพาะเมื่อ login และเริ่มทำได้) null = ยังไม่ได้เช็ก
-  const [inProgress, setInProgress] = useState<{ key: string; has: boolean } | null>(null);
+  // attempt ที่ค้างของชุดนี้ ทั้งโหมด practice และ exam (เฉพาะเมื่อ login และเริ่มทำได้) null = ยังไม่ได้เช็ก
+  // mode = โหมดของ attempt ล่าสุด → ปุ่ม "ทำต่อ" ไปหน้าตามโหมด ให้ตรงกับการ์ดในหน้ารายการ (task 21 Q3)
+  const [inProgress, setInProgress] = useState<{
+    key: string;
+    has: boolean;
+    mode: 'practice' | 'exam' | null;
+  } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,6 +112,8 @@ export default function MockExamDetail({ id }: { id: string }) {
 
   const canStart = !!exam && canStartMock(exam, access);
   const progressKey = userId && canStart ? `${userId}:${id}` : null;
+  // attempt ล่าสุดที่การ์ดในหน้ารายการใช้ (myProgress จาก API) — ให้ปุ่ม "ทำต่อ" ไปปลายทางเดียวกับการ์ด
+  const cardAttemptId = exam?.myProgress?.status === 'in_progress' ? exam.myProgress.attemptId : null;
 
   useEffect(() => {
     if (!progressKey) return;
@@ -100,17 +121,20 @@ export default function MockExamDetail({ id }: { id: string }) {
     getMyInProgressAttempts()
       .then((attempts) => {
         if (cancelled) return;
-        const has = attempts.some((a) => a.examId === id && a.mode === 'exam');
-        setInProgress({ key: progressKey, has });
+        const mine = attempts.filter((a) => a.examId === id);
+        // ตรงกับการ์ดก่อน ไม่มี → ตัวแรก (API เรียง updatedAt ล่าสุดก่อน)
+        const latest = mine.find((a) => a.id === cardAttemptId) ?? mine[0];
+        const mode = latest ? (latest.mode === 'practice' ? 'practice' : 'exam') : null;
+        setInProgress({ key: progressKey, has: !!latest, mode });
       })
       .catch(() => {
         // เช็กไม่ได้ → แสดง "เริ่มทำ" (หน้าทำข้อสอบจะเสนอทำต่อเองถ้ามี attempt ค้าง)
-        if (!cancelled) setInProgress({ key: progressKey, has: false });
+        if (!cancelled) setInProgress({ key: progressKey, has: false, mode: null });
       });
     return () => {
       cancelled = true;
     };
-  }, [progressKey, id]);
+  }, [progressKey, id, cardAttemptId]);
 
   if (state === 'loading') {
     return (
@@ -162,6 +186,7 @@ export default function MockExamDetail({ id }: { id: string }) {
 
   const checkingProgress = !!progressKey && inProgress?.key !== progressKey;
   const hasInProgress = !!progressKey && inProgress?.key === progressKey && inProgress.has;
+  const inProgressMode = hasInProgress ? (inProgress?.mode ?? null) : null;
   const justUnlocked = redeemed?.key === requestKey;
   const instructions = exam.accessType === 'code' ? exam.codeInstructions : null;
 
@@ -190,6 +215,12 @@ export default function MockExamDetail({ id }: { id: string }) {
     { icon: Gauge, label: 'ระดับ', value: exam.level ? LEVEL_LABELS[exam.level] : 'ไม่ระบุ' },
     { icon: KeyRound, label: 'การเข้าถึง', value: accessSummary(exam, access) },
   ];
+  if (exam.accessType === 'code') {
+    infoRows.push({ icon: CalendarClock, label: 'ช่วงแคมเปญ', value: campaignWindowText(exam.campaign) });
+  }
+  const campaignStatus = campaignStatusOf(exam);
+  // กล่อง "เนื้อหาที่ออก" / "สิ่งที่ได้หลังทำ" สำหรับชุดฟรีทั่วไปและแคมเปญ (ชุด Pro อยู่หน้า Predicted ในงาน 8)
+  const showExtras = exam.accessType !== 'purchase';
 
   return (
     <FadeIn>
@@ -209,6 +240,8 @@ export default function MockExamDetail({ id }: { id: string }) {
         questionCount={exam.questionCount}
         durationMinutes={exam.durationMinutes}
         access={access}
+        campaign={exam.campaign}
+        campaignStatus={campaignStatus}
       />
 
       {/* มือถือ: กล่องเริ่มทำ/กรอกโค้ดอยู่ใต้แถบหัวทันที / จอกว้าง: คอลัมน์ขวา */}
@@ -219,9 +252,13 @@ export default function MockExamDetail({ id }: { id: string }) {
             access={access}
             isGuest={!userId}
             hasInProgress={hasInProgress}
+            inProgressMode={inProgressMode}
             checkingProgress={checkingProgress}
             focusStart={justUnlocked}
             onRedeemed={handleRedeemed}
+            campaign={campaignStatus ? { status: campaignStatus, info: exam.campaign } : null}
+            completedAttemptId={exam.myProgress?.status === 'completed' ? exam.myProgress.attemptId : null}
+            isAdmin={isAdmin}
           />
         </aside>
 
@@ -263,6 +300,16 @@ export default function MockExamDetail({ id }: { id: string }) {
               ))}
             </dl>
           </section>
+
+          {showExtras && (
+            <div
+              className={`grid grid-cols-1 gap-6 ${exam.topicBreakdown.length > 0 ? 'xl:grid-cols-2' : ''}`}
+              data-testid="mock-detail-extras"
+            >
+              <TopicBreakdownBox items={exam.topicBreakdown} total={exam.questionCount} />
+              <AfterExamBox />
+            </div>
+          )}
         </div>
       </div>
     </FadeIn>

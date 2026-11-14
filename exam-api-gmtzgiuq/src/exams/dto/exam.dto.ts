@@ -139,6 +139,23 @@ function IsReleaseDate() {
   );
 }
 
+/**
+ * `campaignStartsAt` / `campaignEndsAt` of POST and PUT (task 21): ISO 8601
+ * date-time with a timezone like releaseDate. null = no limit on that side
+ * (PUT: clears it); not sent = null on create, unchanged on update. "end
+ * after start" spans fields and is checked in the service
+ * (assertCampaignWindow).
+ */
+function IsCampaignDate(label: string) {
+  const message = `${label}ต้องเป็นวันที่และเวลาที่ถูกต้อง (ISO 8601 พร้อมเขตเวลา)`;
+  return applyDecorators(
+    Field(() => String, { nullable: true }),
+    IsOptional(),
+    IsDateString({ strict: true }, { message }),
+    Matches(RELEASE_DATE_TIMEZONE_PATTERN, { message }),
+  );
+}
+
 // One block of the Mock Exam description (task 11): { type: 'text', text }
 // or { type: 'image', url }. The service keeps only the field of the type.
 @InputType()
@@ -296,6 +313,13 @@ export class MockExamFieldsInput {
   @ValidateNested()
   @Type(() => ExamCodeInstructionsInput)
   codeInstructions?: ExamCodeInstructionsInput | null;
+
+  // Campaign window of a code Mock Exam (task 21)
+  @IsCampaignDate('วันเปิดแคมเปญ')
+  campaignStartsAt?: string | null;
+
+  @IsCampaignDate('วันปิดแคมเปญ')
+  campaignEndsAt?: string | null;
 }
 
 // Choice input for exam questions

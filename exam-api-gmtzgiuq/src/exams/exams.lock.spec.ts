@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, FindOperator } from 'typeorm';
 import { ExamsService } from './exams.service';
 import { Exam } from './exam.entity';
+import { ExamAttempt } from '../attempts/attempt.entity';
 import { ExamAccessType } from './exam-mock';
 import { CreateExamInput, UpdateExamInput } from './dto/exam.dto';
 import { Question, QuestionStatus } from '../questions/question.entity';
@@ -17,6 +18,26 @@ import { ProAccessService } from '../pro/pro-access.service';
 import { User } from '../users/user.entity';
 
 const DAY = 24 * 60 * 60 * 1000;
+
+/** Repository whose query builder reads no rows (task 21 queries). */
+function emptyQueryRepo() {
+  const qb: Record<string, jest.Mock> = {};
+  for (const m of [
+    'select',
+    'addSelect',
+    'leftJoin',
+    'where',
+    'andWhere',
+    'groupBy',
+    'addGroupBy',
+    'orderBy',
+    'addOrderBy',
+  ]) {
+    qb[m] = jest.fn(() => qb);
+  }
+  qb.getRawMany = jest.fn().mockResolvedValue([]);
+  return { createQueryBuilder: jest.fn(() => qb) };
+}
 
 describe('ExamsService — unlock codes (task 15)', () => {
   let service: ExamsService;
@@ -101,7 +122,12 @@ describe('ExamsService — unlock codes (task 15)', () => {
             createQueryBuilder: jest.fn(() => qb),
           },
         },
-        { provide: getRepositoryToken(Question), useValue: {} },
+        { provide: getRepositoryToken(Question), useValue: emptyQueryRepo() },
+        // myProgress of the Mock Exam pages (task 21): no attempts
+        {
+          provide: getRepositoryToken(ExamAttempt),
+          useValue: emptyQueryRepo(),
+        },
         {
           provide: getRepositoryToken(ExamAccess),
           useValue: {

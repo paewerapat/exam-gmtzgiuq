@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import Swal from 'sweetalert2';
+import { toast } from 'react-toastify';
 import {
   Lightbulb,
   Bookmark,
@@ -24,6 +25,7 @@ import {
   prettyMathAnswer,
 } from '@/lib/exam-utils';
 import { fetchClockOffset } from '@/lib/api/serverTime';
+import { withTimeout } from '@/lib/with-timeout';
 import ExamHeader from './ExamHeader';
 import ChoiceButton from './ChoiceButton';
 import QuestionImages from './QuestionImages';
@@ -33,6 +35,8 @@ import { getQuestionPassage } from '@/lib/exam-passages';
 import LatexRenderer from '@/components/latex/LatexRenderer';
 import LatexText from '@/components/latex/LatexText';
 import LockedChallengeQuestion from './LockedChallengeQuestion';
+import PracticeTimerControl from './PracticeTimerControl';
+import { totalActiveSeconds } from '@/lib/practice-timer';
 
 interface ExamContainerProps {
   onComplete: () => void | Promise<void>;
@@ -43,9 +47,20 @@ interface ExamContainerProps {
    * ข้อที่ล็อกแสดงการ์ดล็อก + modal แทนโจทย์ และไม่นับเป็นข้อที่ยังไม่ตอบตอนส่ง
    */
   lockedUpgradeHref?: string;
+  /**
+   * ตั้งค่าเวลาโหมดฝึก (task 21): ส่ง = นาฬิกาเป็นปุ่มเปิดหน้าต่าง "ตั้งค่าเวลา" (นับขึ้น/นับถอยหลัง)
+   * recommendedMinutes = exam.durationMinutes (ไม่มี = ไม่แสดงค่าแนะนำ) — โหมดสอบจริงไม่ใช้
+   */
+  timerSettings?: { recommendedMinutes?: number | null };
 }
 
-export default function ExamContainer({ onComplete, mode = 'practice', backUrl, lockedUpgradeHref = '/upgrade' }: ExamContainerProps) {
+export default function ExamContainer({
+  onComplete,
+  mode = 'practice',
+  backUrl,
+  lockedUpgradeHref = '/upgrade',
+  timerSettings,
+}: ExamContainerProps) {
   const {
     state,
     currentQuestion,
@@ -64,6 +79,9 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
     completeExam,
     pauseTimer,
     resumeTimer,
+    setPracticeTimer,
+    markPracticeTimerNotified,
+    rebaseClock,
   } = useExam();
 
   const [isNavOpen, setIsNavOpen] = useState(false);
@@ -142,6 +160,30 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
     }
   };
 
+  // หมดเวลาที่ตั้งไว้ + ติ๊กส่งอัตโนมัติ (task 21) → ส่งแบบเดียวกับกดยืนยันส่ง (completeExam flush เวลาข้อปัจจุบัน — BUG-22)
+  const handleTimeUp = async () => {
+    if (Swal.isVisible?.()) Swal.close();
+    const { session: finalSession, questions } = completeExam();
+    saveExamSession(finalSession, questions);
+    toast.info('หมดเวลาที่ตั้งไว้ ระบบส่งข้อสอบให้อัตโนมัติ');
+    await onComplete();
+  };
+
+  // ปุ่มตั้งค่าเวลา: เฉพาะโหมดฝึกที่หน้าเปิดใช้ และ session ไม่ได้จับเวลาถอยหลังแบบเดิม (durationSeconds ของ session เก่า)
+  const timerSlot =
+    mode === 'practice' && timerSettings && !session.durationSeconds ? (
+      <PracticeTimerControl
+        settings={session.practiceTimer}
+        totalSec={totalActiveSeconds(session, currentTimer)}
+        countUpSeconds={currentTimer}
+        recommendedMinutes={timerSettings.recommendedMinutes}
+        sessionId={session.id}
+        onApply={setPracticeTimer}
+        onExpiredNotified={markPracticeTimerNotified}
+        onTimeUp={handleTimeUp}
+      />
+    ) : undefined;
+
   // ปุ่มตรวจคำตอบ (practice)
   const checkButton = (
     <button
@@ -178,7 +220,12 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
   // Remaining seconds for countdown (if session.durationSeconds provided)
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   // serverNow - clientNow (ms), refreshed periodically to correct for client clock drift
-  const [clockOffset, setClockOffset] = useState(0);
+  // ก่อน sync ครั้งแรก: ใช้ offset เดียวกับที่หน้าใช้คำนวณ session (ทำต่อจาก attempt บน server — M2) ไม่มี = 0
+  // ready = sync ครั้งแรกจบแล้ว (สำเร็จ/ล้ม/ช้าเกิน 5 วินาที) — ก่อนหน้านั้นไม่ส่งอัตโนมัติ เพราะ offset อาจยังคลาด
+  // (เก็บรวมใน state เดียว: hook ชุดนี้อยู่หลัง early return เดิม — BUG-11 ห้ามเพิ่ม hook)
+  const [clock, setClock] = useState(() => ({ offset: session?.clockOffsetBasisMs ?? 0, ready: false }));
+  const clockOffset = clock.offset;
+  const clockReady = clock.ready;
 
   // Periodically re-sync with the server clock so a wrong/drifting client clock
   // doesn't let the user run over (or get cut off early on) the exam duration
@@ -187,12 +234,16 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
 
     let cancelled = false;
     const sync = () => {
-      fetchClockOffset()
+      withTimeout(fetchClockOffset(), 5000)
         .then((offset) => {
-          if (!cancelled) setClockOffset(offset);
+          if (cancelled) return;
+          // session ที่คิดเวลาด้วย offset อื่น (clockOffsetBasisMs) → ปรับ totalPausedMs ให้เวลาที่เหลือเท่าเดิม (ครั้งเดียว)
+          rebaseClock(offset);
+          setClock({ offset, ready: true });
         })
         .catch(() => {
           // keep using the last known offset on failure
+          if (!cancelled) setClock((c) => (c.ready ? c : { ...c, ready: true }));
         });
     };
 
@@ -202,7 +253,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
       cancelled = true;
       clearInterval(id);
     };
-  }, [session?.durationSeconds]);
+  }, [session?.durationSeconds, rebaseClock]);
 
   // Setup countdown when session has a duration
   useEffect(() => {
@@ -221,8 +272,8 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
       const totalPausedMs = session.totalPausedMs ?? 0;
       const rem = Math.max(0, Math.ceil((endMs + totalPausedMs - serverApproxNow) / 1000));
       setRemainingSeconds(rem);
-      if (rem <= 0) {
-        // Time is up — submit/complete the exam
+      if (rem <= 0 && clockReady) {
+        // Time is up — submit/complete the exam (รอ sync เวลา server ครั้งแรกก่อน)
         onComplete();
       }
     }
@@ -230,7 +281,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [session, onComplete, clockOffset, isPaused]);
+  }, [session, onComplete, clockOffset, isPaused, clockReady]);
 
   return (
     <div
@@ -251,6 +302,7 @@ export default function ExamContainer({ onComplete, mode = 'practice', backUrl, 
         isPaused={isPaused}
         onPause={pauseTimer}
         onResume={resumeTimer}
+        timerSlot={timerSlot}
       />
 
       {/* Scrollable content */}

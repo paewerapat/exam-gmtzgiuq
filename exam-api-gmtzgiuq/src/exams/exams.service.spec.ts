@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { ExamsService, matchQuestionIds } from './exams.service';
 import { Exam } from './exam.entity';
+import { ExamAttempt } from '../attempts/attempt.entity';
 import { Question, QuestionStatus } from '../questions/question.entity';
 import { UploadService } from '../upload/upload.service';
 import {
@@ -67,6 +68,26 @@ function questionsWith(images: (string | null)[]): CreateExamQuestionInput[] {
   );
 }
 
+/** Repository whose query builder reads no rows (task 21 queries). */
+function emptyQueryRepo() {
+  const qb: Record<string, jest.Mock> = {};
+  for (const m of [
+    'select',
+    'addSelect',
+    'leftJoin',
+    'where',
+    'andWhere',
+    'groupBy',
+    'addGroupBy',
+    'orderBy',
+    'addOrderBy',
+  ]) {
+    qb[m] = jest.fn(() => qb);
+  }
+  qb.getRawMany = jest.fn().mockResolvedValue([]);
+  return { createQueryBuilder: jest.fn(() => qb) };
+}
+
 describe('ExamsService', () => {
   let service: ExamsService;
   let examsRepo: jest.Mocked<Repository<Exam>>;
@@ -117,7 +138,12 @@ describe('ExamsService', () => {
           provide: getRepositoryToken(Exam),
           useValue: { findOne: jest.fn(), remove: jest.fn() },
         },
-        { provide: getRepositoryToken(Question), useValue: {} },
+        { provide: getRepositoryToken(Question), useValue: emptyQueryRepo() },
+        // myProgress of the Mock Exam pages (task 21): no attempts
+        {
+          provide: getRepositoryToken(ExamAttempt),
+          useValue: emptyQueryRepo(),
+        },
         {
           provide: DataSource,
           useValue: {
@@ -1927,7 +1953,11 @@ describe('ExamsService', () => {
           ]),
         );
         expect(qb.orderBy.mock.calls).toEqual([['exam.releaseDate', 'DESC']]);
-        expect(qb.addOrderBy.mock.calls).toEqual([['exam.createdAt', 'DESC']]);
+        expect(qb.addOrderBy.mock.calls).toEqual([
+          ['exam.createdAt', 'DESC'],
+          // task 21: deterministic pages
+          ['exam.id', 'ASC'],
+        ]);
         expect(qb.offset).toHaveBeenCalledWith(12);
         expect(qb.limit).toHaveBeenCalledWith(12);
         // never questions, answers, author or the description
@@ -1946,6 +1976,12 @@ describe('ExamsService', () => {
               accessType: 'purchase',
               // guest (task 15)
               access: { status: 'locked', expiresAt: null, via: null },
+              // task 21: no bankLabel → subject name; no subject colour →
+              // colour of the access type; not a campaign; guest
+              subjectLabel: 'คณิตศาสตร์',
+              color: '#6366f1',
+              campaign: null,
+              myProgress: null,
             },
           ],
           total: 13,
@@ -2010,6 +2046,12 @@ describe('ExamsService', () => {
           detailBlocks: [textBlock('a'), imageBlock('/uploads/x.png')],
           access: { status: 'locked', expiresAt: null, via: null },
           codeInstructions: null,
+          // task 21
+          subjectLabel: 'คณิตศาสตร์',
+          color: '#6366f1',
+          campaign: null,
+          myProgress: null,
+          topicBreakdown: [],
         });
         expect(exam).not.toHaveProperty('questions');
         expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();

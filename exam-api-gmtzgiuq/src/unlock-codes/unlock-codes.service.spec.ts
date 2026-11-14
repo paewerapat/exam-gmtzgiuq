@@ -884,6 +884,123 @@ describe('UnlockCodesService (task 15)', () => {
     });
   });
 
+  describe('redeem — campaign window of the exam (task 21)', () => {
+    const setWindow = (examId: string, window: Row) =>
+      Object.assign(db.exams.find((e) => e.id === examId)!, window);
+
+    it('upcoming → 400 CAMPAIGN_NOT_OPEN for a valid exam code of this exam: code unused, no access, not counted', async () => {
+      setWindow(E1, { campaignStartsAt: new Date(NOW.getTime() + DAY) });
+      addCode(addBatch(), 'ABCDEFGHJK');
+
+      const err = await redeemError(
+        service.redeem(studentA, { code: 'ABCDEFGHJK', examId: E1 }, NOW),
+      );
+      expect(err.getStatus()).toBe(400);
+      expect(err.getResponse()).toEqual({
+        statusCode: 400,
+        message: 'แคมเปญนี้ยังไม่เปิด กรอกโค้ดได้เมื่อถึงวันเปิดแคมเปญ',
+        errorCode: 'CAMPAIGN_NOT_OPEN',
+      });
+      expect(db.codes[0]).toMatchObject({ usedByUserId: null, usedAt: null });
+      expect(db.access).toHaveLength(0);
+      expect(db.failures).toHaveLength(0);
+    });
+
+    it('closed campaign page: a wrong guess is still NOT_FOUND / NOT_FOR_THIS_EXAM and counted (R11)', async () => {
+      setWindow(E1, { campaignStartsAt: new Date(NOW.getTime() + DAY) });
+      addCode(addBatch({}, [E2]), 'OTHEREXAM2');
+
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'ZZZZZZZZZZ', examId: E1 }, NOW),
+        'NOT_FOUND',
+        404,
+      );
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'OTHEREXAM2', examId: E1 }, NOW),
+        'NOT_FOR_THIS_EXAM',
+        422,
+      );
+      expect(db.failures.map((f) => f.errorCode)).toEqual([
+        'NOT_FOUND',
+        'NOT_FOR_THIS_EXAM',
+      ]);
+      expect(db.codes[0]).toMatchObject({ usedByUserId: null });
+    });
+
+    it('closed campaign page: a Pro code is redeemed as on any page (no CAMPAIGN_*) (R11)', async () => {
+      setWindow(E1, { campaignEndsAt: new Date(NOW.getTime() - DAY) });
+      addCode(
+        addBatch(
+          { kind: 'pro', proPlanId: PRO_PLAN, accessDays: 7, name: 'PRO' },
+          [],
+        ),
+        'PROCODE222',
+      );
+
+      await expect(
+        service.redeem(studentA, { code: 'PROCODE222', examId: E1 }, NOW),
+      ).resolves.toMatchObject({ kind: 'pro' });
+      expect(proSubs.grantFromCode).toHaveBeenCalledTimes(1);
+      expect(db.failures).toHaveLength(0);
+    });
+
+    it('ended → 400 CAMPAIGN_ENDED', async () => {
+      setWindow(E1, {
+        campaignStartsAt: new Date(NOW.getTime() - 10 * DAY),
+        campaignEndsAt: new Date(NOW.getTime() - 1000),
+      });
+      addCode(addBatch(), 'ABCDEFGHJK');
+      const err = await redeemError(
+        service.redeem(studentA, { code: 'ABCDEFGHJK', examId: E1 }, NOW),
+      );
+      expect(err.getStatus()).toBe(400);
+      expect(err.getResponse()).toEqual({
+        statusCode: 400,
+        message: 'แคมเปญนี้จบแล้ว ใช้โค้ดกับชุดนี้ไม่ได้',
+        errorCode: 'CAMPAIGN_ENDED',
+      });
+      expect(db.codes[0]).toMatchObject({ usedByUserId: null });
+      expect(db.failures).toHaveLength(0);
+    });
+
+    it('inside the window (or exactly at the end) → redeemed as before', async () => {
+      setWindow(E1, {
+        campaignStartsAt: new Date(NOW.getTime() - DAY),
+        campaignEndsAt: NOW,
+      });
+      addCode(addBatch(), 'ABCDEFGHJK');
+      await expect(
+        service.redeem(studentA, { code: 'ABCDEFGHJK', examId: E1 }, NOW),
+      ).resolves.toMatchObject({ kind: 'exam', unlockedExamIds: [E1, E2] });
+    });
+
+    it('only the exam sent is checked (all-Mock / multi-exam codes)', async () => {
+      setWindow(E1, { campaignEndsAt: new Date(NOW.getTime() - DAY) });
+      addCode(addBatch({ allMock: true }, []), 'ALLMOCK222');
+      addCode(addBatch(), 'TWOEXAMS22');
+
+      await expectRedeemError(
+        service.redeem(studentA, { code: 'ALLMOCK222', examId: E1 }, NOW),
+        'CAMPAIGN_ENDED',
+        400,
+      );
+      await expect(
+        service.redeem(studentA, { code: 'ALLMOCK222', examId: E2 }, NOW),
+      ).resolves.toMatchObject({ kind: 'exam' });
+      await expect(
+        service.redeem(studentB, { code: 'TWOEXAMS22', examId: E2 }, NOW),
+      ).resolves.toMatchObject({ unlockedExamIds: [E1, E2] });
+    });
+
+    it('a window on a purchase exam has no effect', async () => {
+      setWindow(E3, { campaignEndsAt: new Date(NOW.getTime() - DAY) });
+      addCode(addBatch({ allMock: true }, []), 'ALLMOCK222');
+      await expect(
+        service.redeem(studentA, { code: 'ALLMOCK222', examId: E3 }, NOW),
+      ).resolves.toMatchObject({ kind: 'exam' });
+    });
+  });
+
   describe('redeem — brute-force limit (10 failures / 15 min / account)', () => {
     it('the 11th try after 10 failures → 429 without looking the code up', async () => {
       addCode(addBatch(), 'ABCDEFGHJK');

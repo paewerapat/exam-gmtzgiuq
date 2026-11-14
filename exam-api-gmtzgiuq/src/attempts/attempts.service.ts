@@ -52,7 +52,9 @@ export class AttemptsService {
    * transaction), so two simultaneous requests (React StrictMode, double
    * click, two tabs) end up with the same single row instead of two.
    *
-   * A locked Mock Exam without access → 403 EXAM_LOCKED (task 15).
+   * A locked Mock Exam without access → 403 EXAM_LOCKED (task 15); a code
+   * Mock Exam outside its campaign window → 403 CAMPAIGN_NOT_OPEN /
+   * CAMPAIGN_ENDED unless admin (task 21).
    * `viewer` is the logged-in user (role decides admin); not passed = a
    * regular user with id `userId`.
    */
@@ -80,7 +82,8 @@ export class AttemptsService {
     if (!examExists) {
       throw new NotFoundException('ไม่พบข้อสอบนี้');
     }
-    await this.examAccessService.assertCanAccessExamId(
+    // Access + campaign window of a code Mock Exam (task 21)
+    await this.examAccessService.assertCanStartExamId(
       viewer ?? { id: userId },
       data.examId,
     );
@@ -318,9 +321,13 @@ export class AttemptsService {
 
   // ── COMPLETED ──────────────────────────────────────────────
 
-  /** Legacy direct submit. Locked exam without access → 403 (task 15). */
+  /**
+   * Legacy direct submit. Locked exam without access → 403 (task 15);
+   * campaign outside its window → 403 CAMPAIGN_* (task 21).
+   */
   async submit(input: SubmitAttemptInput, user: User): Promise<ExamAttempt> {
-    await this.examAccessService.assertCanAccessExamId(user, input.examId);
+    // Creates a new attempt: campaign window too (task 21)
+    await this.examAccessService.assertCanStartExamId(user, input.examId);
 
     const attempt = this.attemptsRepository.create({
       userId: user.id,
