@@ -105,7 +105,7 @@ describe('MockExamList — Free Mock Exam (task 21)', () => {
     });
   });
 
-  it('หัวข้อ แท็บสนาม (ทั้งหมด + ชื่อจริง) สรุปจำนวน และแบ่งกลุ่ม แคมเปญ / ชุดฟรีทั่วไป / ชุดสำหรับสมาชิก Pro', async () => {
+  it('หัวข้อ แท็บสนาม (ทั้งหมด + ชื่อจริง) สรุปจำนวน และแบ่งกลุ่ม แคมเปญ / ชุดฟรีทั่วไป — ไม่มีกลุ่มชุด Pro (task 22)', async () => {
     render(<MockExamList />);
     expect(screen.getByRole('heading', { level: 1, name: 'Free Mock Exam' })).toBeInTheDocument();
     expect(screen.getByText('ข้อสอบจำลองฟรี จัดทำโดยทีมวิชาการ LUMO EXAM')).toBeInTheDocument();
@@ -113,11 +113,13 @@ describe('MockExamList — Free Mock Exam (task 21)', () => {
     const campaigns = await screen.findByTestId('mock-campaigns-grid');
     expect(within(campaigns).getAllByRole('article')).toHaveLength(4);
     expect(within(screen.getByTestId('mock-free-grid')).getAllByRole('article')).toHaveLength(1);
-    expect(within(screen.getByTestId('mock-pro-grid')).getAllByRole('article')).toHaveLength(1);
+    expect(screen.queryByTestId('mock-pro-grid')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'แคมเปญ' })).toBeInTheDocument();
     expect(screen.getByText('ชุดฟรีที่เปิดเป็นช่วงเวลา สถานะ: กำลังเปิด / เร็ว ๆ นี้ / จบแล้ว')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'ชุดฟรีทั่วไป' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'ชุดสำหรับสมาชิก Pro' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'ชุดสำหรับสมาชิก Pro' })).not.toBeInTheDocument();
+    // API เก่าที่ยังส่งชุด purchase มา → ไม่แสดงการ์ด
+    expect(screen.queryByRole('article', { name: 'ชุด Pro' })).not.toBeInTheDocument();
     expect(screen.getByTestId('mock-summary')).toHaveTextContent('5 ชุด · 4 แคมเปญ');
 
     const tabs = within(screen.getByRole('group', { name: 'เลือกสนามสอบ' }));
@@ -172,7 +174,7 @@ describe('MockExamList — Free Mock Exam (task 21)', () => {
     expect(ended.getByRole('link', { name: /^ดูผลและเฉลย/ })).toHaveAttribute('href', '/dashboard/history/a9');
   });
 
-  it('ชุดฟรีทั่วไป → "เริ่มทำ" ไปหน้ารายละเอียด ไม่มีป้าย CAMPAIGN / ชุด Pro → "Upgrade"', async () => {
+  it('ชุดฟรีทั่วไป → "เริ่มทำ" ไปหน้ารายละเอียด ไม่มีป้าย CAMPAIGN', async () => {
     render(<MockExamList />);
     await screen.findByTestId('mock-free-grid');
     const free = within(card('A-LEVEL MATH 1 FREE MOCK 1'));
@@ -181,9 +183,6 @@ describe('MockExamList — Free Mock Exam (task 21)', () => {
     expect(free.getByText('A-Level')).toBeInTheDocument();
     expect(free.getByRole('link', { name: /^เริ่มทำ/ })).toHaveAttribute('href', '/dashboard/mock-exams/f1');
 
-    const pro = within(card('ชุด Pro'));
-    expect(pro.getByRole('link', { name: /^Upgrade/ })).toHaveAttribute('href', '/upgrade?venue=netsat');
-    expect(pro.getByText('Pro')).toBeInTheDocument();
   });
 
   it('guest → ไม่มีบรรทัดความคืบหน้า (API ไม่ส่ง myProgress)', async () => {
@@ -248,11 +247,18 @@ describe('MockExamList — Free Mock Exam (task 21)', () => {
     expect(getAllMockExams).toHaveBeenCalledTimes(2);
   });
 
-  it('แถบล่าง "อยากได้ชุดเพิ่ม..." ปุ่มไป /upgrade', async () => {
+  it('ได้แต่ชุด purchase (API เก่า) → ข้อความว่าง ไม่ใช่กริดว่าง', async () => {
+    (getAllMockExams as jest.Mock).mockResolvedValue([item({ id: 'p1', title: 'ชุด Pro', accessType: 'purchase' })]);
+    render(<MockExamList />);
+    expect(await screen.findByText('ยังไม่มีชุด Free Mock Exam')).toBeInTheDocument();
+    expect(screen.queryByRole('article')).not.toBeInTheDocument();
+  });
+
+  it('แถบล่าง "อยากได้ชุดเพิ่ม..." ปุ่มไป /dashboard/predicted (task 22)', async () => {
     render(<MockExamList />);
     await screen.findByTestId('mock-campaigns-grid');
     const bar = screen.getByRole('complementary', { name: 'ชุดข้อสอบเพิ่มเติม' });
     expect(bar).toHaveTextContent('อยากได้ชุดเพิ่มทุกชุด ทุกวิชา?');
-    expect(within(bar).getByRole('link', { name: 'Upgrade เป็น Pro' })).toHaveAttribute('href', '/upgrade');
+    expect(within(bar).getByRole('link', { name: 'ดู Predicted Exam' })).toHaveAttribute('href', '/dashboard/predicted');
   });
 });

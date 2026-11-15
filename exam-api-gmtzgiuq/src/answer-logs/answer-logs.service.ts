@@ -13,6 +13,7 @@ import type { AccessViewer } from '../exam-access/exam-access';
 import { getAnswerStatus } from './answer-grading';
 import { ChallengeAccessService } from '../question-bank/challenge-access.service';
 import { AnswerLogItemDto, MAX_SELECTED_LENGTH } from './dto/answer-log.dto';
+import { PredictedAccessService } from '../predicted/predicted-access.service';
 
 /** Longest time stored for one answer (one day). */
 export const MAX_TIME_SPENT_SEC = 86400;
@@ -26,6 +27,9 @@ export interface AttemptAnswers {
   // As sent to PATCH /attempts/:id/complete or POST /attempts
   answers: Record<string, unknown> | null | undefined;
   timePerQuestion: Record<string, unknown> | null | undefined;
+  // Only these questions are logged (an attempt of a Predicted set, task 22:
+  // e.g. the Preview questions); not passed = every question of the exam
+  questionIds?: string[];
 }
 
 type AnswerRow = Pick<
@@ -76,6 +80,7 @@ export class AnswerLogsService {
     private examsRepository: Repository<Exam>,
     private examAccessService: ExamAccessService,
     private challengeAccessService: ChallengeAccessService,
+    private predictedAccessService: PredictedAccessService,
   ) {}
 
   /**
@@ -110,12 +115,16 @@ export class AnswerLogsService {
       });
       const mode = toAnswerMode(attempt.mode);
       const times = attempt.timePerQuestion ?? {};
+      const scope = Array.isArray(attempt.questionIds)
+        ? new Set(attempt.questionIds.map((id) => String(id).toLowerCase()))
+        : null;
 
       const rows: AnswerRow[] = [];
       for (const question of questions) {
         if (!Object.prototype.hasOwnProperty.call(answers, question.id)) {
           continue;
         }
+        if (scope && !scope.has(question.id.toLowerCase())) continue;
         const selected = answers[question.id];
         if (
           typeof selected !== 'string' ||
@@ -149,8 +158,9 @@ export class AnswerLogsService {
    * exam, as the practice lists use; otherwise the question's own), or
    * belong to a locked Mock Exam the user may not take, or are Challenge
    * questions without the venue's `challenge` right (task 20; Question Bank
-   * practice also logs here). examId, isCorrect and isFirstAttempt are
-   * always worked out here.
+   * practice also logs here), or are questions of a Predicted set (task 22:
+   * answered through its attempts only). examId, isCorrect and
+   * isFirstAttempt are always worked out here.
    */
   async logPractice(
     user: AccessViewer,
@@ -207,13 +217,17 @@ export class AnswerLogsService {
           })
         : [];
     const examsById = new Map(exams.map((exam) => [exam.id, exam]));
-    const access = await this.examAccessService.getAccessMany(user, exams);
+    const [access, predicted] = await Promise.all([
+      this.examAccessService.getAccessMany(user, exams),
+      this.predictedAccessService.predictedExamIds(exams.map((e) => e.id)),
+    ]);
 
     const allowed = new Map<string, GradedQuestion>();
     for (const question of questions) {
       if (question.examId) {
         const exam = examsById.get(question.examId);
         if (!exam || exam.status !== QuestionStatus.PUBLISHED) continue;
+        if (predicted.has(exam.id.toLowerCase())) continue;
         const status = access.get(exam.id)?.status;
         if (status !== 'free' && status !== 'unlocked') continue;
       } else if (question.status !== QuestionStatus.PUBLISHED) {

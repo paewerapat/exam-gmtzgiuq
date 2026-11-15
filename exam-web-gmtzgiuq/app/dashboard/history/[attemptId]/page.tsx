@@ -10,7 +10,8 @@ import {
 import FadeIn from '@/components/animations/FadeIn';
 import { getMyAttempt, type ExamAttempt } from '@/lib/api/attempts';
 import { getPublicExam, type Exam } from '@/lib/api/exams';
-import { isExamLockedError } from '@/lib/api/apiError';
+import { isExamLockedError, isPredictedLockedError, predictedLockedVenueKey } from '@/lib/api/apiError';
+import { upgradeHref } from '@/lib/predicted';
 import { UNLOCK_TEXT } from '@/lib/unlock-codes';
 import { categoryDisplayNames, type QuestionCategory } from '@/lib/api/questions';
 import {
@@ -435,6 +436,8 @@ export default function AttemptDetailPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<'review' | 'chapter'>('review');
   // ชุด Mock ที่สิทธิ์หมดแล้ว (API ตอบ 403 EXAM_LOCKED) — ยังแสดงคะแนนสรุปจาก attempt แต่ไม่แสดงโจทย์/เฉลย
   const [examLocked, setExamLocked] = useState(false);
+  // ชุด Predicted ที่ตอนนี้ไม่มีสิทธิ์ (403 PREDICTED_LOCKED — task 22) — แสดงคะแนนสรุป + ลิงก์ไปหน้าแพ็กเกจของสนาม
+  const [predictedLocked, setPredictedLocked] = useState<{ venueKey: string | null } | null>(null);
 
   useEffect(() => {
     params.then((p) => setAttemptId(p.attemptId));
@@ -453,6 +456,7 @@ export default function AttemptDetailPage({ params }: PageProps) {
           } catch (err) {
             // exam might be deleted / ชุดล็อก (สิทธิ์หมด) → แสดงข้อความแทนเฉลย
             if (isExamLockedError(err)) setExamLocked(true);
+            else if (isPredictedLockedError(err)) setPredictedLocked({ venueKey: predictedLockedVenueKey(err) });
           }
         }
       } catch {
@@ -549,7 +553,25 @@ export default function AttemptDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {examLocked ? (
+      {predictedLocked ? (
+        <div
+          role="status"
+          data-testid="history-predicted-locked"
+          className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-8 text-center"
+        >
+          <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-7 h-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          </div>
+          <p className="font-semibold text-gray-800 dark:text-gray-200">ชุดนี้สำหรับสมาชิก Pro ดูโจทย์และเฉลยไม่ได้</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">คะแนนสรุปด้านบนยังดูได้ตามปกติ</p>
+          <Link
+            href={upgradeHref(predictedLocked.venueKey)}
+            className="mt-5 inline-flex items-center justify-center min-h-11 px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 text-white text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800"
+          >
+            Unlock
+          </Link>
+        </div>
+      ) : examLocked ? (
         <div
           role="status"
           className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-8 text-center"

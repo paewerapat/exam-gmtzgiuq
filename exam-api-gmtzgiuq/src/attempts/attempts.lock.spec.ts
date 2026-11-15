@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { PredictedAccessService } from '../predicted/predicted-access.service';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindOperator } from 'typeorm';
@@ -100,6 +101,17 @@ describe('AttemptsService — locked Mock Exams (task 15)', () => {
 
     const module = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: PredictedAccessService,
+          useValue: {
+            resolveExam: () => Promise.resolve(null),
+            attemptStartScope: () => Promise.resolve(null),
+            attemptScope: () => Promise.resolve(null),
+            isPredictedExam: () => Promise.resolve(false),
+            predictedExamIds: () => Promise.resolve(new Set()),
+          },
+        },
         AttemptsService,
         ExamAccessService,
         // No Pro plans (task 17): purchase exams only by grants here

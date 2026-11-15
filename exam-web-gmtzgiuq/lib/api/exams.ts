@@ -11,6 +11,7 @@ import type {
 import { withResolvedPassages } from '@/lib/exam-passages';
 import { fetchWithAuth } from './authFetch';
 import { toApiError } from './apiError';
+import { normalizeExamPredicted, type ExamPredictedInfo } from '@/lib/predicted';
 import {
   normalizeAccessType,
   normalizeCodeInstructions,
@@ -74,6 +75,11 @@ export interface Exam {
   /** ช่วงแคมเปญ ISO (task 21) — มีผลกับชุด accessType code, null = ไม่จำกัด */
   campaignStartsAt?: string | null;
   campaignEndsAt?: string | null;
+  /**
+   * ชุด Predicted (task 22) — มีเฉพาะ GET /exams/:id ของชุดที่อยู่ในซีรีส์
+   * preview = API ส่งมาเฉพาะ previewCount ข้อแรก / ไม่ใช่ชุด Predicted = null หรือไม่มี
+   */
+  predicted?: ExamPredictedInfo | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -248,7 +254,8 @@ export async function getPublicExam(id: string, signal?: AbortSignal): Promise<E
 
   // เติม question.passage จาก exam.passages ให้หน้าทำข้อสอบ/ผลลัพธ์ใช้ได้โดยไม่ต้องถือ exam ไว้
   // (questions ถูกเก็บลง localStorage ไปพร้อมบทอ่าน หน้าผลลัพธ์จึงแสดงได้)
-  return withResolvedPassages(await response.json());
+  const exam = withResolvedPassages(await response.json());
+  return { ...exam, predicted: normalizeExamPredicted((exam as { predicted?: unknown }).predicted) };
 }
 
 // Admin - Get all exams

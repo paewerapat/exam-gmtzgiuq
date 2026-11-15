@@ -48,9 +48,21 @@ import {
   CAMPAIGN_ENDED_RESUME_TEXT,
   campaignClosedCode,
   isExamLockedError,
+  isPredictedLockedError,
+  predictedLockedVenueKey,
   type CampaignClosedCode,
 } from '@/lib/api/apiError';
 import CampaignClosedScreen from '@/components/exam/CampaignClosedScreen';
+import { PredictedLockedScreen, PredictedPreviewBar } from '@/components/exam/PredictedNotices';
+import {
+  isStalePreviewProgress,
+  normalizeExamPredicted,
+  PREDICTED_PAGE_HREF,
+  previewCounts,
+  recallPredicted,
+  rememberPredicted,
+  type ExamPredictedInfo,
+} from '@/lib/predicted';
 import { UNLOCK_TEXT } from '@/lib/unlock-codes';
 import ExamLockedScreen, { type LockedState } from '@/components/exam/ExamLockedScreen';
 
@@ -277,7 +289,12 @@ function RealExamPageContent({ examId }: { examId: string }) {
   const [retryKey, setRetryKey] = useState(0);
   // ชุด Mock Exam (จาก /exams/:id) → ปุ่มย้อนกลับไปหน้า Mock Exam แทนหน้าข้อสอบจริง
   const [isMock, setIsMock] = useState(false);
-  const backLink = getExamBackLink(examId, isMock);
+  // ชุด Predicted (task 22): preview = API ส่งมาเฉพาะ N ข้อแรก / 403 PREDICTED_LOCKED = หน้าล็อกพร้อมปุ่ม Unlock
+  const [predicted, setPredicted] = useState<ExamPredictedInfo | null>(null);
+  const [predictedLocked, setPredictedLocked] = useState<{ venueKey: string | null } | null>(null);
+  const backLink = predicted
+    ? { href: PREDICTED_PAGE_HREF, label: 'กลับหน้า Predicted Exam' }
+    : getExamBackLink(examId, isMock);
   const attemptIdRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // (examId, retryKey) ที่โหลด/เริ่มไปแล้วใน instance นี้ — StrictMode (dev) รัน effect ซ้ำแต่ ref คงอยู่
@@ -307,11 +324,30 @@ function RealExamPageContent({ examId }: { examId: string }) {
     },
     [detailHref, router],
   );
+  const handlePredictedLocked = useCallback((err: unknown) => {
+    if (lockedRef.current) return;
+    lockedRef.current = true;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setLoading(false);
+    setResumeDialog(null);
+    setPredictedLocked({ venueKey: predictedLockedVenueKey(err) });
+  }, []);
+
+  /** เก็บข้อมูล predicted ของชุด (หน้าผลอ่านจาก storage) แล้วคืนค่าให้ผู้เรียกใช้ต่อ */
+  function applyPredicted(exam: { predicted?: unknown }): ExamPredictedInfo | null {
+    const info = normalizeExamPredicted(exam.predicted);
+    setPredicted(info);
+    rememberPredicted(examId, info);
+    return info;
+  }
+
   // autosave อ้างผ่าน ref: scheduleBackendSave ต้องคงที่ (ถ้าเปลี่ยนทุก render effect ด้านล่างจะล้าง timer ทุกครั้ง)
   const handleLockedRef = useRef(handleLocked);
+  const handlePredictedLockedRef = useRef(handlePredictedLocked);
   useEffect(() => {
     handleLockedRef.current = handleLocked;
-  }, [handleLocked]);
+    handlePredictedLockedRef.current = handlePredictedLocked;
+  }, [handleLocked, handlePredictedLocked]);
 
   // Auto-save to backend
   const scheduleBackendSave = useCallback((session: ExamSession) => {
@@ -325,6 +361,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
       }).catch((err) => {
         // สิทธิ์หมดระหว่างทำ → หยุดและแจ้ง (error อื่นยังเงียบเหมือนเดิม — autosave รอบถัดไปลองใหม่)
         if (isExamLockedError(err)) handleLockedRef.current('during');
+        else if (isPredictedLockedError(err)) handlePredictedLockedRef.current(err);
       });
     }, 2000);
   }, []);
@@ -364,7 +401,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
       const { session: existingSession, questions: existingQuestions } =
         loadRealExamSession(examId);
 
-      // 2. Check backend for in-progress (mode=exam) — 8s timeout
+      // 2. Check backend for in-progress (mode=exam / preview ของชุด Predicted — ตรวจต่อหลังรู้สิทธิ์) — 8s timeout
       let backendAttempt: ExamAttempt | null = null;
       if (isLoggedIn()) {
         try {
@@ -372,7 +409,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
           const t = setTimeout(() => ctrl.abort(), 8000);
           const attempt = await getMyInProgressForExam(examId);
           clearTimeout(t);
-          if (attempt && attempt.mode === 'exam') {
+          if (attempt && (attempt.mode === 'exam' || attempt.mode === 'preview')) {
             backendAttempt = attempt;
           }
         } catch { /* ignore — timeout or network error */ }
@@ -385,12 +422,26 @@ function RealExamPageContent({ examId }: { examId: string }) {
         const exam = await getPublicExam(examId, examCtrl.signal);
         clearTimeout(examTimeout);
         setIsMock(exam.isMock === true);
+        // สิทธิ์ที่จำไว้จากการโหลดครั้งก่อน (ตอนสร้าง session ในเครื่อง) — อ่านก่อน applyPredicted เขียนทับ
+        const previousPredicted = recallPredicted(examId);
+        const predictedInfo = applyPredicted(exam);
+        // attempt Preview (เริ่มจากหน้าฝึก) ทำต่อที่นี่ได้เฉพาะเมื่อยังทำได้แค่ Preview — ชุดอื่น/สิทธิ์อื่นใช้เฉพาะ attempt โหมด exam
+        if (backendAttempt?.mode === 'preview' && predictedInfo?.access !== 'preview') backendAttempt = null;
+        // ชุด Predicted ที่สิทธิ์เปลี่ยน (เช่น Pro หมด → เหลือ Preview): attempt ค้างที่มีข้อที่ API ไม่ส่งแล้ว → ไม่ทำต่อ
+        if (predictedInfo && backendAttempt) {
+          const ids = new Set(exam.questions.map((q: { id: string }) => q.id));
+          if (!backendAttempt.questionIds?.every((id) => ids.has(id))) backendAttempt = null;
+        }
+        // ตอนนี้ทำได้เต็มแต่ attempt เดิมเป็นของ Preview (mode preview) → เริ่มใหม่ทั้งชุด (server ทิ้ง attempt Preview ให้เอง)
+        if (backendAttempt && isStalePreviewProgress(predictedInfo, backendAttempt)) backendAttempt = null;
 
         // If there's a cached in-progress session, restore it with fresh questions
         if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
           const freshQuestionIds = new Set(exam.questions.map((q: any) => q.id));
           const sessionIdsMatch = existingSession.questionIds.every((id) => freshQuestionIds.has(id));
-          if (sessionIdsMatch && existingSession.questionIds.length > 0) {
+          // session ที่สร้างตอนเป็น Preview + ตอนนี้ทำได้เต็ม → ทิ้ง (เหมือน session ที่ข้อไม่ตรง)
+          const stalePreview = isStalePreviewProgress(predictedInfo, {}, previousPredicted?.access === 'preview');
+          if (sessionIdsMatch && existingSession.questionIds.length > 0 && !stalePreview) {
             const storedId = loadBackendAttemptId(examId);
             // Use fresh questions from API but keep session state (answers/progress)
             saveRealExamSession(examId, existingSession, exam.questions);
@@ -434,6 +485,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
         }
       } catch (err: any) {
         clearTimeout(examTimeout);
+        if (isPredictedLockedError(err)) {
+          handlePredictedLocked(err);
+          return;
+        }
         if (isExamLockedError(err)) {
           handleLocked('load');
           return;
@@ -494,8 +549,8 @@ function RealExamPageContent({ examId }: { examId: string }) {
       } catch (err) {
         // ไม่มีสิทธิ์ (403 EXAM_LOCKED) → ส่งต่อให้ผู้เรียกพาไปหน้ารายละเอียด / error อื่นเงียบเหมือนเดิม
         if (isExamLockedError(err)) throw err;
-        // แคมเปญยังไม่เปิด/จบแล้ว (task 21) → ทิ้ง session ที่เพิ่งสร้างแล้วส่งต่อให้ผู้เรียกแจ้งผู้ใช้
-        if (campaignClosedCode(err)) {
+        // แคมเปญยังไม่เปิด/จบแล้ว (task 21) / ชุด Predicted ล็อก (task 22) → ทิ้ง session ที่เพิ่งสร้างแล้วส่งต่อให้ผู้เรียกแจ้งผู้ใช้
+        if (campaignClosedCode(err) || isPredictedLockedError(err)) {
           clearRealExamSession(examId);
           throw err;
         }
@@ -569,8 +624,13 @@ function RealExamPageContent({ examId }: { examId: string }) {
     try {
       const exam = await getPublicExam(examId);
       setIsMock(exam.isMock === true);
+      applyPredicted(exam);
       await resumeFromBackendAttempt(backendAttempt, exam);
     } catch (err) {
+      if (isPredictedLockedError(err)) {
+        handlePredictedLocked(err);
+        return;
+      }
       if (isExamLockedError(err)) {
         handleLocked('load');
         return;
@@ -600,6 +660,7 @@ function RealExamPageContent({ examId }: { examId: string }) {
     try {
       const exam = await getPublicExam(examId);
       setIsMock(exam.isMock === true);
+      applyPredicted(exam);
       try {
         await startFreshExam(exam);
       } catch (err) {
@@ -612,6 +673,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
         throw err;
       }
     } catch (err) {
+      if (isPredictedLockedError(err)) {
+        handlePredictedLocked(err);
+        return;
+      }
       if (isExamLockedError(err)) {
         handleLocked('load');
         return;
@@ -694,6 +759,13 @@ function RealExamPageContent({ examId }: { examId: string }) {
         handleLocked('during');
         return;
       }
+      if (isPredictedLockedError(err)) {
+        // สิทธิ์ของชุด Predicted หมดก่อนส่ง: เหมือนกรณีบน — เก็บคำตอบไว้แล้วแสดงหน้าล็อก
+        saveRealExamSession(examId, savedSession, savedQuestions);
+        if (storedAttemptId) saveBackendAttemptId(examId, storedAttemptId);
+        handlePredictedLocked(err);
+        return;
+      }
       const closed = campaignClosedCode(err);
       if (closed) {
         // ส่งแบบสร้าง attempt ใหม่ (ไม่มี attempt ค้าง) นอกช่วงแคมเปญ: API ไม่บันทึก → เก็บคำตอบไว้แล้วแจ้ง
@@ -720,6 +792,10 @@ function RealExamPageContent({ examId }: { examId: string }) {
   // ── Render ────────────────────────────────────────────────────
   if (campaignClosed) {
     return <CampaignClosedScreen code={campaignClosed} detailHref={detailHref} />;
+  }
+
+  if (predictedLocked) {
+    return <PredictedLockedScreen venueKey={predictedLocked.venueKey} />;
   }
 
   if (locked) {
@@ -777,7 +853,24 @@ function RealExamPageContent({ examId }: { examId: string }) {
     );
   }
 
-  return <ExamContainer onComplete={handleComplete} mode="exam" backUrl={backLink.href} />;
+  const preview = predicted?.access === 'preview' ? previewCounts(predicted, state.questions.length) : null;
+  return (
+    <ExamContainer
+      onComplete={handleComplete}
+      mode="exam"
+      backUrl={backLink.href}
+      notice={
+        preview && predicted ? (
+          <PredictedPreviewBar
+            answerable={preview.answerable}
+            total={preview.total}
+            venueKey={predicted.venueKey}
+            mode="exam"
+          />
+        ) : undefined
+      }
+    />
+  );
 }
 
 // ── Root export ───────────────────────────────────────────────

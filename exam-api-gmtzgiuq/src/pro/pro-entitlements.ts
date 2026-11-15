@@ -3,8 +3,9 @@
  * from the text of the Upgrade page. Tasks 6/8/9 read these through
  * ProAccessService.getEntitlements.
  *
- * - predictedSets: Predicted Exam sets per subject (whole number ≥ 0), or
- *   null = every set
+ * - predictedSets: Predicted Exam sets per series (whole number ≥ 0): the
+ *   first N published `pro` sets of each series by setNo (free sets do not
+ *   count, task 22), or null = every set
  * - mockPurchase: may take the Mock Exams with accessType = purchase of the
  *   plan's venue
  *

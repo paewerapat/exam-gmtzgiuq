@@ -278,7 +278,7 @@ export interface GetProAdminPaymentsParams {
 export interface ProEntitlements {
   challenge: boolean;
   beyond: boolean;
-  /** จำนวนชุด Predicted ต่อวิชา (≥0) หรือ null = ทุกชุด */
+  /** จำนวนชุด Predicted ต่อซีรีส์ (≥0) หรือ null = ทุกชุด */
   predictedSets: number | null;
   solutions: boolean;
   analytics: boolean;

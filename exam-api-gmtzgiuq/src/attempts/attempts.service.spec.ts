@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ValidationPipe,
 } from '@nestjs/common';
+import { PredictedAccessService } from '../predicted/predicted-access.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindOperator } from 'typeorm';
@@ -53,6 +54,17 @@ describe('AttemptsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: PredictedAccessService,
+          useValue: {
+            resolveExam: () => Promise.resolve(null),
+            attemptStartScope: () => Promise.resolve(null),
+            attemptScope: () => Promise.resolve(null),
+            isPredictedExam: () => Promise.resolve(false),
+            predictedExamIds: () => Promise.resolve(new Set()),
+          },
+        },
         AttemptsService,
         {
           provide: getRepositoryToken(ExamAttempt),
@@ -250,6 +262,17 @@ describe('AttemptsService.startInProgress (task 13)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: PredictedAccessService,
+          useValue: {
+            resolveExam: () => Promise.resolve(null),
+            attemptStartScope: () => Promise.resolve(null),
+            attemptScope: () => Promise.resolve(null),
+            isPredictedExam: () => Promise.resolve(false),
+            predictedExamIds: () => Promise.resolve(new Set()),
+          },
+        },
         AttemptsService,
         {
           provide: getRepositoryToken(ExamAttempt),
@@ -548,6 +571,17 @@ describe('AttemptsService.completeAttempt (task 14 B3, BUG-21)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: PredictedAccessService,
+          useValue: {
+            resolveExam: () => Promise.resolve(null),
+            attemptStartScope: () => Promise.resolve(null),
+            attemptScope: () => Promise.resolve(null),
+            isPredictedExam: () => Promise.resolve(false),
+            predictedExamIds: () => Promise.resolve(new Set()),
+          },
+        },
         AttemptsService,
         { provide: getRepositoryToken(ExamAttempt), useValue: table.repo },
         { provide: getRepositoryToken(Exam), useValue: {} },
@@ -829,6 +863,17 @@ describe('AttemptsService stats count only completed attempts (BUG-12)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: PredictedAccessService,
+          useValue: {
+            resolveExam: () => Promise.resolve(null),
+            attemptStartScope: () => Promise.resolve(null),
+            attemptScope: () => Promise.resolve(null),
+            isPredictedExam: () => Promise.resolve(false),
+            predictedExamIds: () => Promise.resolve(new Set()),
+          },
+        },
         AttemptsService,
         { provide: getRepositoryToken(ExamAttempt), useValue: repo },
         { provide: getRepositoryToken(Exam), useValue: {} },

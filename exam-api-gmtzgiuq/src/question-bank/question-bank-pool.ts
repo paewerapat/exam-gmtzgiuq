@@ -3,13 +3,15 @@
  * placeholders. The pool of a venue / subject is every question that:
  * - belongs to an active topic of an active chapter of an active subject
  *   (`questions.topicId`), the subject being in the venue (subjects.venueId)
- * - is in a published exam that is not a Mock Exam (isMock = 0); bankOnly
- *   exams are included
+ * - is in a published exam that is not a Mock Exam (isMock = 0) nor a
+ *   Predicted set (task 22); bankOnly exams are included
  * - mode `challenge`: isChallenge = 1 only; mode `bank`: all of them
  *
  * Every fragment uses the aliases q (questions), e (exams), t (topics),
  * c (chapters), s (subjects).
  */
+
+import { notPredictedExamSql } from '../predicted/predicted-access';
 
 export const QB_MODES = ['bank', 'challenge'] as const;
 export type QbMode = (typeof QB_MODES)[number];
@@ -76,6 +78,7 @@ export function buildPoolWhere(scope: PoolScope): PoolSql {
   const conditions = [
     "e.status = 'published'",
     'e.isMock = 0',
+    notPredictedExamSql('e.id', 'qb_pset'),
     't.isActive = 1',
     'c.isActive = 1',
     's.isActive = 1',

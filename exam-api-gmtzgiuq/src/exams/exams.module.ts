@@ -7,6 +7,7 @@ import { ExamsService } from './exams.service';
 import { ExamsController } from './exams.controller';
 import { UploadModule } from '../upload/upload.module';
 import { ExamAccessModule } from '../exam-access/exam-access.module';
+import { PredictedModule } from '../predicted/predicted.module';
 
 @Module({
   imports: [
@@ -14,6 +15,8 @@ import { ExamAccessModule } from '../exam-access/exam-access.module';
     TypeOrmModule.forFeature([Exam, Question, ExamAttempt]),
     UploadModule,
     ExamAccessModule,
+    // Access of Predicted sets (task 22)
+    PredictedModule,
   ],
   providers: [ExamsService],
   controllers: [ExamsController],

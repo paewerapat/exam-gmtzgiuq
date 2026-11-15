@@ -9,6 +9,7 @@ import { Subject } from './subject.entity';
 import { Chapter } from './chapter.entity';
 import { Topic } from './topic.entity';
 import { ProVenue } from '../pro/pro-venue.entity';
+import { notPredictedExamSql } from '../predicted/predicted-access';
 import {
   CreateSubjectDto,
   CreateTopicDto,
@@ -222,7 +223,8 @@ export class CurriculumService {
     const placeholders = allTopicIds.map(() => '?').join(',');
 
     // Count distinct published exam sets per topic (via question.topicId).
-    // "ใช้เฉพาะ Question Bank" exams are not exam sets (task 20).
+    // "ใช้เฉพาะ Question Bank" exams are not exam sets (task 20), nor are
+    // Predicted sets (task 22).
     const examRows: { topicId: string; cnt: string }[] =
       await this.topicsRepo.manager.query(
         `SELECT q.topicId AS topicId, COUNT(DISTINCT e.id) AS cnt
@@ -230,12 +232,14 @@ export class CurriculumService {
          INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
            AND e.isMock = 0 AND e.bankOnly = 0
          WHERE q.topicId IN (${placeholders})
+           AND ${notPredictedExamSql('e.id')}
          GROUP BY q.topicId`,
         allTopicIds,
       );
 
     // Count distinct questions per topic (via question.topicId): the ones
-    // topic practice serves, so not Challenge questions (task 20)
+    // topic practice serves, so not Challenge questions (task 20) nor
+    // questions of Predicted sets (task 22)
     const questionRows: { topicId: string; cnt: string }[] =
       await this.topicsRepo.manager.query(
         `SELECT q.topicId AS topicId, COUNT(DISTINCT q.id) AS cnt
@@ -243,12 +247,17 @@ export class CurriculumService {
          INNER JOIN exams e ON e.id = q.examId AND e.status = 'published'
            AND e.isMock = 0
          WHERE q.topicId IN (${placeholders}) AND q.isChallenge = 0
+           AND ${notPredictedExamSql('e.id')}
          GROUP BY q.topicId`,
         allTopicIds,
       );
 
-    const examCountMap = new Map(examRows.map((r) => [r.topicId, parseInt(r.cnt, 10)]));
-    const questionCountMap = new Map(questionRows.map((r) => [r.topicId, parseInt(r.cnt, 10)]));
+    const examCountMap = new Map(
+      examRows.map((r) => [r.topicId, parseInt(r.cnt, 10)]),
+    );
+    const questionCountMap = new Map(
+      questionRows.map((r) => [r.topicId, parseInt(r.cnt, 10)]),
+    );
 
     return subjects.map((s) => {
       let subjectTotal = 0;

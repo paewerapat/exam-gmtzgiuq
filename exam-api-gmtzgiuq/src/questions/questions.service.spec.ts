@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { PredictedSet } from '../predicted/predicted-set.entity';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
@@ -54,6 +55,11 @@ describe('QuestionsService — images (task 07)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: getRepositoryToken(PredictedSet),
+          useValue: { exists: () => Promise.resolve(false) },
+        },
         QuestionsService,
         {
           provide: getRepositoryToken(Question),
@@ -439,6 +445,11 @@ describe('Public single question — GraphQL question(id) (SEC-9)', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: getRepositoryToken(PredictedSet),
+          useValue: { exists: () => Promise.resolve(false) },
+        },
         QuestionsService,
         QuestionsResolver,
         { provide: getRepositoryToken(Question), useValue: { findOne } },

@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { PredictedSet } from '../predicted/predicted-set.entity';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { QuestionsService } from './questions.service';
@@ -43,6 +44,11 @@ describe('QuestionsService — locked Mock Exams (task 15)', () => {
 
     const module = await Test.createTestingModule({
       providers: [
+        // Not a Predicted set (task 22)
+        {
+          provide: getRepositoryToken(PredictedSet),
+          useValue: { exists: () => Promise.resolve(false) },
+        },
         QuestionsService,
         QuestionsResolver,
         {

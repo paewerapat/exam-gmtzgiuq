@@ -41,7 +41,6 @@ import {
   MockExamListItem,
   MockExamProgress,
   MockExamTopicCount,
-  MockProgressRow,
   OTHER_TOPIC_NAME,
   PaginatedMockExams,
   assertMockAccess,
@@ -53,7 +52,6 @@ import {
   parseMockExamSort,
   prepareCodeInstructions,
   toMockExamItem,
-  toMockExamProgress,
 } from './exam-mock';
 import {
   assertCampaignWindow,
@@ -67,6 +65,33 @@ import { ExamAttempt } from '../attempts/attempt.entity';
 import { ProVenue } from '../pro/pro-venue.entity';
 import { isAdminViewer, type AccessViewer } from '../exam-access/exam-access';
 import { challengeNotInBankOnly } from '../question-bank/question-bank-errors';
+import { PredictedAccessService } from '../predicted/predicted-access.service';
+import {
+  PredictedExamInfo,
+  notPredictedExamSql,
+  predictedLockedException,
+} from '../predicted/predicted-access';
+import { findLatestProgress } from './exam-progress';
+
+export { LATER_ATTEMPT_MISSING } from './exam-progress';
+
+/**
+ * GET /exams/:id: the exam, plus `predicted` when it is a Predicted set
+ * (task 22; absent for every other exam).
+ */
+export type PublishedExam = Exam & { predicted?: PredictedExamInfo };
+
+/** Exam PUT that would make a Predicted set a Mock / bankOnly exam. */
+export const PREDICTED_EXAM_NOT_MOCK =
+  'ชุดนี้อยู่ในซีรีส์ Predicted Exam ตั้งเป็นชุด Mock หรือ "ใช้เฉพาะ Question Bank" ไม่ได้ ให้นำออกจากซีรีส์ก่อน';
+
+/**
+ * Exam PUT that would leave a Predicted set with no more questions than its
+ * Preview (B2/Q3: the Preview would be the whole set).
+ */
+export function predictedPreviewTooLarge(previewCount: number): string {
+  return `ชุดนี้ตั้ง Preview ไว้ ${previewCount} ข้อ ต้องมีข้อมากกว่า ${previewCount} ข้อ`;
+}
 
 /**
  * `releaseDate` of POST/PUT (already an ISO 8601 date, see the DTO) as a Date,
@@ -145,21 +170,6 @@ function isTrue(value: unknown): boolean {
   return value === true || Number(value) === 1;
 }
 
-/**
- * `myProgress` (task 21): keeps only the latest in_progress/completed
- * attempt of the user per exam — no later one by createdAt, then updatedAt
- * (the order findMockProgress reads in). Uses the `:...statuses` parameter
- * of that query.
- */
-export const LATER_ATTEMPT_MISSING =
-  'NOT EXISTS (SELECT 1 FROM exam_attempts later' +
-  ' WHERE later.userId = attempt.userId' +
-  ' AND later.examId = attempt.examId' +
-  ' AND later.status IN (:...statuses)' +
-  ' AND (later.createdAt > attempt.createdAt' +
-  ' OR (later.createdAt = attempt.createdAt' +
-  ' AND later.updatedAt > attempt.updatedAt)))';
-
 @Injectable()
 export class ExamsService {
   constructor(
@@ -172,6 +182,7 @@ export class ExamsService {
     private examAccessService: ExamAccessService,
     @InjectRepository(ExamAttempt)
     private attemptsRepository: Repository<ExamAttempt>,
+    private predictedAccessService: PredictedAccessService,
   ) {}
 
   async create(input: CreateExamInput, author: User): Promise<Exam> {
@@ -264,6 +275,8 @@ export class ExamsService {
       excludeBankOnly?: boolean;
       // Admin list filter (task 20): true = bankOnly only, false = others
       bankOnly?: boolean;
+      // Public lists: never Predicted sets (task 22)
+      excludePredicted?: boolean;
     } = {},
   ): Promise<PaginatedExams> {
     const skip = (page - 1) * limit;
@@ -295,6 +308,11 @@ export class ExamsService {
       queryBuilder.andWhere('exam.bankOnly = :bankOnly', {
         bankOnly: options.bankOnly,
       });
+    }
+
+    // Predicted sets are listed only by GET /predicted (task 22)
+    if (options.excludePredicted) {
+      queryBuilder.andWhere(notPredictedExamSql('exam.id'));
     }
 
     if (search) {
@@ -329,7 +347,7 @@ export class ExamsService {
       QuestionStatus.PUBLISHED,
       category,
       search,
-      { excludeMock: true, excludeBankOnly: true },
+      { excludeMock: true, excludeBankOnly: true, excludePredicted: true },
     );
   }
 
@@ -357,12 +375,17 @@ export class ExamsService {
    * holders of an all-Mock or multi-exam code, or of a code redeemed before
    * an admin moved the window, must not see the questions early. An ended
    * campaign stays readable (resume an attempt / result and answers).
+   *
+   * A Predicted set (task 22): series off → 404 (non-admins); locked → 403
+   * PREDICTED_LOCKED with no question; preview → only the first
+   * previewCount questions (orderIndex, createdAt, id) and the passages
+   * they refer to; `predicted` tells the web which (full / preview).
    */
   async findPublishedOne(
     id: string,
     viewer: AccessViewer | null = null,
     now: Date = new Date(),
-  ): Promise<Exam> {
+  ): Promise<PublishedExam> {
     const exam = await this.examsRepository.findOne({
       where: { id, status: QuestionStatus.PUBLISHED },
       relations: ['author', 'questions'],
@@ -391,7 +414,50 @@ export class ExamsService {
       );
     }
 
-    return this.withPassages(exam);
+    const predicted = await this.predictedAccessService.resolveExam(
+      viewer,
+      exam.id,
+      now,
+    );
+    if (!predicted) return this.withPassages(exam);
+    if (predicted.access === 'locked') {
+      throw predictedLockedException(predicted.set.venueKey);
+    }
+
+    const totalQuestions = (exam.questions ?? []).length;
+    if (predicted.access === 'preview') {
+      // The same ids (and order) the attempt of this Preview gets
+      const ids = await this.predictedAccessService.questionIds(
+        exam.id,
+        predicted.previewCount,
+      );
+      const order = new Map(ids.map((qid, i) => [qid.toLowerCase(), i]));
+      exam.questions = (exam.questions ?? [])
+        .filter((q) => order.has(q.id.toLowerCase()))
+        .sort(
+          (a, b) =>
+            (order.get(a.id.toLowerCase()) ?? 0) -
+            (order.get(b.id.toLowerCase()) ?? 0),
+        );
+    }
+
+    const result: PublishedExam = await this.withPassages(exam);
+    if (predicted.access === 'preview') {
+      // Only the passages of the questions sent
+      const used = new Set(
+        exam.questions.map((q) => q.passageId).filter((p): p is string => !!p),
+      );
+      result.passages = (result.passages ?? []).filter((p) => used.has(p.id));
+    }
+    result.predicted = {
+      access: predicted.access,
+      previewCount: predicted.previewCount,
+      totalQuestions,
+      seriesId: predicted.set.seriesId,
+      setNo: predicted.set.setNo,
+      venueKey: predicted.set.venueKey,
+    };
+    return result;
   }
 
   /**
@@ -458,6 +524,29 @@ export class ExamsService {
     const bankOnly =
       typeof input.bankOnly === 'boolean' ? input.bankOnly : exam.bankOnly;
     assertChallengeInBankOnly(bankOnly, input.questions, exam.questions);
+    // A Predicted set is never a Mock / bankOnly exam (task 22): its access
+    // comes from its series, not from exam_access or the Question Bank
+    const isMock =
+      typeof input.isMock === 'boolean' ? input.isMock : exam.isMock;
+    if (
+      (isTrue(isMock) || isTrue(bankOnly)) &&
+      (await this.predictedAccessService.isPredictedExam(id))
+    ) {
+      throw new BadRequestException(PREDICTED_EXAM_NOT_MOCK);
+    }
+    // Questions sent: a Predicted set keeps more (non-Challenge) questions
+    // than its Preview (B2/Q3); GET /exams/:id and attempts check it again
+    // on every read (questions can also go through /questions/admin)
+    if (input.questions) {
+      const previewCount =
+        await this.predictedAccessService.findPreviewCount(id);
+      const playable = input.questions.filter(
+        (q) => !isTrue(q.isChallenge),
+      ).length;
+      if (previewCount !== null && playable <= previewCount) {
+        throw new BadRequestException(predictedPreviewTooLarge(previewCount));
+      }
+    }
 
     // Passages are replaced when sent, and also (with []) when questions are
     // sent without them: the questions may only refer to this request.
@@ -667,6 +756,8 @@ export class ExamsService {
       .andWhere('exam.isMock = :isMock', { isMock: false })
       // bankOnly exams are used by the Question Bank only (task 20)
       .andWhere('exam.bankOnly = :bankOnly', { bankOnly: false })
+      // Predicted sets are listed only by GET /predicted (task 22)
+      .andWhere(notPredictedExamSql('exam.id'))
       .andWhere(
         'EXISTS (SELECT 1 FROM questions q WHERE q.examId = exam.id AND q.topicId = :topicId)',
         { topicId },
@@ -690,6 +781,9 @@ export class ExamsService {
    * `sort` (task 21): newest (default) = newest release first, then newest
    * created (task 10); name = title A–Z; recommended = campaigns open (and
    * every non-campaign exam) → upcoming → ended, then newest release.
+   *
+   * Free Mock lists only free and code (campaign) exams: purchase exams are
+   * no longer listed (task 22, they moved to Predicted Exam series).
    */
   async findMockExams(
     page = 1,
@@ -707,7 +801,7 @@ export class ExamsService {
         ? options.venue.trim()
         : undefined;
 
-    const listQuery = this.mockExamQuery(category, venue);
+    const listQuery = this.mockExamQuery(category, venue, true);
     if (sort === 'recommended') {
       // Same rule as getCampaignStatus, on the same clock (now is a
       // parameter, never the DB's NOW())
@@ -743,7 +837,7 @@ export class ExamsService {
         .offset((safePage - 1) * safeLimit)
         .limit(safeLimit)
         .getRawMany<MockExamRow>(),
-      this.mockExamQuery(category, venue).getCount(),
+      this.mockExamQuery(category, venue, true).getCount(),
     ]);
 
     return {
@@ -756,8 +850,9 @@ export class ExamsService {
   }
 
   /**
-   * Categories that have at least one published Mock Exam
-   * (GET /exams/mock/categories), in the admin category order.
+   * Categories that have at least one published Mock Exam listed by
+   * GET /exams/mock (GET /exams/mock/categories; purchase exams not counted,
+   * task 22), in the admin category order.
    * `name` falls back to the slug when the category row was deleted.
    */
   async findMockCategories(): Promise<MockExamCategory[]> {
@@ -771,6 +866,10 @@ export class ExamsService {
       .where('exam.isMock = :isMock', { isMock: true })
       .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED })
       .andWhere('exam.bankOnly = :bankOnly', { bankOnly: false })
+      .andWhere('exam.accessType <> :purchaseType', {
+        purchaseType: ExamAccessType.PURCHASE,
+      })
+      .andWhere(notPredictedExamSql('exam.id'))
       .groupBy('exam.category')
       .getRawMany<{
         slug: string;
@@ -878,44 +977,14 @@ export class ExamsService {
 
   /**
    * `myProgress` per exam (task 21): the viewer's latest in_progress or
-   * completed attempt of each exam by attempt date (createdAt, which a
-   * restart moves to the time of that start; then updatedAt). Only those
-   * rows are read (NOT EXISTS a later one of the same exam), so the JSON
-   * answers of older attempts are never loaded; rows tied on both dates
-   * are reduced to the first one here. Guests: none, no query.
+   * completed attempt of each exam (findLatestProgress, shared with GET
+   * /predicted). Guests: none, no query.
    */
   private async findMockProgress(
     viewer: AccessViewer | null,
     examIds: string[],
   ): Promise<Map<string, MockExamProgress>> {
-    const result = new Map<string, MockExamProgress>();
-    if (!viewer?.id || examIds.length === 0) return result;
-    const statuses = ['in_progress', 'completed'];
-
-    const rows = await this.attemptsRepository
-      .createQueryBuilder('attempt')
-      .select('attempt.id', 'id')
-      .addSelect('attempt.examId', 'examId')
-      .addSelect('attempt.status', 'status')
-      .addSelect('attempt.mode', 'mode')
-      .addSelect('attempt.answers', 'answers')
-      .addSelect('attempt.questionIds', 'questionIds')
-      .addSelect('attempt.totalQuestions', 'totalQuestions')
-      .addSelect('attempt.score', 'score')
-      .where('attempt.userId = :userId', { userId: viewer.id })
-      .andWhere('attempt.examId IN (:...examIds)', { examIds })
-      .andWhere('attempt.status IN (:...statuses)', { statuses })
-      .andWhere(LATER_ATTEMPT_MISSING)
-      .orderBy('attempt.createdAt', 'DESC')
-      .addOrderBy('attempt.updatedAt', 'DESC')
-      .getRawMany<MockProgressRow>();
-
-    for (const row of rows) {
-      if (!result.has(row.examId)) {
-        result.set(row.examId, toMockExamProgress(row));
-      }
-    }
-    return result;
+    return findLatestProgress(this.attemptsRepository, viewer?.id, examIds);
   }
 
   /**
@@ -964,8 +1033,12 @@ export class ExamsService {
     return topics;
   }
 
-  /** Published Mock Exams with the card fields selected (raw rows). */
-  private mockExamQuery(category?: string, venue?: string) {
+  /**
+   * Published Mock Exams with the card fields selected (raw rows).
+   * `listed` = only what GET /exams/mock lists: no purchase exams (task 22);
+   * the detail page (GET /exams/mock/:id) still opens them.
+   */
+  private mockExamQuery(category?: string, venue?: string, listed = false) {
     const qb = this.examsRepository
       .createQueryBuilder('exam')
       .leftJoin('subjects', 'subject', 'subject.id = exam.subjectId')
@@ -999,7 +1072,15 @@ export class ExamsService {
       .where('exam.isMock = :isMock', { isMock: true })
       .andWhere('exam.status = :status', { status: QuestionStatus.PUBLISHED })
       // bankOnly exams are hidden from every exam list (task 20)
-      .andWhere('exam.bankOnly = :bankOnly', { bankOnly: false });
+      .andWhere('exam.bankOnly = :bankOnly', { bankOnly: false })
+      // Predicted sets are never Mock Exams (task 22); defensive
+      .andWhere(notPredictedExamSql('exam.id'));
+
+    if (listed) {
+      qb.andWhere('exam.accessType <> :purchaseType', {
+        purchaseType: ExamAccessType.PURCHASE,
+      });
+    }
 
     if (category) {
       qb.andWhere('(exam.category = :category OR cat.name = :category)', {

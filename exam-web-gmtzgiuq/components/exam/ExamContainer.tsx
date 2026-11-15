@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import Swal from 'sweetalert2';
 import { toast } from 'react-toastify';
 import {
@@ -52,6 +52,8 @@ interface ExamContainerProps {
    * recommendedMinutes = exam.durationMinutes (ไม่มี = ไม่แสดงค่าแนะนำ) — โหมดสอบจริงไม่ใช้
    */
   timerSettings?: { recommendedMinutes?: number | null };
+  /** แถบแจ้งใต้หัวหน้า เช่น "Preview X จาก Y ข้อ" ของชุด Predicted (task 22) */
+  notice?: ReactNode;
 }
 
 export default function ExamContainer({
@@ -60,6 +62,7 @@ export default function ExamContainer({
   backUrl,
   lockedUpgradeHref = '/upgrade',
   timerSettings,
+  notice,
 }: ExamContainerProps) {
   const {
     state,
@@ -304,6 +307,7 @@ export default function ExamContainer({
         onResume={resumeTimer}
         timerSlot={timerSlot}
       />
+      {notice}
 
       {/* Scrollable content */}
       {/* มีบทอ่าน (lg): กล่องนี้กินที่เหลือระหว่าง header กับแถบล่าง (pb = ความสูงแถบล่าง + ช่องว่าง) */}

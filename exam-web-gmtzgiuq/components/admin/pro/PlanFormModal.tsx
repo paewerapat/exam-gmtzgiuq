@@ -324,7 +324,7 @@ export default function PlanFormModal({
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-40">
               <label htmlFor="plan-predicted" className={LABEL}>
-                ชุด Predicted ต่อวิชา
+                ชุด Predicted ต่อซีรีส์
               </label>
               <input
                 id="plan-predicted"

@@ -23,6 +23,7 @@ import { UnlockCodesModule } from './unlock-codes/unlock-codes.module';
 import { AnswerLogsModule } from './answer-logs/answer-logs.module';
 import { ProModule } from './pro/pro.module';
 import { QuestionBankModule } from './question-bank/question-bank.module';
+import { PredictedModule } from './predicted/predicted.module';
 import { setUploadSecurityHeaders } from './upload/upload-headers';
 import type { Response } from 'express';
 
@@ -96,6 +97,7 @@ import type { Response } from 'express';
     AnswerLogsModule,
     ProModule,
     QuestionBankModule,
+    PredictedModule,
   ],
   controllers: [AppController],
   providers: [AppService],

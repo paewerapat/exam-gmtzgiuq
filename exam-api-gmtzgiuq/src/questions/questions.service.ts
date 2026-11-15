@@ -29,6 +29,8 @@ import {
   isBankOnlyExam,
   isLockedExam,
 } from '../exam-access/exam-access';
+import { PredictedSet } from '../predicted/predicted-set.entity';
+import { notPredictedExamSql } from '../predicted/predicted-access';
 
 /** Largest page of the public question list (GET /questions, GraphQL). */
 export const PUBLIC_QUESTIONS_MAX_LIMIT = 100;
@@ -47,6 +49,8 @@ export class QuestionsService {
     @InjectRepository(Exam)
     private examsRepository: Repository<Exam>,
     private uploadService: UploadService,
+    @InjectRepository(PredictedSet)
+    private predictedSetsRepository: Repository<PredictedSet>,
   ) {}
 
   async create(
@@ -91,7 +95,7 @@ export class QuestionsService {
     // (code/purchase), whoever asks: those are taken from the exam page only
     // (task 15). Questions without an exam stay.
     // Nor questions of a bankOnly exam (Question Bank only, task 20) or
-    // Challenge questions.
+    // Challenge questions, nor of a Predicted set (task 22).
     if (options.excludeLocked) {
       queryBuilder
         .leftJoin('question.exam', 'lockExam')
@@ -105,7 +109,8 @@ export class QuestionsService {
         )
         .andWhere('question.isChallenge = :lockIsChallenge', {
           lockIsChallenge: false,
-        });
+        })
+        .andWhere(notPredictedExamSql('question.examId'));
     }
 
     if (status) {
@@ -178,7 +183,7 @@ export class QuestionsService {
   /**
    * Public single question: a draft (SEC-9), a question of a locked Mock
    * Exam (task 15), a Challenge question or a question of a bankOnly exam
-   * (task 20) is reported as not found.
+   * (task 20) or of a Predicted set (task 22) is reported as not found.
    */
   async findPublishedOne(id: string): Promise<Question> {
     const question = await this.questionsRepository.findOne({
@@ -197,6 +202,14 @@ export class QuestionsService {
         loadEagerRelations: false,
       });
       if (exam && (isLockedExam(exam) || isBankOnlyExam(exam))) {
+        throw new NotFoundException('Question not found');
+      }
+      if (
+        await this.predictedSetsRepository.exists({
+          where: { examId: question.examId },
+          loadEagerRelations: false,
+        })
+      ) {
         throw new NotFoundException('Question not found');
       }
     }
@@ -316,6 +329,8 @@ export class QuestionsService {
       .andWhere('exam.isMock = :isMock', { isMock: false })
       // Challenge questions only through the Question Bank (task 20)
       .andWhere('q.isChallenge = :isChallenge', { isChallenge: false })
+      // Predicted sets only through GET /predicted (task 22)
+      .andWhere(notPredictedExamSql('exam.id'))
       .andWhere('q.topicId = :topicId', { topicId })
       // Oldest release first (task 10), then the old createdAt order
       .orderBy('exam.releaseDate', 'ASC')
@@ -336,6 +351,8 @@ export class QuestionsService {
       .andWhere('exam.isMock = :isMock', { isMock: false })
       // Challenge questions only through the Question Bank (task 20)
       .andWhere('q.isChallenge = :isChallenge', { isChallenge: false })
+      // Predicted sets only through GET /predicted (task 22)
+      .andWhere(notPredictedExamSql('exam.id'))
       .andWhere('chapter.subjectId = :subjectId', { subjectId })
       // Oldest release first (task 10), then the old createdAt order
       .orderBy('exam.releaseDate', 'ASC')

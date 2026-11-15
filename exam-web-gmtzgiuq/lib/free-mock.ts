@@ -23,17 +23,17 @@ export interface MockExamGroups {
   campaigns: MockExamSummary[];
   /** accessType free */
   free: MockExamSummary[];
-  /** accessType purchase — กลุ่มชั่วคราวจนกว่างาน 8 จะย้ายไปหน้า Predicted Exam */
-  pro: MockExamSummary[];
 }
 
-/** แบ่งกลุ่มตาม accessType โดยคงลำดับที่ API เรียงมา */
+/**
+ * แบ่งกลุ่มตาม accessType โดยคงลำดับที่ API เรียงมา
+ * ชุด purchase ไม่แสดงในหน้า Free Mock แล้ว (task 22 ย้ายไปหน้า Predicted Exam — API ไม่ส่งมา ถ้ายังส่งมาก็ตัดทิ้ง)
+ */
 export function groupMockExams(items: MockExamSummary[]): MockExamGroups {
-  const groups: MockExamGroups = { campaigns: [], free: [], pro: [] };
+  const groups: MockExamGroups = { campaigns: [], free: [] };
   for (const item of items) {
     if (item.accessType === 'code') groups.campaigns.push(item);
     else if (item.accessType === 'free') groups.free.push(item);
-    else groups.pro.push(item);
   }
   return groups;
 }

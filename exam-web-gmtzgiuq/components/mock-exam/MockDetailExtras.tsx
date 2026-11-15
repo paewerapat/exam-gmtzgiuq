@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { CheckCircle2 } from 'lucide-react';
 import type { MockTopicBreakdownItem } from '@/lib/api/exams';
 
@@ -54,6 +55,26 @@ export const AFTER_EXAM_ITEMS = [
   'เทียบกับชุด Predicted Exam (Pro) เพื่อฝึกต่อ',
 ] as const;
 
+/** ข้อความในรายการที่เป็นลิงก์ไปหน้า Predicted Exam (task 22) */
+const PREDICTED_LINK_TEXT = 'ชุด Predicted Exam (Pro)';
+
+function renderAfterItem(text: string) {
+  const at = text.indexOf(PREDICTED_LINK_TEXT);
+  if (at < 0) return text;
+  return (
+    <>
+      {text.slice(0, at)}
+      <Link
+        href="/dashboard/predicted"
+        className="font-medium text-indigo-600 dark:text-indigo-400 underline underline-offset-2 hover:text-indigo-700 dark:hover:text-indigo-300 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+      >
+        {PREDICTED_LINK_TEXT}
+      </Link>
+      {text.slice(at + PREDICTED_LINK_TEXT.length)}
+    </>
+  );
+}
+
 /** กล่อง "สิ่งที่ได้หลังทำ" (ชุดฟรีทั่วไป + แคมเปญ) */
 export function AfterExamBox() {
   return (
@@ -65,7 +86,7 @@ export function AfterExamBox() {
         {AFTER_EXAM_ITEMS.map((text) => (
           <li key={text} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
             <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
-            <span className="min-w-0">{text}</span>
+            <span className="min-w-0">{renderAfterItem(text)}</span>
           </li>
         ))}
       </ul>

@@ -9,6 +9,8 @@ describe('buildPoolWhere — Question Bank pool rules (task 20)', () => {
   const base = [
     "e.status = 'published'",
     'e.isMock = 0',
+    // task 22: never questions of a Predicted set
+    'NOT EXISTS (SELECT 1 FROM predicted_sets qb_pset WHERE qb_pset.examId = e.id)',
     't.isActive = 1',
     'c.isActive = 1',
     's.isActive = 1',
@@ -19,6 +21,15 @@ describe('buildPoolWhere — Question Bank pool rules (task 20)', () => {
     expect(where).toBe([...base, 's.venueId = ?'].join(' AND '));
     expect(where).not.toContain('bankOnly');
     expect(params).toEqual(['v1']);
+  });
+
+  it('task 22: Predicted sets are left out of every pool (bank and challenge)', () => {
+    for (const mode of ['bank', 'challenge'] as const) {
+      const { where } = buildPoolWhere({ mode, subjectId: 's1' });
+      expect(where).toContain(
+        'NOT EXISTS (SELECT 1 FROM predicted_sets qb_pset WHERE qb_pset.examId = e.id)',
+      );
+    }
   });
 
   it('challenge mode = isChallenge only; difficulties are ignored there', () => {

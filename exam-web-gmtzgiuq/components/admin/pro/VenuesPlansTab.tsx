@@ -452,7 +452,7 @@ function EntitlementSummary({ plan }: { plan: ProAdminPlan }) {
     <div className="text-xs text-gray-700 dark:text-gray-300">
       <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
         <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
-        Predicted: {e.predictedSets === null ? 'ทุกชุด' : `${e.predictedSets.toLocaleString('th-TH')} ชุด/วิชา`}
+        Predicted: {e.predictedSets === null ? 'ทุกชุด' : `${e.predictedSets.toLocaleString('th-TH')} ชุด/ซีรีส์`}
       </span>
       <span className="block mt-0.5 text-gray-500 dark:text-gray-400">{on.length > 0 ? on.join(' · ') : 'ไม่มีสิทธิ์เพิ่ม'}</span>
     </div>

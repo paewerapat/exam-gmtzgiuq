@@ -44,6 +44,7 @@ describe('DashboardSidebar — โครงเมนูใหม่ (task 21)', 
       'Question Bank',
       'Challenge Questions',
       'Free Mock Exam',
+      'Predicted Exam',
       'ประวัติการสอบ',
       'โปรไฟล์',
       'สมาชิกของฉัน',
@@ -54,13 +55,13 @@ describe('DashboardSidebar — โครงเมนูใหม่ (task 21)', 
       '/dashboard/question-bank',
       '/dashboard/challenge',
       '/dashboard/mock-exams',
+      '/dashboard/predicted',
     ]);
     expect(within(screen.getByRole('group', { name: 'ข้อสอบเก่า' })).getAllByRole('link')).toHaveLength(3);
     expect(within(screen.getByRole('group', { name: 'ของฉัน' })).getAllByRole('link')).toHaveLength(3);
     const more = within(screen.getByRole('group', { name: 'เพิ่มเติม' }));
     expect(more.getByRole('link', { name: 'บทความ' })).toBeInTheDocument();
     expect(more.getByRole('button', { name: 'ส่งความคิดเห็น' })).toBeInTheDocument();
-    expect(screen.queryByText(/Predicted/)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Mock Exam' })).not.toBeInTheDocument();
     await waitFor(() => expect(mockedGetMyPro).toHaveBeenCalled());
   });
@@ -73,6 +74,32 @@ describe('DashboardSidebar — โครงเมนูใหม่ (task 21)', 
     expect(mock.className).toContain('bg-indigo-600');
     const nav = screen.getByRole('navigation', { name: 'เมนูหลัก' });
     expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    await waitFor(() => expect(mockedGetMyPro).toHaveBeenCalled());
+  });
+
+  it('หน้า /dashboard/predicted → เมนู Predicted Exam active เมนูเดียว (desktop + drawer)', async () => {
+    mockPathname = '/dashboard/predicted';
+    const onNavigate = jest.fn();
+    render(
+      <>
+        <DashboardSidebar />
+        <DashboardSidebar onNavigate={onNavigate} />
+      </>,
+    );
+    const links = screen.getAllByRole('link', { name: 'Predicted Exam' });
+    expect(links).toHaveLength(2);
+    links.forEach((a) => {
+      expect(a).toHaveAttribute('href', '/dashboard/predicted');
+      expect(a).toHaveAttribute('aria-current', 'page');
+    });
+    screen.getAllByRole('navigation', { name: 'เมนูหลัก' }).forEach((nav) => {
+      expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    });
+    expect(screen.getAllByRole('link', { name: 'Free Mock Exam' })[0]).not.toHaveAttribute('aria-current');
+    // jsdom ไม่รองรับการเปลี่ยนหน้า — กันไว้ แล้วเช็กว่ากดใน drawer แล้วปิด drawer
+    links[1].addEventListener('click', (e) => e.preventDefault());
+    links[1].click();
+    expect(onNavigate).toHaveBeenCalled();
     await waitFor(() => expect(mockedGetMyPro).toHaveBeenCalled());
   });
 

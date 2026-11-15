@@ -17,6 +17,8 @@ import type { ExamSession, ExamResult } from '@/types/exam';
 import LatexText from '@/components/latex/LatexText';
 import { getMockExam } from '@/lib/api/exams';
 import { getExamBackLink } from '@/lib/mock-exam';
+import { PredictedUpgradeBox } from '@/components/exam/PredictedNotices';
+import { PREDICTED_PAGE_HREF, recallPredicted, type ExamPredictedInfo } from '@/lib/predicted';
 
 interface PageProps {
   params: Promise<{ examId: string }>;
@@ -117,6 +119,8 @@ export default function RealExamResultsPage({ params }: PageProps) {
   const [filter, setFilter] = useState<'all' | 'incorrect' | 'marked'>('all');
   // ชุด Mock Exam → ปุ่มย้อนกลับไปหน้า Mock Exam (/exams/mock/:id ตอบ 404 = ไม่ใช่ Mock)
   const [isMock, setIsMock] = useState(false);
+  // ชุด Predicted (task 22) — หน้าทำข้อสอบจำไว้ใน storage ต่อ examId
+  const [predicted, setPredicted] = useState<ExamPredictedInfo | null>(null);
 
   useEffect(() => {
     params.then((p) => setExamId(p.examId));
@@ -149,6 +153,7 @@ export default function RealExamResultsPage({ params }: PageProps) {
     setSession(loadedSession);
     setQuestions(loadedQuestions);
     setResult(calculateExamResult(loadedSession, loadedQuestions));
+    setPredicted(recallPredicted(examId));
     setLoading(false);
     // Clear session after loading so it doesn't persist past this page
     clearRealExamSession(examId);
@@ -167,7 +172,9 @@ export default function RealExamResultsPage({ params }: PageProps) {
   }
 
   const examTitle = session.examTitle || 'ข้อสอบ';
-  const backLink = getExamBackLink(examId, isMock);
+  const backLink = predicted
+    ? { href: PREDICTED_PAGE_HREF, label: 'กลับหน้า Predicted Exam' }
+    : getExamBackLink(examId, isMock);
   const questionMap = new Map(questions.map((q) => [q.id, q]));
 
   let reviewQuestionIds = session.questionIds;
@@ -195,6 +202,16 @@ export default function RealExamResultsPage({ params }: PageProps) {
           </div>
 
           <ResultsSummary result={result} className="mb-6" />
+
+          {predicted?.access === 'preview' && (
+            <PredictedUpgradeBox
+              answered={session.questionIds.length}
+              total={Math.max(predicted.totalQuestions, session.questionIds.length)}
+              venueKey={predicted.venueKey}
+              mode="exam"
+              className="mb-6"
+            />
+          )}
 
           <div className="flex flex-col sm:flex-row gap-3 mb-8">
             <button

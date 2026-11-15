@@ -22,6 +22,63 @@ import { QuestionCategory } from '../questions/question.entity';
 import { ExamAccessService } from '../exam-access/exam-access.service';
 import type { AccessViewer } from '../exam-access/exam-access';
 import { AnswerLogsService } from '../answer-logs/answer-logs.service';
+import {
+  PredictedAccessService,
+  PredictedAttemptScope,
+  pickAllowedKeys,
+} from '../predicted/predicted-access.service';
+
+/**
+ * What a Predicted set allows an attempt to keep (task 22): answers and
+ * times of its questions only; a Preview attempt also has exactly its
+ * Preview questions. No scope (not a Predicted set) = as sent.
+ */
+function applyPredictedScope<
+  T extends {
+    answers: Record<string, string>;
+    timePerQuestion: Record<string, number>;
+  },
+>(data: T, scope: PredictedAttemptScope | null): T {
+  if (!scope) return data;
+  return {
+    ...data,
+    answers: pickAllowedKeys(data.answers, scope.questionIds),
+    timePerQuestion: pickAllowedKeys(data.timePerQuestion, scope.questionIds),
+  };
+}
+
+/** questionIds to store: the Preview's, or the sent ones of the set. */
+function scopedQuestionIds(
+  sent: string[],
+  scope: PredictedAttemptScope | null,
+): string[] {
+  if (!scope) return sent;
+  if (scope.mode === 'preview') return scope.questionIds;
+  const allowed = new Set(scope.questionIds.map((id) => id.toLowerCase()));
+  return (Array.isArray(sent) ? sent : []).filter(
+    (id) => typeof id === 'string' && allowed.has(id.toLowerCase()),
+  );
+}
+
+/**
+ * An in-progress attempt has the scope a start would give now: not a
+ * Predicted set (no scope) = always; else a Preview attempt only for a
+ * Preview start and a full attempt only for a full start (task 22).
+ */
+function sameAttemptScope(
+  attempt: Pick<ExamAttempt, 'mode'>,
+  scope: PredictedAttemptScope | null,
+): boolean {
+  if (!scope) return true;
+  return (attempt.mode === 'preview') === (scope.mode === 'preview');
+}
+
+function sumTimes(times: Record<string, number>): number {
+  return Object.values(times).reduce(
+    (a, b) => a + (Number.isFinite(Number(b)) ? Number(b) : 0),
+    0,
+  );
+}
 
 const ATTEMPT_ALREADY_COMPLETED = 'ส่งข้อสอบชุดนี้ไปแล้ว ไม่สามารถส่งซ้ำได้';
 
@@ -34,6 +91,7 @@ export class AttemptsService {
     private examsRepository: Repository<Exam>,
     private examAccessService: ExamAccessService,
     private answerLogsService: AnswerLogsService,
+    private predictedAccessService: PredictedAccessService,
   ) {}
 
   // ── IN-PROGRESS ────────────────────────────────────────────
@@ -55,6 +113,12 @@ export class AttemptsService {
    * A locked Mock Exam without access → 403 EXAM_LOCKED (task 15); a code
    * Mock Exam outside its campaign window → 403 CAMPAIGN_NOT_OPEN /
    * CAMPAIGN_ENDED unless admin (task 21).
+   * A Predicted set (task 22): locked → 403 PREDICTED_LOCKED; preview →
+   * mode 'preview' with the Preview questions only (questionIds and
+   * totalQuestions set here, whatever was sent); full → as requested, with
+   * questionIds limited to the set's questions. An in-progress attempt of
+   * the other scope (Preview attempt, viewer now full — or the reverse) is
+   * abandoned and a new attempt created, even when untouched.
    * `viewer` is the logged-in user (role decides admin); not passed = a
    * regular user with id `userId`.
    */
@@ -87,21 +151,28 @@ export class AttemptsService {
       viewer ?? { id: userId },
       data.examId,
     );
+    const scope = await this.predictedAccessService.attemptStartScope(
+      viewer ?? { id: userId },
+      data.examId,
+    );
+    const questionIds = scopedQuestionIds(data.questionIds, scope);
+    const totalQuestions =
+      scope?.mode === 'preview' ? questionIds.length : data.totalQuestions;
 
     const fields = {
       examTitle: data.examTitle,
       category: data.category,
-      totalQuestions: data.totalQuestions,
-      questionIds: data.questionIds,
+      totalQuestions,
+      questionIds,
       answers: {},
       timePerQuestion: {},
       currentIndex: 0,
       correctAnswers: 0,
       incorrectAnswers: 0,
-      unanswered: data.totalQuestions,
+      unanswered: totalQuestions,
       score: 0,
       totalTime: 0,
-      mode: data.mode ?? 'practice',
+      mode: scope?.mode ?? data.mode ?? 'practice',
       startedAt,
     };
 
@@ -129,8 +200,12 @@ export class AttemptsService {
           // Every in-progress row except the reused one is abandoned: rows
           // with answers, and extra untouched rows left over from earlier
           // concurrent starts (not deleted — a tab that still holds one would
-          // get 404 when it submits).
-          const reusable = inProgress.find((a) => this.isUntouched(a));
+          // get 404 when it submits). A Predicted set (task 22): a row of the
+          // other scope (a Preview attempt while the viewer now has full
+          // access, or the other way round) is never reused either.
+          const reusable = inProgress.find(
+            (a) => this.isUntouched(a) && sameAttemptScope(a, scope),
+          );
           const toAbandon = inProgress
             .filter((a) => a !== reusable)
             .map((a) => a.id);
@@ -216,7 +291,11 @@ export class AttemptsService {
     return !answered && (attempt.currentIndex ?? 0) === 0;
   }
 
-  /** Autosave. Locked exam whose access ended → 403 EXAM_LOCKED (task 15). */
+  /**
+   * Autosave. Locked exam whose access ended → 403 EXAM_LOCKED (task 15).
+   * Predicted set (task 22): answers/times of questions outside the
+   * attempt's scope are dropped; locked → 403 PREDICTED_LOCKED.
+   */
   async updateProgress(
     id: string,
     userId: string,
@@ -235,6 +314,20 @@ export class AttemptsService {
       viewer ?? { id: userId },
       attempt.examId,
     );
+    const scope = await this.predictedAccessService.attemptScope(
+      viewer ?? { id: userId },
+      attempt,
+    );
+    if (scope) {
+      const scoped = applyPredictedScope(data, scope);
+      await this.attemptsRepository.update(id, {
+        currentIndex: data.currentIndex,
+        answers: scoped.answers,
+        timePerQuestion: scoped.timePerQuestion,
+        totalTime: sumTimes(scoped.timePerQuestion),
+      });
+      return;
+    }
 
     await this.attemptsRepository.update(id, {
       currentIndex: data.currentIndex,
@@ -244,7 +337,12 @@ export class AttemptsService {
     });
   }
 
-  /** Submit. Locked exam whose access ended → 403 EXAM_LOCKED (task 15). */
+  /**
+   * Submit. Locked exam whose access ended → 403 EXAM_LOCKED (task 15).
+   * Predicted set (task 22): only the attempt's questions are stored and
+   * logged (a Preview attempt: its Preview questions, question_answers
+   * mode 'preview'); locked → 403 PREDICTED_LOCKED.
+   */
   async completeAttempt(
     id: string,
     userId: string,
@@ -264,6 +362,14 @@ export class AttemptsService {
       viewer ?? { id: userId },
       attempt.examId,
     );
+    const scope = await this.predictedAccessService.attemptScope(
+      viewer ?? { id: userId },
+      attempt,
+    );
+    const { answers, timePerQuestion } = applyPredictedScope(input, scope);
+    const questionIds = scopedQuestionIds(input.questionIds, scope);
+    const totalQuestions =
+      scope?.mode === 'preview' ? questionIds.length : input.totalQuestions;
 
     // The status condition makes the check atomic: of two simultaneous
     // submits only one matches the row.
@@ -274,11 +380,12 @@ export class AttemptsService {
         incorrectAnswers: input.incorrectAnswers,
         unanswered: input.unanswered,
         score: input.score,
-        totalTime: input.totalTime,
-        timePerQuestion: input.timePerQuestion,
-        answers: input.answers,
-        questionIds: input.questionIds,
-        currentIndex: input.totalQuestions - 1,
+        totalTime: scope ? sumTimes(timePerQuestion) : input.totalTime,
+        timePerQuestion,
+        answers,
+        questionIds,
+        ...(scope?.mode === 'preview' ? { totalQuestions } : {}),
+        currentIndex: totalQuestions - 1,
         status: 'completed',
         completedAt: input.completedAt
           ? new Date(input.completedAt)
@@ -296,8 +403,9 @@ export class AttemptsService {
       userId,
       examId: attempt.examId,
       mode: attempt.mode,
-      answers: input.answers,
-      timePerQuestion: input.timePerQuestion,
+      answers,
+      timePerQuestion,
+      ...(scope ? { questionIds: scope.questionIds } : {}),
     });
 
     return this.findOne(id);
@@ -324,27 +432,36 @@ export class AttemptsService {
   /**
    * Legacy direct submit. Locked exam without access → 403 (task 15);
    * campaign outside its window → 403 CAMPAIGN_* (task 21).
+   * Predicted set (task 22): locked → 403 PREDICTED_LOCKED; preview →
+   * mode 'preview' with the Preview questions only (as startInProgress).
    */
   async submit(input: SubmitAttemptInput, user: User): Promise<ExamAttempt> {
     // Creates a new attempt: campaign window too (task 21)
     await this.examAccessService.assertCanStartExamId(user, input.examId);
+    const scope = await this.predictedAccessService.attemptStartScope(
+      user,
+      input.examId,
+    );
+    const { answers, timePerQuestion } = applyPredictedScope(input, scope);
+    const questionIds = scopedQuestionIds(input.questionIds, scope);
 
     const attempt = this.attemptsRepository.create({
       userId: user.id,
       examId: input.examId,
       examTitle: input.examTitle,
       category: input.category,
-      totalQuestions: input.totalQuestions,
+      totalQuestions:
+        scope?.mode === 'preview' ? questionIds.length : input.totalQuestions,
       correctAnswers: input.correctAnswers,
       incorrectAnswers: input.incorrectAnswers,
       unanswered: input.unanswered,
       score: input.score,
-      totalTime: input.totalTime,
-      timePerQuestion: input.timePerQuestion,
-      answers: input.answers,
-      questionIds: input.questionIds,
+      totalTime: scope ? sumTimes(timePerQuestion) : input.totalTime,
+      timePerQuestion,
+      answers,
+      questionIds,
       status: 'completed',
-      mode: (input as any).mode ?? 'practice',
+      mode: scope?.mode ?? (input as any).mode ?? 'practice',
       startedAt: new Date(input.startedAt),
       completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
     });
@@ -357,8 +474,9 @@ export class AttemptsService {
       userId: user.id,
       examId: saved.examId,
       mode: saved.mode,
-      answers: input.answers,
-      timePerQuestion: input.timePerQuestion,
+      answers,
+      timePerQuestion,
+      ...(scope ? { questionIds: scope.questionIds } : {}),
     });
 
     return this.findOne(saved.id);

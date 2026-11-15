@@ -89,6 +89,8 @@ describe('MockExamDetail — task 21 (เนื้อหาที่ออก / 
       'บันทึกใน "ประวัติการสอบ" ของคุณ',
       'เทียบกับชุด Predicted Exam (Pro) เพื่อฝึกต่อ',
     ]);
+    // task 22: "ชุด Predicted Exam (Pro)" เป็นลิงก์ไปหน้า Predicted
+    expect(after.getByRole('link', { name: 'ชุด Predicted Exam (Pro)' })).toHaveAttribute('href', '/dashboard/predicted');
     // ชุดฟรีไม่มีแถวช่วงแคมเปญ / ป้ายสถานะ
     expect(screen.queryByText('ช่วงแคมเปญ')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('mock-detail-hero')).getByText('ชุดฟรีทั่วไป')).toBeInTheDocument();

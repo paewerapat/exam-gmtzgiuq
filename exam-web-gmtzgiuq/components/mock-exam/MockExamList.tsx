@@ -121,7 +121,7 @@ export default function MockExamList() {
   if (venue && !tabs.some((t) => t.key === venue)) tabs.push({ key: venue, name: venue.toUpperCase() });
 
   const groups = items ? groupMockExams(items) : null;
-  const isEmpty = !!items && items.length === 0;
+  const isEmpty = !!groups && groups.campaigns.length + groups.free.length === 0;
 
   return (
     <FadeIn>
@@ -241,30 +241,23 @@ export default function MockExamList() {
             description="ทำได้ตลอด ไม่จำกัดช่วงเวลา"
             items={groups.free}
           />
-          {/* ชั่วคราวจนกว่างาน 8 จะย้ายชุดเหล่านี้ไปหน้า Predicted Exam */}
-          <GroupSection
-            id="mock-pro"
-            title="ชุดสำหรับสมาชิก Pro"
-            description="ทำได้เมื่อสมัครแพ็กเกจ Pro ของสนามสอบนั้น"
-            items={groups.pro}
-          />
         </>
       )}
 
-      {/* แถบล่าง: ชวนดูชุดเพิ่ม (งาน 8 จะเปลี่ยนไปหน้า Predicted Exam) */}
+      {/* แถบล่าง: ชวนดูชุดเพิ่มในหน้า Predicted Exam (task 22) */}
       <aside
         aria-label="ชุดข้อสอบเพิ่มเติม"
         className="mt-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800/50 px-5 py-4 sm:px-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between"
       >
         <p className="flex items-start gap-2 text-sm sm:text-base text-indigo-900 dark:text-indigo-100 min-w-0">
           <Crown className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-500 dark:text-amber-400" aria-hidden="true" />
-          <span>อยากได้ชุดเพิ่มทุกชุด ทุกวิชา? Upgrade เป็น Pro เพื่อทำชุดข้อสอบจำลองได้ทั้งสนามสอบ</span>
+          <span>อยากได้ชุดเพิ่มทุกชุด ทุกวิชา? ลองชุด Predicted Exam ข้อสอบจำลองตามแนวข้อสอบรอบหน้า</span>
         </p>
         <Link
-          href="/upgrade"
+          href="/dashboard/predicted"
           className="flex-shrink-0 inline-flex items-center justify-center min-h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 text-white text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
         >
-          Upgrade เป็น Pro
+          ดู Predicted Exam
         </Link>
       </aside>
     </FadeIn>

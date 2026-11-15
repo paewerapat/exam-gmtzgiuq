@@ -46,7 +46,7 @@ const campaign = (status: 'open' | 'upcoming' | 'ended', patch: Partial<NonNulla
 });
 
 describe('groupMockExams / formatFreeMockSummary', () => {
-  it('แยกแคมเปญ (code) / ชุดฟรี (free) / ชุด Pro (purchase) โดยคงลำดับของ API', () => {
+  it('แยกแคมเปญ (code) / ชุดฟรี (free) โดยคงลำดับของ API — ชุด purchase ไม่แสดง (ย้ายไป Predicted, task 22)', () => {
     const items = [
       mockSummary({ id: 'f1' }),
       mockSummary({ id: 'c1', accessType: 'code' }),
@@ -57,7 +57,7 @@ describe('groupMockExams / formatFreeMockSummary', () => {
     const groups = groupMockExams(items);
     expect(groups.campaigns.map((i) => i.id)).toEqual(['c1', 'c2']);
     expect(groups.free.map((i) => i.id)).toEqual(['f1', 'f2']);
-    expect(groups.pro.map((i) => i.id)).toEqual(['p1']);
+    expect(Object.keys(groups)).toEqual(['campaigns', 'free']);
     // นับเฉพาะชุดฟรี (แคมเปญ + ชุดฟรีทั่วไป)
     expect(formatFreeMockSummary(groups)).toBe('4 ชุด · 2 แคมเปญ');
   });

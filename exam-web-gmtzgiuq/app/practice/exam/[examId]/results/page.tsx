@@ -15,6 +15,8 @@ import {
 } from '@/lib/exam-utils';
 import type { ExamSession, ExamResult } from '@/types/exam';
 import LatexText from '@/components/latex/LatexText';
+import { PredictedUpgradeBox } from '@/components/exam/PredictedNotices';
+import { PREDICTED_PAGE_HREF, recallPredicted, type ExamPredictedInfo } from '@/lib/predicted';
 
 interface PageProps {
   params: Promise<{ examId: string }>;
@@ -111,6 +113,8 @@ export default function ExamResultsPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<'review' | 'chapter'>('review');
   const [showAll, setShowAll] = useState(false);
   const [filter, setFilter] = useState<'all' | 'incorrect' | 'marked'>('all');
+  // ชุด Predicted (task 22) — หน้าทำข้อสอบจำไว้ใน storage ต่อ examId
+  const [predicted, setPredicted] = useState<ExamPredictedInfo | null>(null);
 
   useEffect(() => {
     params.then((p) => setExamId(p.examId));
@@ -124,6 +128,7 @@ export default function ExamResultsPage({ params }: PageProps) {
     setSession(loadedSession);
     setQuestions(loadedQuestions);
     setResult(calculateExamResult(loadedSession, loadedQuestions));
+    setPredicted(recallPredicted(examId));
     setLoading(false);
   }, [examId, router]);
 
@@ -153,9 +158,9 @@ export default function ExamResultsPage({ params }: PageProps) {
       <div className="max-w-4xl mx-auto px-4">
         <FadeIn>
           {/* Back link */}
-          <Link href="/dashboard/practice" className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6 dark:hover:text-gray-100">
+          <Link href={predicted ? PREDICTED_PAGE_HREF : '/dashboard/practice'} className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6 dark:hover:text-gray-100">
             <ArrowLeft className="w-4 h-4" />
-            <span>กลับหน้าเลือกข้อสอบ</span>
+            <span>{predicted ? 'กลับหน้า Predicted Exam' : 'กลับหน้าเลือกข้อสอบ'}</span>
           </Link>
 
           {/* Header */}
@@ -171,6 +176,15 @@ export default function ExamResultsPage({ params }: PageProps) {
 
           {/* Results summary */}
           <ResultsSummary result={result} className="mb-6" />
+
+          {predicted?.access === 'preview' && (
+            <PredictedUpgradeBox
+              answered={session.questionIds.length}
+              total={Math.max(predicted.totalQuestions, session.questionIds.length)}
+              venueKey={predicted.venueKey}
+              className="mb-6"
+            />
+          )}
 
           {/* Action buttons */}
           <div className="flex flex-col sm:flex-row gap-3 mb-8">

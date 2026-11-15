@@ -59,6 +59,26 @@ describe('ประวัติการสอบ — ชุดที่สิ�
     );
   });
 
+  it('ชุด Predicted ไม่มีสิทธิ์แล้ว (403 PREDICTED_LOCKED) → คะแนนสรุป + ข้อความล็อก + Unlock ไป /upgrade?venue= (N5)', async () => {
+    (getPublicExam as jest.Mock).mockRejectedValue(
+      new ApiError('ชุดข้อสอบนี้สำหรับสมาชิก Pro', 403, 'PREDICTED_LOCKED', { venueKey: 'netsat' }),
+    );
+    renderPage();
+    expect(await screen.findByText('ชุดนี้สำหรับสมาชิก Pro ดูโจทย์และเฉลยไม่ได้')).toBeInTheDocument();
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Unlock' })).toHaveAttribute('href', '/upgrade?venue=netsat');
+    expect(screen.queryByRole('button', { name: 'เฉลยข้อสอบ' })).not.toBeInTheDocument();
+    expect(screen.queryByText('ไม่สามารถโหลดข้อมูลคำถามได้')).not.toBeInTheDocument();
+    expect(screen.queryByText('สิทธิ์ของชุดนี้หมดอายุ ดูโจทย์และเฉลยไม่ได้')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/ปลดล็อก/);
+  });
+
+  it('403 PREDICTED_LOCKED ไม่มี venueKey → Unlock ไป /upgrade', async () => {
+    (getPublicExam as jest.Mock).mockRejectedValue(new ApiError('ล็อก', 403, 'PREDICTED_LOCKED'));
+    renderPage();
+    expect(await screen.findByRole('link', { name: 'Unlock' })).toHaveAttribute('href', '/upgrade');
+  });
+
   it('exam ถูกลบ (error อื่น) → พฤติกรรมเดิม: แท็บเฉลยแสดง "ไม่สามารถโหลดข้อมูลคำถามได้"', async () => {
     (getPublicExam as jest.Mock).mockRejectedValue(new ApiError('Exam not found', 404, null));
     renderPage();

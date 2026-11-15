@@ -117,6 +117,15 @@ describe('CurriculumService', () => {
       expect(questionSql).not.toContain('bankOnly');
       expect(questionSql).toContain('AND q.isChallenge = 0');
     });
+
+    it('task 22: both counts leave out Predicted sets', async () => {
+      await service.getPublicTreeWithCounts();
+      for (const [sql] of query.mock.calls as [string, string[]][]) {
+        expect(sql.replace(/\s+/g, ' ')).toContain(
+          'AND NOT EXISTS (SELECT 1 FROM predicted_sets pset WHERE pset.examId = e.id)',
+        );
+      }
+    });
   });
 
   describe('admin subjects/topics: Question Bank fields (task 20)', () => {

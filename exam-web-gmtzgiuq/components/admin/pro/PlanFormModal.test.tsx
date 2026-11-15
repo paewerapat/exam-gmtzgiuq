@@ -28,7 +28,7 @@ describe('PlanFormModal (task 17)', () => {
     await user.click(within(real).getByRole('checkbox', { name: /ข้อ Challenge/ }));
     await user.click(within(real).getByRole('checkbox', { name: /ชุด Mock ที่ต้องซื้อ/ }));
     await user.click(within(real).getByRole('checkbox', { name: 'ทุกชุด' }));
-    expect(within(real).getByLabelText('ชุด Predicted ต่อวิชา')).toBeDisabled();
+    expect(within(real).getByLabelText('ชุด Predicted ต่อซีรีส์')).toBeDisabled();
     await user.click(within(dialog).getByRole('button', { name: 'บันทึกแพ็กเกจ' }));
 
     expect(onSubmit).toHaveBeenCalledWith(

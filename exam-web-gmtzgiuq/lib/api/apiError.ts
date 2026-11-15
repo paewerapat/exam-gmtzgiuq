@@ -6,12 +6,20 @@ export const EXAM_LOCKED = 'EXAM_LOCKED';
 export class ApiError extends Error {
   readonly status: number;
   readonly errorCode: string | null;
+  /** body ของ response (object) — ใช้อ่าน field เสริมของ error เช่น venueKey ของ PREDICTED_LOCKED (task 22) */
+  readonly details: Record<string, unknown> | null;
 
-  constructor(message: string, status: number, errorCode: string | null = null) {
+  constructor(
+    message: string,
+    status: number,
+    errorCode: string | null = null,
+    details: Record<string, unknown> | null = null,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.errorCode = errorCode;
+    this.details = details;
   }
 }
 
@@ -26,7 +34,7 @@ export async function toApiError(response: Response, fallbackMessage: string): P
       ? raw
       : '';
   const errorCode = typeof body.errorCode === 'string' && body.errorCode ? body.errorCode : null;
-  return new ApiError(message || fallbackMessage, response.status, errorCode);
+  return new ApiError(message || fallbackMessage, response.status, errorCode, data && typeof data === 'object' ? body : null);
 }
 
 /** ชุดข้อสอบนี้ต้อง Unlock ก่อน (ไม่มีสิทธิ์ / สิทธิ์หมดอายุ / guest) */
@@ -52,4 +60,19 @@ export const CAMPAIGN_ENDED_RESUME_TEXT = 'แคมเปญจบแล้ว 
 export function campaignClosedCode(err: unknown): CampaignClosedCode | null {
   if (!(err instanceof ApiError)) return null;
   return err.errorCode === CAMPAIGN_NOT_OPEN || err.errorCode === CAMPAIGN_ENDED ? err.errorCode : null;
+}
+
+// ── Predicted Exam (task 22) ─────────────────────────────────
+// GET /exams/:id, POST /attempts/start ฯลฯ ตอบ 403 เมื่อชุด Predicted ล็อกสำหรับผู้ใช้นี้ (ไม่มี Preview และไม่มีสิทธิ์เต็ม)
+export const PREDICTED_LOCKED = 'PREDICTED_LOCKED';
+
+export function isPredictedLockedError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403 && err.errorCode === PREDICTED_LOCKED;
+}
+
+/** key สนามของชุดที่ล็อก (ถ้า API ส่ง venueKey มาใน body) — ไม่มี → null */
+export function predictedLockedVenueKey(err: unknown): string | null {
+  if (!isPredictedLockedError(err)) return null;
+  const v = (err as ApiError).details?.venueKey;
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
 }

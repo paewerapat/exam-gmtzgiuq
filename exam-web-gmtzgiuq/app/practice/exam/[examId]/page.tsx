@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Loader2, PlayCircle, RotateCcw } from 'lucide-react';
 import { ExamProvider, useExam } from '@/contexts/ExamContext';
@@ -20,9 +21,22 @@ import {
   CAMPAIGN_ENDED_RESUME_TEXT,
   campaignClosedCode,
   isExamLockedError,
+  isPredictedLockedError,
+  predictedLockedVenueKey,
   type CampaignClosedCode,
 } from '@/lib/api/apiError';
 import CampaignClosedScreen from '@/components/exam/CampaignClosedScreen';
+import { PredictedLockedScreen, PredictedPreviewBar } from '@/components/exam/PredictedNotices';
+import {
+  isStalePreviewProgress,
+  normalizeExamPredicted,
+  PREDICTED_PAGE_HREF,
+  previewCounts,
+  recallPredicted,
+  rememberPredicted,
+  type ExamPredictedInfo,
+} from '@/lib/predicted';
+import { withTimeout } from '@/lib/with-timeout';
 import { UNLOCK_TEXT } from '@/lib/unlock-codes';
 import ExamLockedScreen from '@/components/exam/ExamLockedScreen';
 import {
@@ -37,6 +51,8 @@ import type { ExamSession } from '@/types/exam';
 import type { QuestionCategory } from '@/lib/api/questions';
 
 const BACKEND_ATTEMPT_KEY = 'exam_backend_attempt_id';
+/** รอ PATCH complete ไม่เกินนี้ — เกินแล้วไปหน้าผลต่อเหมือนเดิม (ผลคิดในเครื่องแล้ว) */
+const COMPLETE_TIMEOUT_MS = 15_000;
 
 interface PageProps {
   params: Promise<{ examId: string }>;
@@ -141,13 +157,33 @@ function ExamPageContent({ examId }: { examId: string }) {
   const loadedExamIdRef = useRef<string | null>(null);
   // กำลังส่งข้อสอบ — กัน handleComplete ซ้ำ (กดส่งซ้ำ / นาฬิกาเดิมของ session เก่าเรียก onComplete ซ้ำ) ระหว่างรอ API (N2)
   const submittingRef = useRef(false);
+  // แสดงสถานะ "กำลังส่งข้อสอบ…" ระหว่างรอ API (ไม่ให้ดูเหมือนค้าง)
+  const [submitting, setSubmitting] = useState(false);
   // ชุด Mock ที่ล็อก (403 EXAM_LOCKED) → แจ้งแล้วพาไปหน้ารายละเอียด Mock (task 15)
   const [locked, setLocked] = useState(false);
   // ชุดแคมเปญนอกช่วงเวลา (403 CAMPAIGN_NOT_OPEN / CAMPAIGN_ENDED — task 21) → หยุด ไม่ให้ทำโดยไม่บันทึก
   const [campaignClosed, setCampaignClosed] = useState<CampaignClosedCode | null>(null);
   // เวลาสอบจริงของชุด = ค่าแนะนำในหน้าต่างตั้งค่าเวลา (task 21)
   const [recommendedMinutes, setRecommendedMinutes] = useState<number | null>(null);
+  // ชุด Predicted (task 22): preview = API ส่งมาเฉพาะ N ข้อแรก / 403 PREDICTED_LOCKED = หน้าล็อกพร้อมปุ่ม Unlock
+  const [predicted, setPredicted] = useState<ExamPredictedInfo | null>(null);
+  const [predictedLocked, setPredictedLocked] = useState<{ venueKey: string | null } | null>(null);
   const detailHref = `/dashboard/mock-exams/${examId}`;
+
+  /** เก็บข้อมูล predicted ของชุด (หน้าผลอ่านจาก storage) แล้วคืนค่าให้ผู้เรียกใช้ต่อ */
+  function applyPredicted(exam: { predicted?: unknown }): ExamPredictedInfo | null {
+    const info = normalizeExamPredicted(exam.predicted);
+    setPredicted(info);
+    rememberPredicted(examId, info);
+    return info;
+  }
+
+  // ไม่ล้าง session ในเครื่อง (key กลางอาจเป็นของชุดอื่น — BUG-6 / คำตอบเดิมยังอยู่ถ้าได้สิทธิ์กลับมา)
+  function handlePredictedLocked(err: unknown) {
+    setResumeDialog(null);
+    setPredictedLocked({ venueKey: predictedLockedVenueKey(err) });
+    setLoading(false);
+  }
 
   function handleLocked() {
     if (locked) return;
@@ -157,6 +193,12 @@ function ExamPageContent({ examId }: { examId: string }) {
     toast.info(UNLOCK_TEXT.examLocked);
     router.replace(detailHref);
   }
+
+  // autosave อ้างผ่าน ref: scheduleBackendSave ต้องคงที่ (ถ้าเปลี่ยนทุก render effect ด้านล่างจะล้าง timer ทุกครั้ง)
+  const handlePredictedLockedRef = useRef(handlePredictedLocked);
+  useEffect(() => {
+    handlePredictedLockedRef.current = handlePredictedLocked;
+  });
 
   // ── Auto-save to backend ──────────────────────────────────
   const scheduleBackendSave = useCallback(
@@ -168,7 +210,13 @@ function ExamPageContent({ examId }: { examId: string }) {
           currentIndex: session.currentIndex,
           answers: session.answers,
           timePerQuestion: session.timePerQuestion,
-        }).catch(() => {/* silent fail */});
+        }).catch((err) => {
+          // สิทธิ์ของชุด Predicted หมดระหว่างทำ → หยุดและแสดงหน้าล็อก (คำตอบยังอยู่ในเครื่อง) / error อื่นเงียบเหมือนเดิม
+          if (isPredictedLockedError(err)) {
+            if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+            handlePredictedLockedRef.current(err);
+          }
+        });
       }, 2000);
     },
     [],
@@ -204,8 +252,8 @@ function ExamPageContent({ examId }: { examId: string }) {
 
     async function loadOrCreateSession() {
       // 1. Check localStorage first
-      const { session: existingSession, questions: existingQuestions } =
-        loadExamSession();
+      const stored = loadExamSession();
+      let existingSession = stored.session;
 
       // 2. No localStorage session - check backend for in-progress (if logged in)
       let backendAttempt: ExamAttempt | null = null;
@@ -219,9 +267,38 @@ function ExamPageContent({ examId }: { examId: string }) {
       try {
         const exam = await getPublicExam(examId);
         setRecommendedMinutes(exam.durationMinutes ? Number(exam.durationMinutes) : null);
+        // สิทธิ์ที่จำไว้จากการโหลดครั้งก่อน (ตอนสร้าง session ในเครื่อง) — อ่านก่อน applyPredicted เขียนทับ
+        const previousPredicted = recallPredicted(examId);
+        const predictedInfo = applyPredicted(exam);
+        // ชุด Predicted ที่สิทธิ์เปลี่ยน (เช่น Pro หมด → เหลือ Preview) session/attempt เดิมอาจมีข้อที่ API ไม่ส่งแล้ว
+        // → ไม่ทำต่อจากของเดิม (ชุดปกติคงพฤติกรรมเดิม)
+        const freshIds = new Set((exam.questions ?? []).map((q: { id: string }) => q.id));
+        const fitsExam = (ids: string[] | undefined) => !predictedInfo || (!!ids && ids.every((id) => freshIds.has(id)));
+        // ตอนนี้ทำได้เต็มแต่ attempt/session เดิมเป็นของ Preview (ได้ Pro ภายหลัง) → ไม่ทำต่อ เริ่มใหม่ทั้งชุด
+        // (POST /attempts/start ทิ้ง attempt Preview ที่ค้างบน server ให้เอง)
+        if (
+          backendAttempt &&
+          (!fitsExam(backendAttempt.questionIds) || isStalePreviewProgress(predictedInfo, backendAttempt))
+        ) {
+          backendAttempt = null;
+        }
+        if (
+          existingSession &&
+          existingSession.examId === examId &&
+          isStalePreviewProgress(predictedInfo, {}, previousPredicted?.access === 'preview')
+        ) {
+          clearExamSession();
+          clearBackendAttemptId(examId);
+          existingSession = null;
+        }
 
         // Resume in-progress session with fresh questions from API
-        if (existingSession && existingSession.examId === examId && existingSession.status !== 'completed') {
+        if (
+          existingSession &&
+          existingSession.examId === examId &&
+          existingSession.status !== 'completed' &&
+          fitsExam(existingSession.questionIds)
+        ) {
           const storedId = loadBackendAttemptId(examId);
           saveExamSession(existingSession, exam.questions);
           await initFromSessionAndAttempt(existingSession, exam.questions, storedId);
@@ -261,6 +338,10 @@ function ExamPageContent({ examId }: { examId: string }) {
           throw err;
         }
       } catch (err) {
+        if (isPredictedLockedError(err)) {
+          handlePredictedLocked(err);
+          return;
+        }
         if (isExamLockedError(err)) {
           handleLocked();
           return;
@@ -319,8 +400,8 @@ function ExamPageContent({ examId }: { examId: string }) {
       } catch (err) {
         // ไม่มีสิทธิ์ (403 EXAM_LOCKED) → ส่งต่อให้ผู้เรียกพาไปหน้ารายละเอียด / error อื่นทำต่อโดยไม่ติดตาม
         if (isExamLockedError(err)) throw err;
-        // แคมเปญยังไม่เปิด/จบแล้ว (task 21) → ทิ้ง session ที่เพิ่งสร้างแล้วส่งต่อให้ผู้เรียกแจ้งผู้ใช้
-        if (campaignClosedCode(err)) {
+        // แคมเปญยังไม่เปิด/จบแล้ว (task 21) / ชุด Predicted ล็อก (task 22) → ทิ้ง session ที่เพิ่งสร้างแล้วส่งต่อให้ผู้เรียกแจ้งผู้ใช้
+        if (campaignClosedCode(err) || isPredictedLockedError(err)) {
           clearExamSession();
           throw err;
         }
@@ -364,8 +445,13 @@ function ExamPageContent({ examId }: { examId: string }) {
     try {
       const exam = await getPublicExam(examId);
       setRecommendedMinutes(exam.durationMinutes ? Number(exam.durationMinutes) : null);
+      applyPredicted(exam);
       await resumeFromBackendAttempt(backendAttempt, exam);
     } catch (err) {
+      if (isPredictedLockedError(err)) {
+        handlePredictedLocked(err);
+        return;
+      }
       if (isExamLockedError(err)) {
         handleLocked();
         return;
@@ -395,6 +481,7 @@ function ExamPageContent({ examId }: { examId: string }) {
     try {
       const exam = await getPublicExam(examId);
       setRecommendedMinutes(exam.durationMinutes ? Number(exam.durationMinutes) : null);
+      applyPredicted(exam);
       try {
         await startFreshExam(exam);
       } catch (err) {
@@ -407,6 +494,10 @@ function ExamPageContent({ examId }: { examId: string }) {
         throw err;
       }
     } catch (err) {
+      if (isPredictedLockedError(err)) {
+        handlePredictedLocked(err);
+        return;
+      }
       if (isExamLockedError(err)) {
         handleLocked();
         return;
@@ -463,17 +554,38 @@ function ExamPageContent({ examId }: { examId: string }) {
     };
 
     const storedAttemptId = attemptIdRef.current;
+    setSubmitting(true);
     if (storedAttemptId) {
-      // Complete the existing in-progress attempt
-      completeAttempt(storedAttemptId, payload).catch((err) =>
-        console.error('Failed to complete attempt:', err),
-      );
-      clearBackendAttemptId(examId);
+      // Complete the existing in-progress attempt — รอผล (ไม่เกิน COMPLETE_TIMEOUT_MS) เพื่อจับกรณีสิทธิ์ของชุด Predicted หมดก่อนส่ง
+      // ช้าเกิน/error อื่น → ไปหน้าผลต่อเหมือนเดิม
+      try {
+        await withTimeout(completeAttempt(storedAttemptId, payload), COMPLETE_TIMEOUT_MS);
+        clearBackendAttemptId(examId);
+      } catch (err) {
+        if (isPredictedLockedError(err)) {
+          // API ไม่บันทึกผล → คืน session เป็น "กำลังทำ" (attempt id เดิมยังเก็บไว้) แล้วแสดงหน้าล็อก ไม่ไปหน้าผล
+          saveExamSession({ ...savedSession, status: 'in_progress', completedAt: undefined }, savedQuestions);
+          submittingRef.current = false;
+          setSubmitting(false);
+          handlePredictedLocked(err);
+          return;
+        }
+        console.error('Failed to complete attempt:', err);
+        clearBackendAttemptId(examId);
+      }
     } else {
       // Fallback: submit as new attempt — รอผลเพื่อจับกรณีแคมเปญนอกช่วงเวลา (task 21 R3)
       try {
         await submitAttempt(payload);
       } catch (err) {
+        if (isPredictedLockedError(err)) {
+          // API ไม่บันทึกผล → คืน session เป็น "กำลังทำ" แล้วแสดงหน้าล็อก (ไม่ไปหน้าผลเหมือนส่งสำเร็จ)
+          saveExamSession({ ...savedSession, status: 'in_progress', completedAt: undefined }, savedQuestions);
+          submittingRef.current = false;
+          setSubmitting(false);
+          handlePredictedLocked(err);
+          return;
+        }
         const closed = campaignClosedCode(err);
         if (closed) {
           // API ไม่บันทึกผล → คืน session เป็น "กำลังทำ" (คำตอบยังอยู่ในเครื่อง) แล้วแจ้ง แทนการไปหน้าผลเหมือนส่งสำเร็จ
@@ -481,6 +593,7 @@ function ExamPageContent({ examId }: { examId: string }) {
           toast.error('ส่งข้อสอบไม่สำเร็จ ผลนี้ยังไม่ได้บันทึก (คำตอบเก็บไว้ในเครื่องนี้)');
           setCampaignClosed(closed);
           submittingRef.current = false;
+          setSubmitting(false);
           return;
         }
         console.error('Failed to submit attempt:', err);
@@ -493,6 +606,10 @@ function ExamPageContent({ examId }: { examId: string }) {
   // ── Render ────────────────────────────────────────────────
   if (campaignClosed) {
     return <CampaignClosedScreen code={campaignClosed} detailHref={detailHref} />;
+  }
+
+  if (predictedLocked) {
+    return <PredictedLockedScreen venueKey={predictedLocked.venueKey} />;
   }
 
   if (locked) {
@@ -538,7 +655,38 @@ function ExamPageContent({ examId }: { examId: string }) {
     );
   }
 
-  return <ExamContainer onComplete={handleComplete} timerSettings={{ recommendedMinutes }} />;
+  const preview = predicted?.access === 'preview' ? previewCounts(predicted, state.questions.length) : null;
+  return (
+    <>
+      <ExamContainer
+        onComplete={handleComplete}
+        timerSettings={{ recommendedMinutes }}
+        backUrl={predicted ? PREDICTED_PAGE_HREF : undefined}
+        notice={
+          preview && predicted ? (
+            <PredictedPreviewBar answerable={preview.answerable} total={preview.total} venueKey={predicted.venueKey} />
+          ) : undefined
+        }
+      />
+      {/* overlay ผ่าน portal (FadeIn/transform ทำ position: fixed เพี้ยน) */}
+      {submitting &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="submitting-overlay"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 dark:bg-black/60 p-4"
+          >
+            <div className="flex items-center gap-3 rounded-2xl bg-white dark:bg-gray-800 px-6 py-4 shadow-lg">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+              <p className="font-medium text-gray-800 dark:text-gray-100">กำลังส่งข้อสอบ…</p>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
 }
 
 export default function ExamPage({ params }: PageProps) {

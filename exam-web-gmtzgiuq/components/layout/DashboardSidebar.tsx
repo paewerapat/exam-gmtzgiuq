@@ -25,6 +25,7 @@ import {
   Crown,
   Database,
   Mountain,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { useHasPro } from '@/lib/use-has-pro';
@@ -50,7 +51,7 @@ interface MenuGroup {
 }
 
 // task 21 (ดีไซน์ภาพ 1/4): Dashboard / ข้อสอบเก่า / LUMO'S EXAM / ของฉัน / เพิ่มเติม (+ ผู้ดูแลระบบ เฉพาะ admin)
-// Predicted Exam ซ่อนไว้จนกว่าหน้าจะเสร็จ (งาน 8) — ไม่ใส่ลิงก์ที่ยังไม่มีหน้า
+// task 22: เปิดเมนู Predicted Exam ใต้ Free Mock Exam
 const menuGroups: MenuGroup[] = [
   {
     id: 'main',
@@ -72,6 +73,7 @@ const menuGroups: MenuGroup[] = [
       { href: '/dashboard/question-bank', label: 'Question Bank', icon: Database },
       { href: '/dashboard/challenge', label: 'Challenge Questions', icon: Mountain, badge: 'PRO' },
       { href: '/dashboard/mock-exams', label: 'Free Mock Exam', icon: ClipboardCheck },
+      { href: '/dashboard/predicted', label: 'Predicted Exam', icon: Sparkles },
     ],
   },
   {
