@@ -362,8 +362,8 @@ describe('ProSubscriptionsService (task 17)', () => {
       expect(reads).toEqual([
         // venueId only (it never changes), no lock
         ['plan', undefined],
-        ['venue', { mode: 'pessimistic_read' }],
-        ['plan', { mode: 'pessimistic_read' }],
+        ['venue', { mode: 'pessimistic_write' }],
+        ['plan', { mode: 'pessimistic_write' }],
       ]);
     });
 

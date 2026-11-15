@@ -496,12 +496,12 @@ export class ProSubscriptionsService {
     if (!found) throw new ProException('PLAN_NOT_FOUND');
     const venue = await manager.findOne(ProVenue, {
       where: { id: found.venueId },
-      lock: { mode: 'pessimistic_read' },
+      lock: { mode: 'pessimistic_write' },
     });
     if (!venue) throw new ProException('PLAN_NOT_FOUND');
     const plan = await manager.findOne(ProPlan, {
       where: { id: row.planId },
-      lock: { mode: 'pessimistic_read' },
+      lock: { mode: 'pessimistic_write' },
     });
     if (!plan) throw new ProException('PLAN_NOT_FOUND');
     if (plan.rank <= 0) throw new ProException('FREE_PLAN_GRANT');

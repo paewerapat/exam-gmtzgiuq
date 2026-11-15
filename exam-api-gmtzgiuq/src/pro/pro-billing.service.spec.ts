@@ -350,8 +350,8 @@ describe('ProBillingService (task 18)', () => {
       await service.syncCharge('chrg_test_1', PAY1);
       expect(lockOrder.slice(0, 3)).toEqual([
         'users:FOR UPDATE',
-        'venues:pessimistic_read',
-        'plans:pessimistic_read',
+        'venues:pessimistic_write',
+        'plans:pessimistic_write',
       ]);
       expect(lockedUsers[0]).toBe(USER);
     });
@@ -1169,8 +1169,8 @@ describe('ProBillingService (task 18)', () => {
       // (the next user lock is the one that saves the new schedule)
       expect(lockOrder.slice(0, 4)).toEqual([
         'users:FOR UPDATE',
-        'venues:pessimistic_read',
-        'plans:pessimistic_read',
+        'venues:pessimistic_write',
+        'plans:pessimistic_write',
         'codes:pessimistic_write',
       ]);
       // replay: nothing more

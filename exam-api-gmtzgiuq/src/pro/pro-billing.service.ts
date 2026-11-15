@@ -567,11 +567,11 @@ export class ProBillingService {
     await manager.findOne(ProVenue, {
       select: { id: true },
       where: { id: payment.venueId },
-      lock: { mode: 'pessimistic_read' },
+      lock: { mode: 'pessimistic_write' },
     });
     const plan = await manager.findOne(ProPlan, {
       where: { id: payment.planId },
-      lock: { mode: 'pessimistic_read' },
+      lock: { mode: 'pessimistic_write' },
     });
     if (!plan) {
       this.logger.error(

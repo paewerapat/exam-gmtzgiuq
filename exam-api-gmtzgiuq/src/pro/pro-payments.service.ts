@@ -585,11 +585,11 @@ export class ProPaymentsService implements OnModuleInit {
       async (manager) => {
         const venue = await manager.findOne(ProVenue, {
           where: { id: quick.venueId },
-          lock: { mode: 'pessimistic_read' },
+          lock: { mode: 'pessimistic_write' },
         });
         const plan = await manager.findOne(ProPlan, {
           where: { id: input.planId },
-          lock: { mode: 'pessimistic_read' },
+          lock: { mode: 'pessimistic_write' },
         });
         assertPurchasable(plan, venue);
         // The code row is locked before the first plain read of this
