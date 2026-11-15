@@ -29,7 +29,7 @@ const plans = (prefix: string) => [
 ];
 
 const data = (patch: Partial<ProUpgradeData> = {}): ProUpgradeData => ({
-  page: { title: 'แพ็กเกจ LUMO', subtitle: 'เลือกแพ็กเกจที่เหมาะกับคุณ', venuePickerTitle: 'เลือกสนามที่จะสมัคร', footerNote: 'ราคาตัวอย่าง', vatEnabled: false },
+  page: { title: 'แพ็กเกจ LUMO', subtitle: 'เลือกแพ็กเกจที่เหมาะกับคุณ', venuePickerTitle: 'เลือกสนามที่จะสมัคร', footerNote: 'ราคาตัวอย่าง', vatEnabled: false, paymentsOpen: true },
   venues: [
     {
       id: 'v1',
@@ -68,6 +68,7 @@ const data = (patch: Partial<ProUpgradeData> = {}): ProUpgradeData => ({
     },
   ],
   my: [],
+  paymentsOpen: true,
   ...patch,
 });
 
@@ -233,5 +234,85 @@ describe('/upgrade — UpgradeView (task 17)', () => {
     await user.click(await screen.findByRole('button', { name: 'ลองใหม่' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'แพ็กเกจ LUMO' })).toBeInTheDocument();
     expect(getProUpgrade).toHaveBeenCalledTimes(3);
+  });
+});
+
+const nowrapParts = (el: HTMLElement) => Array.from(el.querySelectorAll('.whitespace-nowrap'), (n) => n.textContent);
+
+describe('/upgrade — ปิดรับชำระเงิน "เร็ว ๆ นี้" (task 23)', () => {
+  const closed = (patch: Partial<ProUpgradeData> = {}) => data({ paymentsOpen: false, ...patch });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSearch = '';
+    setUser({ id: 'u1', role: 'user' });
+    (getProUpgrade as jest.Mock).mockResolvedValue(closed());
+  });
+
+  it('ปิด + ผู้ใช้ทั่วไป: แถบแจ้ง + ปุ่มแพ็กเกจจ่ายเงินทุกใบ disabled "เร็ว ๆ นี้" ไม่พาไป checkout; Free/ราคา/ตาราง/กล่องโค้ดยังอยู่', async () => {
+    const user = userEvent.setup();
+    render(<UpgradeView />);
+    expect(await screen.findByTestId('payments-coming-soon-notice')).toHaveTextContent('เปิดให้สมัครสมาชิก Pro เร็ว ๆ นี้');
+    expect(screen.getByTestId('payments-coming-soon-notice').className).not.toMatch(/red/);
+    for (const code of ['pro', 'max']) {
+      const card = screen.getByTestId(`plan-card-${code}`);
+      const btn = within(card).getByRole('button', { name: 'เร็ว ๆ นี้' });
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute('aria-disabled', 'true');
+      expect(nowrapParts(btn)).toEqual(['เร็ว ๆ นี้']);
+      expect(within(card).queryByRole('link')).not.toBeInTheDocument();
+      await user.click(btn);
+    }
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /^สมัคร (PRO|MAX)$/ })).not.toBeInTheDocument();
+    // ส่วนอื่นคงเดิม
+    expect(within(screen.getByTestId('plan-card-free')).getByRole('link', { name: 'เริ่มใช้งาน' })).toHaveAttribute('href', '/dashboard/practice');
+    expect(within(screen.getByTestId('plan-card-pro')).getByText('฿199')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'ตารางเปรียบเทียบแพ็กเกจ NETSAT' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('pro-code-box')).getByRole('button', { expanded: false })).toBeEnabled();
+    expect(screen.queryByTestId('payments-admin-notice')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/ปลดล็อก/);
+  });
+
+  it('ปิด + guest: ปุ่ม "เร็ว ๆ นี้" ไม่พาไปหน้า login', async () => {
+    const user = userEvent.setup();
+    setUser(null);
+    render(<UpgradeView />);
+    await user.click(within(await screen.findByTestId('plan-card-max')).getByRole('button', { name: 'เร็ว ๆ นี้' }));
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByTestId('payments-coming-soon-notice')).toBeInTheDocument();
+  });
+
+  it('ปิด + แพ็กเกจปัจจุบันจ่ายด้วย PromptPay → "ต่ออายุ · เร็ว ๆ นี้" กดไม่ได้', async () => {
+    (getProUpgrade as jest.Mock).mockResolvedValue(
+      closed({ my: [{ venueId: 'v1', planId: 'n-pro', planCode: 'pro', status: 'active', currentPeriodEnd: FUTURE, autoRenew: false, source: 'promptpay' }] }),
+    );
+    render(<UpgradeView />);
+    const pro = await screen.findByTestId('plan-card-pro');
+    expect(within(pro).getByTestId('current-plan')).toBeInTheDocument();
+    const renew = within(pro).getByRole('button', { name: 'ต่ออายุ · เร็ว ๆ นี้' });
+    expect(renew).toBeDisabled();
+    // ตัดบรรทัดได้เฉพาะหลัง "·" ไม่ตัดกลาง "เร็ว ๆ นี้" (QA รอบ 1)
+    expect(nowrapParts(renew)).toEqual(['ต่ออายุ ·', 'เร็ว ๆ นี้']);
+    expect(within(pro).queryByRole('button', { name: 'ต่ออายุ' })).not.toBeInTheDocument();
+  });
+
+  it('ปิด + แอดมิน: แถบเล็ก "ปิดรับชำระเงินอยู่ — แอดมินทดสอบจ่ายได้" และสมัครได้ตามปกติ', async () => {
+    const user = userEvent.setup();
+    setUser({ id: 'a1', role: 'Admin' });
+    render(<UpgradeView />);
+    expect(await screen.findByTestId('payments-admin-notice')).toHaveTextContent('ปิดรับชำระเงินอยู่ — แอดมินทดสอบจ่ายได้');
+    expect(screen.queryByTestId('payments-coming-soon-notice')).not.toBeInTheDocument();
+    await user.click(within(screen.getByTestId('plan-card-pro')).getByRole('button', { name: 'สมัคร PRO' }));
+    expect(mockPush).toHaveBeenCalledWith('/upgrade/checkout?plan=n-pro');
+  });
+
+  it('เปิดอยู่: ไม่มีแถบแจ้งใด ๆ ปุ่มสมัครตามปกติ', async () => {
+    (getProUpgrade as jest.Mock).mockResolvedValue(data());
+    render(<UpgradeView />);
+    expect(await within(await screen.findByTestId('plan-card-max')).findByRole('button', { name: 'สมัคร MAX' })).toBeEnabled();
+    expect(screen.queryByTestId('payments-coming-soon-notice')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('payments-admin-notice')).not.toBeInTheDocument();
+    expect(screen.queryByText(/เร็ว ๆ นี้/)).not.toBeInTheDocument();
   });
 });

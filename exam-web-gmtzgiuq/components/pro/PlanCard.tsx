@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { CheckCircle2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Clock, RefreshCw } from 'lucide-react';
 import type { ProMySubscription, ProPublicPlan } from '@/lib/api/pro';
 import { formatSatang } from '@/lib/pro';
 import { MEMBERSHIP_PATH } from '@/lib/pro-payments';
 import { formatThaiDate } from '@/lib/unlock-codes';
+import { ComingSoonText } from './PaymentsClosedNotice';
 
 const FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800';
@@ -19,10 +20,22 @@ interface PlanCardProps {
   isLoggedIn: boolean;
   /** กดปุ่มสมัคร/ต่ออายุของแพ็กเกจที่ต้องจ่าย */
   onSubscribe: (plan: ProPublicPlan) => void;
+  /** task 23: false = ปิดรับชำระเงิน → ปุ่มสมัคร/ต่ออายุเป็น "เร็ว ๆ นี้" กดไม่ได้ */
+  canPay?: boolean;
+}
+
+/** ปุ่ม "เร็ว ๆ นี้" แทนปุ่มสมัคร/ต่ออายุ ขณะปิดรับชำระเงิน (task 23) */
+function ComingSoonButton({ prefix }: { prefix?: string }) {
+  return (
+    <button type="button" disabled aria-disabled="true" className={BTN_DISABLED}>
+      <Clock className="w-4 h-4 mr-2 flex-shrink-0" aria-hidden="true" />
+      <ComingSoonText prefix={prefix} />
+    </button>
+  );
 }
 
 /** การ์ดแพ็กเกจในหน้า Upgrade — ข้อความทั้งหมดมาจาก API (แสดงเป็น text) */
-export default function PlanCard({ plan, current, isLoggedIn, onSubscribe }: PlanCardProps) {
+export default function PlanCard({ plan, current, isLoggedIn, onSubscribe, canPay = true }: PlanCardProps) {
   const isFree = plan.rank === 0;
   const headingId = `plan-${plan.id || plan.code}-name`;
   const label = plan.buttonText || (isFree ? 'เริ่มใช้งาน' : 'สมัคร');
@@ -55,7 +68,8 @@ export default function PlanCard({ plan, current, isLoggedIn, onSubscribe }: Pla
             </Link>
           </p>
         )}
-        {canRenew && (
+        {canRenew && !canPay && <ComingSoonButton prefix="ต่ออายุ" />}
+        {canRenew && canPay && (
           <button type="button" onClick={() => onSubscribe(plan)} className={BTN_OUTLINE}>
             <RefreshCw className="w-4 h-4 mr-2" aria-hidden="true" />
             ต่ออายุ
@@ -75,6 +89,8 @@ export default function PlanCard({ plan, current, isLoggedIn, onSubscribe }: Pla
         {label}
       </button>
     );
+  } else if (!canPay) {
+    action = <ComingSoonButton />;
   } else {
     action = (
       <button type="button" onClick={() => onSubscribe(plan)} className={plan.highlight ? BTN_FILLED : BTN_OUTLINE}>

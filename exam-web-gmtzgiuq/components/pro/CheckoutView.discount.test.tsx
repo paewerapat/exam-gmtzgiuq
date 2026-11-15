@@ -12,7 +12,12 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace, push: mockPush }),
   useSearchParams: () => new URLSearchParams('plan=p-pro'),
 }));
-jest.mock('@/lib/api/pro', () => ({ getCheckoutQuote: jest.fn(), createCheckout: jest.fn() }));
+jest.mock('@/lib/api/pro', () => ({
+  getCheckoutQuote: jest.fn(),
+  createCheckout: jest.fn(),
+  // task 23: สถานะเปิดรับชำระ (ค่าเริ่มต้นเปิด)
+  getProUpgrade: jest.fn(async () => ({ paymentsOpen: true })),
+}));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('@/components/animations/FadeIn', () => ({
   __esModule: true,

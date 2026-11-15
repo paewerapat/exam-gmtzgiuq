@@ -4,6 +4,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { uploadSecurityHeaders } from './upload/upload-headers';
 import { TRUST_PROXY } from './common/trust-proxy';
+import { corsOptions } from './common/cors-origins';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -25,24 +26,8 @@ async function bootstrap() {
     require('express').static(require('path').join(process.cwd(), 'uploads')),
   );
 
-  // Enable CORS
-  const allowedOrigins = [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://localhost:3000',
-  ];
-  app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(null, false);
-      }
-    },
-    credentials: true,
-    // Lets the web read the file name of downloads
-    // (GET /unlock-codes/admin/batches/:id/codes.csv, task 15)
-    exposedHeaders: ['Content-Disposition'],
-  });
+  // Enable CORS: FRONTEND_URL + localhost:3000 + CORS_ORIGINS (task 23)
+  app.enableCors(corsOptions(process.env));
 
   // Enable validation pipe globally
   app.useGlobalPipes(

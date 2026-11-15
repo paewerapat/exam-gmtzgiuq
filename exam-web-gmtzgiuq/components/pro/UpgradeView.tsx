@@ -8,9 +8,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getProUpgrade, type ProPublicPlan, type ProUpgradeData } from '@/lib/api/pro';
 import type { RedeemProCodeResult } from '@/lib/api/unlockCodes';
 import { findLiveSubscription } from '@/lib/pro';
-import { checkoutHref, loginHref } from '@/lib/pro-payments';
+import { canPayNow, checkoutHref, loginHref } from '@/lib/pro-payments';
 import PlanCard from './PlanCard';
 import ComparisonTable from './ComparisonTable';
+import PaymentsClosedNotice from './PaymentsClosedNotice';
 import ProCodeRedeemBox from './ProCodeRedeemBox';
 
 function isAbortError(err: unknown) {
@@ -76,9 +77,12 @@ export default function UpgradeView() {
     );
   }
 
-  const { page, venues, my } = data;
+  const { page, venues, my, paymentsOpen } = data;
   const venue = venues.find((v) => v.key === venueParam) ?? venues[0] ?? null;
   const live = venue ? findLiveSubscription(my, venue.id) : null;
+  // task 23: ปิดรับชำระเงิน → ผู้ใช้ทั่วไปเห็น "เร็ว ๆ นี้" แอดมินยังจ่ายได้
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const canPay = canPayNow(paymentsOpen, user?.role);
 
   function selectVenue(key: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -88,6 +92,7 @@ export default function UpgradeView() {
 
   // สมัคร / ต่ออายุ → หน้า checkout ของแพ็กเกจ (ยังไม่ login → login แล้วกลับมาที่ checkout)
   function handleSubscribe(plan: ProPublicPlan) {
+    if (!canPay) return;
     const target = checkoutHref(plan.id);
     router.push(userId ? target : loginHref(target));
   }
@@ -111,6 +116,7 @@ export default function UpgradeView() {
   return (
     <FadeIn>
       <div className="max-w-6xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 lg:p-8">
+        <PaymentsClosedNotice closed={!paymentsOpen} isAdmin={isAdmin} className="mb-4" />
         {venues.length === 0 || !venue ? (
           <div className="py-16 text-center">
             <PackageOpen className="w-14 h-14 text-gray-300 dark:text-gray-600 mx-auto mb-3" aria-hidden="true" />
@@ -185,6 +191,7 @@ export default function UpgradeView() {
                     current={live && (live.planId === plan.id || live.planCode === plan.code) ? live : null}
                     isLoggedIn={!!userId}
                     onSubscribe={handleSubscribe}
+                    canPay={canPay}
                   />
                 ))
               )}

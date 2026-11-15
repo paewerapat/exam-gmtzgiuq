@@ -55,6 +55,8 @@ export interface ProPageText {
 export interface ProPageSettings extends ProPageText {
   /** เปิด VAT 7% กับการชำระครั้งใหม่ */
   vatEnabled: boolean;
+  /** task 23: เปิดรับชำระเงิน (false = ผู้ใช้ทั่วไปเห็น "เร็ว ๆ นี้" แอดมินยังจ่ายได้) — API เก่าที่ไม่ส่ง = true */
+  paymentsOpen: boolean;
 }
 
 export interface ProPublicPlan {
@@ -101,6 +103,15 @@ export interface ProUpgradeData {
   venues: ProPublicVenue[];
   /** [] ถ้าไม่ได้ login */
   my: ProMySubscription[];
+  /** task 23: ค่าจริงจาก pro_page (ไม่ขึ้นกับ role) — ไม่ส่ง = true */
+  paymentsOpen: boolean;
+}
+
+/** GET /pro/me (task 23): สิทธิ์ของฉัน + สถานะเปิดรับชำระเงิน */
+export interface ProMeData {
+  items: ProMeItem[];
+  /** ไม่ส่ง = true */
+  paymentsOpen: boolean;
 }
 
 export interface ProMeItem {
@@ -522,6 +533,8 @@ export function normalizePageText(raw: unknown): ProPageSettings {
     venuePickerTitle: str(p.venuePickerTitle),
     footerNote: str(p.footerNote),
     vatEnabled: bool(p.vatEnabled),
+    // API ก่อน task 23 ไม่มีฟิลด์นี้ → ถือว่าเปิด (ไม่บล็อกการจ่ายโดยไม่ตั้งใจ)
+    paymentsOpen: bool(p.paymentsOpen, true),
   };
 }
 
@@ -624,7 +637,18 @@ export function normalizeUpgradeData(raw: unknown): ProUpgradeData {
     autoRenew: bool(m.autoRenew),
     source: str(m.source),
   }));
-  return { page: normalizePageText(data.page), venues, my };
+  const page = normalizePageText(data.page);
+  // task 23: paymentsOpen ระดับบน (สัญญา) หรือใน page
+  return { page, venues, my, paymentsOpen: data.paymentsOpen == null ? page.paymentsOpen : bool(data.paymentsOpen, true) };
+}
+
+/** GET /pro/me — `{ items, paymentsOpen }` (task 23) หรือ array เดิมของ API ก่อน task 23 (= เปิด) */
+export function normalizeMeData(raw: unknown): ProMeData {
+  const list = Array.isArray(raw) ? raw : isRecord(raw) && Array.isArray(raw.items) ? raw.items : [];
+  return {
+    items: list.filter(isRecord).map(normalizeMeItem),
+    paymentsOpen: isRecord(raw) ? bool(raw.paymentsOpen, true) : true,
+  };
 }
 
 function normalizeMeItem(m: RawRecord): ProMeItem {
@@ -865,12 +889,16 @@ export async function getProUpgrade(signal?: AbortSignal): Promise<ProUpgradeDat
   return normalizeUpgradeData(await response.json());
 }
 
-/** GET /pro/me (JWT) — สิทธิ์ที่ยังไม่หมด */
-export async function getMyPro(signal?: AbortSignal): Promise<ProMeItem[]> {
+/** GET /pro/me (JWT) — สิทธิ์ที่ยังไม่หมด + paymentsOpen (task 23 หน้าสมาชิกของฉันใช้) */
+export async function getMyProData(signal?: AbortSignal): Promise<ProMeData> {
   const response = await fetchWithAuth(`${BASE}/me`, { cache: 'no-store', signal });
   if (!response.ok) throw await toApiError(response, 'Failed to fetch my subscriptions');
-  const data: unknown = await response.json();
-  return Array.isArray(data) ? data.filter(isRecord).map(normalizeMeItem) : [];
+  return normalizeMeData(await response.json());
+}
+
+/** GET /pro/me (JWT) — สิทธิ์ที่ยังไม่หมด */
+export async function getMyPro(signal?: AbortSignal): Promise<ProMeItem[]> {
+  return (await getMyProData(signal)).items;
 }
 
 /**
@@ -969,8 +997,10 @@ export async function getProAdminConfig(signal?: AbortSignal): Promise<ProAdminC
   return normalizeAdminConfig(await response.json());
 }
 
-/** PUT /pro/admin/page (vatEnabled ไม่ส่ง = คงค่าเดิม) */
-export async function updateProPage(input: ProPageText & { vatEnabled?: boolean }): Promise<ProPageSettings> {
+/** PUT /pro/admin/page (vatEnabled / paymentsOpen ไม่ส่ง = คงค่าเดิม) */
+export async function updateProPage(
+  input: ProPageText & { vatEnabled?: boolean; paymentsOpen?: boolean },
+): Promise<ProPageSettings> {
   return normalizePageText(await sendJson(`${ADMIN}/page`, 'PUT', input, 'Failed to update page text'));
 }
 

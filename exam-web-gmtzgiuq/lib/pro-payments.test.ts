@@ -1,8 +1,10 @@
 import { ApiError } from './api/apiError';
 import {
+  canPayNow,
   checkoutHref,
   formatCardLabel,
   formatCountdown,
+  isPaymentsNotOpenError,
   isSafeHttpsUrl,
   loginHref,
   msUntil,
@@ -80,5 +82,24 @@ describe('สถานะ canceled (task 19 รอบ 2)', () => {
     expect(paymentStatusLabel('canceled')).toBe('ยกเลิกแล้ว');
     expect(paymentStatusClass('canceled')).toContain('dark:bg-gray-700');
     expect(PAYMENT_CANCELED_MESSAGE).toBe('ถูกแทนที่ด้วยรายการชำระใหม่');
+  });
+});
+
+describe('ปิดรับชำระเงิน (task 23)', () => {
+  it('canPayNow: เปิดอยู่ หรือ role admin (ไม่สนตัวพิมพ์)', () => {
+    expect(canPayNow(true, undefined)).toBe(true);
+    expect(canPayNow(true, 'user')).toBe(true);
+    expect(canPayNow(false, 'user')).toBe(false);
+    expect(canPayNow(false, null)).toBe(false);
+    expect(canPayNow(false, 'admin')).toBe(true);
+    expect(canPayNow(false, 'ADMIN')).toBe(true);
+  });
+
+  it('isPaymentsNotOpenError + ข้อความไทยของ errorCode', () => {
+    expect(isPaymentsNotOpenError(new ApiError('x', 403, 'PAYMENTS_NOT_OPEN'))).toBe(true);
+    expect(isPaymentsNotOpenError(new ApiError('x', 403, 'EXAM_LOCKED'))).toBe(false);
+    expect(isPaymentsNotOpenError(new Error('x'))).toBe(false);
+    expect(isPaymentsNotOpenError(null)).toBe(false);
+    expect(paymentErrorMessage(new ApiError('Forbidden', 403, 'PAYMENTS_NOT_OPEN'), 'fb')).toBe('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้');
   });
 });

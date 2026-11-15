@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PaymentResultView from './PaymentResultView';
-import { createCheckout, getProPayment, type ProPaymentDetail } from '@/lib/api/pro';
+import { createCheckout, getProPayment, getProUpgrade, type ProPaymentDetail } from '@/lib/api/pro';
 import { ApiError } from '@/lib/api/apiError';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -11,7 +11,7 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace, push: jest.fn() }),
   useSearchParams: () => new URLSearchParams(mockSearch),
 }));
-jest.mock('@/lib/api/pro', () => ({ getProPayment: jest.fn(), createCheckout: jest.fn() }));
+jest.mock('@/lib/api/pro', () => ({ getProPayment: jest.fn(), createCheckout: jest.fn(), getProUpgrade: jest.fn() }));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('@/components/animations/FadeIn', () => ({
   __esModule: true,
@@ -50,6 +50,7 @@ describe('/upgrade/result — PaymentResultView (task 18)', () => {
     jest.clearAllMocks();
     mockSearch = 'payment=pay1&plan=p-pro';
     (useAuth as jest.Mock).mockReturnValue({ user: { id: 'u1' } });
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: true });
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -313,5 +314,100 @@ describe('/upgrade/result — PaymentResultView (task 18)', () => {
     expect(screen.getByRole('link', { name: 'กลับไปหน้าแพ็กเกจ' })).toHaveAttribute('href', '/upgrade');
     await advance(30000);
     expect(getProPayment).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('/upgrade/result — ปิดรับชำระเงิน (task 23)', () => {
+  beforeEach(() => {
+    jest.useFakeTimers({ now: T0 });
+    jest.clearAllMocks();
+    mockSearch = 'payment=pay1&plan=p-pro';
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'u1' } });
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: true });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('สร้าง QR ใหม่แล้ว API ตอบ 403 PAYMENTS_NOT_OPEN → ปุ่ม "สร้าง QR ใหม่ · เร็ว ๆ นี้" กดไม่ได้ + ข้อความโทนกลาง (ไม่ใช่ alert)', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    (getProPayment as jest.Mock).mockResolvedValue(detail({ status: 'expired' }));
+    (createCheckout as jest.Mock).mockRejectedValue(new ApiError('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้', 403, 'PAYMENTS_NOT_OPEN'));
+    render(<PaymentResultView />);
+    await advance(0);
+    await user.click(screen.getByRole('button', { name: 'สร้าง QR ใหม่' }));
+    await advance(0);
+    const btn = screen.getByRole('button', { name: 'สร้าง QR ใหม่ · เร็ว ๆ นี้' });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByText('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้')).toHaveAttribute('role', 'status');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('ปิด + ผู้ใช้ทั่วไป + QR หมดอายุ: ตั้งแต่โหลดหน้า ปุ่ม "สร้าง QR ใหม่ · เร็ว ๆ นี้" กดไม่ได้ ไม่ชวนสร้าง QR ใหม่ (รอบ 2)', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: false });
+    (getProPayment as jest.Mock).mockResolvedValue(detail({ status: 'expired' }));
+    render(<PaymentResultView />);
+    await advance(0);
+    expect(getProUpgrade).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: 'QR หมดอายุแล้ว' })).toBeInTheDocument();
+    const btn = screen.getByRole('button', { name: 'สร้าง QR ใหม่ · เร็ว ๆ นี้' });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    // ตัดบรรทัดได้เฉพาะหลัง "·" (QA รอบ 1)
+    expect(Array.from(btn.querySelectorAll('.whitespace-nowrap'), (n) => n.textContent)).toEqual(['สร้าง QR ใหม่ ·', 'เร็ว ๆ นี้']);
+    expect(screen.queryByRole('button', { name: 'สร้าง QR ใหม่' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/สร้าง QR ใหม่เพื่อชำระ/)).not.toBeInTheDocument();
+    expect(screen.getByText('ยังไม่ได้รับการชำระเงิน')).toBeInTheDocument();
+    expect(screen.getByText('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้')).toHaveAttribute('role', 'status');
+    await user.click(btn);
+    expect(createCheckout).not.toHaveBeenCalled();
+    // poll payment ต่อ ไม่เรียก /pro/upgrade ซ้ำ
+    await advance(30000);
+    expect(getProUpgrade).toHaveBeenCalledTimes(1);
+  });
+
+  it('ปิด + PromptPay failed: ข้อความไม่บอกให้ลองใหม่ + สถานะ "เร็ว ๆ นี้" (รอบ 2)', async () => {
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: false });
+    (getProPayment as jest.Mock).mockResolvedValue(detail({ status: 'failed', qrImageUrl: null }));
+    render(<PaymentResultView />);
+    await advance(0);
+    expect(screen.getByRole('heading', { name: 'ชำระเงินไม่สำเร็จ' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/^ทำรายการไม่สำเร็จ$/);
+    expect(screen.getByRole('button', { name: 'สร้าง QR ใหม่ · เร็ว ๆ นี้' })).toBeDisabled();
+    expect(screen.getByText('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้')).toHaveAttribute('role', 'status');
+  });
+
+  it('ปิด + แอดมิน: สร้าง QR ใหม่ได้ตามปกติ ไม่มีข้อความ "เร็ว ๆ นี้" (รอบ 2)', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'u1', role: 'ADMIN' } });
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: false });
+    (getProPayment as jest.Mock).mockResolvedValue(detail({ status: 'expired' }));
+    render(<PaymentResultView />);
+    await advance(0);
+    expect(screen.getByRole('button', { name: 'สร้าง QR ใหม่' })).toBeEnabled();
+    expect(screen.getByText('ยังไม่ได้รับการชำระเงิน สร้าง QR ใหม่เพื่อชำระอีกครั้ง')).toBeInTheDocument();
+    expect(screen.queryByText(/เร็ว ๆ นี้/)).not.toBeInTheDocument();
+  });
+
+  it('โหลด /pro/upgrade ไม่สำเร็จ → ถือว่าเปิด (server ยังบล็อกด้วย 403) (รอบ 2)', async () => {
+    (getProUpgrade as jest.Mock).mockRejectedValue(new TypeError('Failed to fetch'));
+    (getProPayment as jest.Mock).mockResolvedValue(detail({ status: 'expired' }));
+    render(<PaymentResultView />);
+    await advance(0);
+    expect(screen.getByRole('button', { name: 'สร้าง QR ใหม่' })).toBeEnabled();
+    expect(screen.queryByText(/เร็ว ๆ นี้/)).not.toBeInTheDocument();
+  });
+
+  it('ปิด + ชำระสำเร็จแล้ว: หน้าสำเร็จปกติ ไม่มีข้อความ "เร็ว ๆ นี้" (รอบ 2)', async () => {
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: false });
+    (getProPayment as jest.Mock).mockResolvedValue(
+      detail({ status: 'successful', subscription: { currentPeriodEnd: '2026-12-13T10:00:00Z', autoRenew: false } }),
+    );
+    render(<PaymentResultView />);
+    await advance(0);
+    expect(screen.getByRole('heading', { name: /^สมัครสำเร็จ/ })).toBeInTheDocument();
+    expect(screen.queryByText(/เร็ว ๆ นี้/)).not.toBeInTheDocument();
   });
 });

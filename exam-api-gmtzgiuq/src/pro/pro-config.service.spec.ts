@@ -278,6 +278,7 @@ describe('ProConfigService (task 17)', () => {
         venuePickerTitle: 'เลือกสนาม',
         footerNote: null,
         vatEnabled: false,
+        paymentsOpen: false,
       });
       expect(result.venues.map((v) => v.key)).toEqual(['netsat']);
       const netsat = result.venues[0];
@@ -323,6 +324,7 @@ describe('ProConfigService (task 17)', () => {
         venuePickerTitle: null,
         footerNote: null,
         vatEnabled: false,
+        paymentsOpen: false,
       });
     });
   });
@@ -352,6 +354,7 @@ describe('ProConfigService (task 17)', () => {
       venuePickerTitle: 'เลือกสนาม',
       footerNote: null,
       vatEnabled: false,
+      paymentsOpen: false,
     });
   });
 
@@ -363,6 +366,44 @@ describe('ProConfigService (task 17)', () => {
     // tinyint from MySQL
     page = { ...page, vatEnabled: 0 };
     expect((await service.getPage()).vatEnabled).toBe(false);
+  });
+
+  describe('paymentsOpen (task 23)', () => {
+    it('no value / no row → closed; GET /pro/upgrade has it at top level and in page', async () => {
+      const closed = await service.getUpgrade({ id: 'user-a' });
+      expect(closed.paymentsOpen).toBe(false);
+      expect(closed.page.paymentsOpen).toBe(false);
+      await expect(service.isPaymentsOpen()).resolves.toBe(false);
+      page = null;
+      await expect(service.isPaymentsOpen()).resolves.toBe(false);
+      expect((await service.getUpgrade(null)).paymentsOpen).toBe(false);
+    });
+
+    it('PUT page toggles it (read fresh each time), admin config shows it; not sent → unchanged', async () => {
+      await expect(service.updatePage({ paymentsOpen: true })).resolves.toEqual(
+        expect.objectContaining({ paymentsOpen: true, title: 'แพ็กเกจ LUMO' }),
+      );
+      expect(page).toEqual(
+        expect.objectContaining({ id: 1, paymentsOpen: true }),
+      );
+      await expect(service.isPaymentsOpen()).resolves.toBe(true);
+      expect((await service.getUpgrade(null)).paymentsOpen).toBe(true);
+      expect((await service.getAdminConfig()).page.paymentsOpen).toBe(true);
+
+      // another field only → paymentsOpen stays
+      await service.updatePage({ title: 'อื่น' });
+      await expect(service.isPaymentsOpen()).resolves.toBe(true);
+
+      await service.updatePage({ paymentsOpen: false });
+      await expect(service.isPaymentsOpen()).resolves.toBe(false);
+      expect((await service.getUpgrade(null)).paymentsOpen).toBe(false);
+
+      // tinyint from MySQL
+      page = { ...page, paymentsOpen: 1 };
+      expect((await service.getUpgrade(null)).paymentsOpen).toBe(true);
+      page = { ...page, paymentsOpen: 0 };
+      await expect(service.isPaymentsOpen()).resolves.toBe(false);
+    });
   });
 
   describe('plans: price rules (AC4)', () => {

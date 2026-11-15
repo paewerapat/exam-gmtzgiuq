@@ -59,6 +59,7 @@ describe('ProController (task 17)', () => {
       createPlan: jest.fn().mockResolvedValue({ route: 'createPlan' }),
       updatePlan: jest.fn().mockResolvedValue({ route: 'updatePlan' }),
       deletePlan: jest.fn().mockResolvedValue({ success: true }),
+      isPaymentsOpen: jest.fn().mockResolvedValue(false),
     };
     subscriptions = {
       findMine: jest.fn().mockResolvedValue([]),
@@ -141,6 +142,25 @@ describe('ProController (task 17)', () => {
     expect(subscriptions.findMine).toHaveBeenCalledWith('user-a');
   });
 
+  it('GET /pro/me: { items, paymentsOpen } read on every request (task 23)', async () => {
+    subscriptions.findMine.mockResolvedValue([{ id: 'sub-1' }]);
+    const closed = await request(app.getHttpServer())
+      .get('/pro/me')
+      .set('x-test-user', 'user-a')
+      .expect(200);
+    expect(closed.body).toEqual({
+      items: [{ id: 'sub-1' }],
+      paymentsOpen: false,
+    });
+    config.isPaymentsOpen.mockResolvedValue(true);
+    const open = await request(app.getHttpServer())
+      .get('/pro/me')
+      .set('x-test-user', 'user-a')
+      .expect(200);
+    expect(open.body).toEqual({ items: [{ id: 'sub-1' }], paymentsOpen: true });
+    expect(config.isPaymentsOpen).toHaveBeenCalledTimes(2);
+  });
+
   describe('admin routes (AC4)', () => {
     const asAdmin = (req: request.Test) =>
       req.set('x-test-user', 'admin-1').set('x-test-role', 'admin');
@@ -214,6 +234,31 @@ describe('ProController (task 17)', () => {
         { note: 'x' },
         { id: 'admin-1', role: 'admin' },
       );
+    });
+
+    it('PUT /pro/admin/page: paymentsOpen boolean passes; not a boolean / null → 400; student → 403 (task 23)', async () => {
+      const server = app.getHttpServer();
+      await asAdmin(request(server).put('/pro/admin/page'))
+        .send({ paymentsOpen: true })
+        .expect(200);
+      expect(config.updatePage).toHaveBeenLastCalledWith({
+        paymentsOpen: true,
+      });
+      const res = await asAdmin(request(server).put('/pro/admin/page'))
+        .send({ paymentsOpen: 'yes' })
+        .expect(400);
+      expect((res.body as { message: unknown }).message).toEqual([
+        'การเปิดรับชำระเงินต้องเป็น true หรือ false',
+      ]);
+      await asAdmin(request(server).put('/pro/admin/page'))
+        .send({ paymentsOpen: null })
+        .expect(400);
+      await request(server)
+        .put('/pro/admin/page')
+        .set('x-test-user', 'user-a')
+        .send({ paymentsOpen: true })
+        .expect(403);
+      expect(config.updatePage).toHaveBeenCalledTimes(1);
     });
 
     it('bad body → 400 with Thai messages before the service', async () => {

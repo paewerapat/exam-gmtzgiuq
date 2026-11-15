@@ -47,11 +47,16 @@ export class ProController {
     return this.configService.getUpgrade(user);
   }
 
-  // User - own subscriptions that give rights now
+  // User - own subscriptions that give rights now + whether payments are
+  // open (task 23, the same for every user; admins bypass it at checkout)
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() user: User) {
-    return this.subscriptionsService.findMine(user.id);
+    const [items, paymentsOpen] = await Promise.all([
+      this.subscriptionsService.findMine(user.id),
+      this.configService.isPaymentsOpen(),
+    ]);
+    return { items, paymentsOpen };
   }
 
   // Admin - everything of the Upgrade page (entitlements included)

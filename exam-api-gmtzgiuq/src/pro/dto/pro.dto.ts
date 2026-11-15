@@ -111,6 +111,11 @@ export class UpdateProPageDto {
   @OptionalNotNull()
   @Flag('การเปิด VAT ')
   vatEnabled?: boolean;
+
+  // Off = users see "เร็ว ๆ นี้" and cannot pay (admins still can, task 23)
+  @OptionalNotNull()
+  @Flag('การเปิดรับชำระเงิน')
+  paymentsOpen?: boolean;
 }
 
 // ── venues ──────────────────────────────────────────────────────────────

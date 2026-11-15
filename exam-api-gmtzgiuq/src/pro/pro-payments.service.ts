@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { isUUID } from 'class-validator';
 import { DataSource, EntityManager, MoreThan, Repository } from 'typeorm';
-import { User } from '../users/user.entity';
+import { User, UserRole } from '../users/user.entity';
 import {
   RedeemException,
   escapeLike,
@@ -245,6 +245,9 @@ interface PaymentRow {
 }
 
 const bool = (value: unknown) => value === true || Number(value) === 1;
+
+/** Who pays: role admin bypasses closed payments (task 23). */
+type PayingUser = Pick<User, 'id' | 'email'> & Partial<Pick<User, 'role'>>;
 
 /** A pending payment without a charge this young is still being made. */
 export const INFLIGHT_MS = 30_000;
@@ -517,12 +520,15 @@ export class ProPaymentsService implements OnModuleInit {
    *    retry within INFLIGHT_MS of such a failure → 409 PAYMENT_IN_PROGRESS.
    * 3. A charge that is already final is applied through syncCharge.
    * Card pending = 3-D Secure → authorizeUri; PromptPay → QR + expiresAt.
+   * Payments closed (pro_page.paymentsOpen off) and not an admin → 403
+   * PAYMENTS_NOT_OPEN before anything else (no Opn call, no row, task 23).
    */
   async checkout(
-    user: Pick<User, 'id' | 'email'>,
+    user: PayingUser,
     input: CheckoutDto,
     now: Date = new Date(),
   ): Promise<CheckoutResult> {
+    await this.assertPaymentsOpen(user);
     if (!this.omise.isConfigured()) {
       throw new ProException('OMISE_UNAVAILABLE');
     }
@@ -1092,10 +1098,11 @@ export class ProPaymentsService implements OnModuleInit {
    * card subscription only, else 409 NOT_CARD_SUBSCRIPTION): attach the
    * token's card to the user's Opn customer as the default card, then make
    * the renewal schedules again so they charge the new card (Opn keeps the
-   * card a schedule was made with).
+   * card a schedule was made with). Payments closed and not an admin → 403
+   * PAYMENTS_NOT_OPEN first (task 23).
    */
   async changeCard(
-    user: Pick<User, 'id' | 'email'>,
+    user: PayingUser,
     subscriptionId: string,
     cardToken: string,
     now: Date = new Date(),
@@ -1104,6 +1111,7 @@ export class ProPaymentsService implements OnModuleInit {
     cardLastDigits: string | null;
     autoRenewFailed: string[];
   }> {
+    await this.assertPaymentsOpen(user);
     const sub = await this.findOwnSubscription(user.id, subscriptionId);
     const customer = await this.customersRepository.findOne({
       where: { userId: user.id },
@@ -1345,6 +1353,21 @@ export class ProPaymentsService implements OnModuleInit {
   }
 
   // ── helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * 403 PAYMENTS_NOT_OPEN while pro_page.paymentsOpen is off (or the row is
+   * missing), except for admins (they test the live key first, task 23).
+   * Read fresh every time so the admin switch works at once.
+   */
+  private async assertPaymentsOpen(user: PayingUser): Promise<void> {
+    if (user.role === UserRole.ADMIN) return;
+    const page = await this.pageRepository.findOne({
+      where: { id: PRO_PAGE_ID },
+    });
+    if (!bool(page?.paymentsOpen)) {
+      throw new ProException('PAYMENTS_NOT_OPEN');
+    }
+  }
 
   private async isVatEnabled(): Promise<boolean> {
     const page = await this.pageRepository.findOne({

@@ -111,7 +111,25 @@ export const PAYMENT_ERROR_MESSAGES: Record<string, string> = {
   OMISE_UNAVAILABLE: 'ระบบชำระเงินขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง',
   NOT_RENEWABLE: 'แพ็กเกจนี้ไม่ได้ตั้งต่ออายุอัตโนมัติ',
   ALREADY_AUTO_RENEW: 'แพ็กเกจนี้ต่ออายุอัตโนมัติด้วยบัตรอยู่แล้ว ไม่ต้องชำระซ้ำ',
+  PAYMENTS_NOT_OPEN: 'ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้',
 };
+
+// ── ปิดรับชำระเงินชั่วคราว (task 23) ─────────────────────────
+// POST /pro/checkout และ change-card ตอบ 403 PAYMENTS_NOT_OPEN เมื่อปิดอยู่และไม่ใช่แอดมิน
+
+export const PAYMENTS_NOT_OPEN = 'PAYMENTS_NOT_OPEN';
+export const COMING_SOON_LABEL = 'เร็ว ๆ นี้';
+export const PAYMENTS_COMING_SOON_NOTICE = 'เปิดให้สมัครสมาชิก Pro เร็ว ๆ นี้';
+export const PAYMENTS_ADMIN_BYPASS_NOTICE = 'ปิดรับชำระเงินอยู่ — แอดมินทดสอบจ่ายได้';
+
+/** จ่ายเงินได้ไหม: เปิดรับชำระ หรือเป็นแอดมิน (ทดสอบ live key ก่อนเปิดให้ทุกคน) */
+export function canPayNow(paymentsOpen: boolean, role: string | null | undefined): boolean {
+  return paymentsOpen || role?.toLowerCase() === 'admin';
+}
+
+export function isPaymentsNotOpenError(err: unknown): boolean {
+  return !!err && typeof err === 'object' && (err as { errorCode?: unknown }).errorCode === PAYMENTS_NOT_OPEN;
+}
 
 export const NETWORK_ERROR_MESSAGE = 'เชื่อมต่อระบบไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่';
 

@@ -11,15 +11,22 @@ import {
   type ProMeItem,
   type ProMyPayment,
 } from '@/lib/api/pro';
+import { ApiError } from '@/lib/api/apiError';
 import { useAuth } from '@/contexts/AuthContext';
 import { resetOmiseLoaderForTest, type OmiseCardOpenOptions } from '@/lib/omise';
 
-jest.mock('@/lib/api/pro', () => ({
-  getMyPro: jest.fn(),
-  getMyProPayments: jest.fn(),
-  cancelProRenewal: jest.fn(),
-  changeProCard: jest.fn(),
-}));
+// task 23: หน้าใช้ getMyProData — คืน items จาก mock getMyPro + paymentsOpen ที่ตั้งในแต่ละ test
+let mockPaymentsOpen = true;
+jest.mock('@/lib/api/pro', () => {
+  const getMyPro = jest.fn();
+  return {
+    getMyPro,
+    getMyProData: jest.fn(async (signal?: AbortSignal) => ({ items: await getMyPro(signal), paymentsOpen: mockPaymentsOpen })),
+    getMyProPayments: jest.fn(),
+    cancelProRenewal: jest.fn(),
+    changeProCard: jest.fn(),
+  };
+});
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('sweetalert2', () => ({ __esModule: true, default: { fire: jest.fn() } }));
 jest.mock('react-toastify', () => ({ toast: { success: jest.fn(), error: jest.fn(), warning: jest.fn() } }));
@@ -82,6 +89,7 @@ describe('/dashboard/membership — MembershipView (task 18)', () => {
     delete window.OmiseCard;
     process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY = 'pkey_test_dummy';
     (useAuth as jest.Mock).mockReturnValue({ user: { id: 'u1' } });
+    mockPaymentsOpen = true;
     (getMyPro as jest.Mock).mockResolvedValue(subs());
     (getMyProPayments as jest.Mock).mockResolvedValue({ items: [payment()], total: 1 });
   });
@@ -289,5 +297,78 @@ describe('/dashboard/membership — MembershipView (task 18)', () => {
     const reason = within(section).getByText('ถูกแทนที่ด้วยรายการชำระใหม่');
     expect(reason.className).toContain('text-gray-600');
     expect(within(section).queryByRole('link', { name: 'ดูรายการ' })).not.toBeInTheDocument();
+  });
+});
+
+const nowrapParts = (el: HTMLElement) => Array.from(el.querySelectorAll('.whitespace-nowrap'), (n) => n.textContent);
+
+describe('/dashboard/membership — ปิดรับชำระเงิน "เร็ว ๆ นี้" (task 23)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetOmiseLoaderForTest();
+    process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY = 'pkey_test_dummy';
+    mockPaymentsOpen = false;
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'u1', role: 'user' } });
+    (getMyPro as jest.Mock).mockResolvedValue(subs());
+    (getMyProPayments as jest.Mock).mockResolvedValue({ items: [payment()], total: 1 });
+  });
+
+  it('ปิด + ผู้ใช้ทั่วไป: ต่ออายุ/เปลี่ยนบัตร → ปุ่ม disabled "เร็ว ๆ นี้" ไม่มีลิงก์ checkout; ยกเลิกต่ออายุ/ประวัติยังใช้ได้', async () => {
+    const user = userEvent.setup();
+    (Swal.fire as jest.Mock).mockResolvedValue({ isConfirmed: true });
+    (cancelProRenewal as jest.Mock).mockResolvedValue(undefined);
+    render(<MembershipView />);
+    const card = await screen.findByTestId('membership-netsat');
+    const changeCard = within(card).getByRole('button', { name: 'เปลี่ยนบัตร · เร็ว ๆ นี้' });
+    expect(changeCard).toBeDisabled();
+    expect(changeCard).toHaveAttribute('aria-disabled', 'true');
+    // ตัดบรรทัดได้เฉพาะหลัง "·" ไม่ตัดกลาง "เร็ว ๆ นี้" (QA รอบ 1)
+    expect(nowrapParts(changeCard)).toEqual(['เปลี่ยนบัตร ·', 'เร็ว ๆ นี้']);
+    expect(within(card).queryByRole('button', { name: 'เปลี่ยนบัตร' })).not.toBeInTheDocument();
+
+    const pp = screen.getByTestId('membership-tgat');
+    const renew = within(pp).getByRole('button', { name: 'ต่ออายุ · เร็ว ๆ นี้' });
+    expect(renew).toBeDisabled();
+    expect(nowrapParts(renew)).toEqual(['ต่ออายุ ·', 'เร็ว ๆ นี้']);
+    expect(within(pp).queryByRole('link', { name: 'ต่ออายุ' })).not.toBeInTheDocument();
+    expect(document.querySelector('a[href^="/upgrade/checkout"]')).toBeNull();
+
+    // ประวัติการชำระแสดงตามปกติ
+    const section = (await screen.findByRole('heading', { name: 'ประวัติการชำระเงิน' })).closest('section') as HTMLElement;
+    expect(await within(section).findByText('สำเร็จ')).toBeInTheDocument();
+
+    // ยกเลิกการต่ออายุยังใช้ได้
+    await user.click(within(card).getByRole('button', { name: 'ยกเลิกการต่ออายุ' }));
+    await waitFor(() => expect(cancelProRenewal).toHaveBeenCalledWith('s-card'));
+    expect(await within(card).findByRole('button', { name: 'ต่ออายุ · เร็ว ๆ นี้' })).toBeDisabled();
+    expect(changeProCard).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toMatch(/ปลดล็อก/);
+  });
+
+  it('ปิด + แอดมิน: ปุ่มต่ออายุ/เปลี่ยนบัตรใช้ได้ตามปกติ (ทดสอบจ่ายได้)', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'u1', role: 'ADMIN' } });
+    render(<MembershipView />);
+    const card = await screen.findByTestId('membership-netsat');
+    expect(within(card).getByRole('button', { name: 'เปลี่ยนบัตร' })).toBeEnabled();
+    expect(within(screen.getByTestId('membership-tgat')).getByRole('link', { name: 'ต่ออายุ' })).toHaveAttribute(
+      'href',
+      '/upgrade/checkout?plan=p-tgat',
+    );
+    expect(screen.queryByText(/เร็ว ๆ นี้/)).not.toBeInTheDocument();
+  });
+
+  it('เปิดอยู่แต่แอดมินปิดระหว่างนั้น: เปลี่ยนบัตรได้ 403 PAYMENTS_NOT_OPEN → ข้อความไทย + ปุ่มกลายเป็น "เร็ว ๆ นี้"', async () => {
+    const user = userEvent.setup();
+    mockPaymentsOpen = true;
+    window.OmiseCard = { configure: jest.fn(), open: jest.fn((opts: OmiseCardOpenOptions) => opts.onCreateTokenSuccess('tokn_new')) };
+    (changeProCard as jest.Mock).mockRejectedValue(
+      new ApiError('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้', 403, 'PAYMENTS_NOT_OPEN'),
+    );
+    render(<MembershipView />);
+    const card = await screen.findByTestId('membership-netsat');
+    await user.click(within(card).getByRole('button', { name: 'เปลี่ยนบัตร' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้'));
+    expect(await within(card).findByRole('button', { name: 'เปลี่ยนบัตร · เร็ว ๆ นี้' })).toBeDisabled();
+    expect(within(screen.getByTestId('membership-tgat')).getByRole('button', { name: 'ต่ออายุ · เร็ว ๆ นี้' })).toBeDisabled();
   });
 });

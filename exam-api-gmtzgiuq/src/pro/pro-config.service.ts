@@ -42,6 +42,8 @@ export interface ProPageView {
   footerNote: string | null;
   // VAT 7% on top of the price for new payments (task 18)
   vatEnabled: boolean;
+  // Off = new payments refused for non-admins, "เร็ว ๆ นี้" (task 23)
+  paymentsOpen: boolean;
 }
 
 /** A plan card of the public Upgrade page (no entitlements). */
@@ -71,6 +73,9 @@ export interface PublicVenueView {
 
 export interface UpgradePageView {
   page: ProPageView;
+  // = page.paymentsOpen, the same for every viewer (admins bypass it at
+  // checkout, task 23)
+  paymentsOpen: boolean;
   venues: PublicVenueView[];
   my: MySubscriptionSummary[];
 }
@@ -112,6 +117,7 @@ const EMPTY_PAGE: ProPageView = {
   venuePickerTitle: null,
   footerNote: null,
   vatEnabled: false,
+  paymentsOpen: false,
 };
 
 /** Trimmed text; blank / null → null. */
@@ -169,6 +175,7 @@ export class ProConfigService {
 
     return {
       page,
+      paymentsOpen: page.paymentsOpen,
       venues: venues.map((venue) => {
         const venuePlans = plans.filter((p) => p.venueId === venue.id);
         return {
@@ -196,6 +203,14 @@ export class ProConfigService {
     return row ? toPageView(row) : { ...EMPTY_PAGE };
   }
 
+  /**
+   * pro_page.paymentsOpen read fresh (never cached, so the admin switch
+   * works at once); no row → false (closed).
+   */
+  async isPaymentsOpen(): Promise<boolean> {
+    return (await this.getPage()).paymentsOpen;
+  }
+
   /** PUT /pro/admin/page: creates the row when it is missing. */
   async updatePage(input: UpdateProPageDto): Promise<ProPageView> {
     const changes: Partial<ProPage> = {};
@@ -210,6 +225,9 @@ export class ProConfigService {
       changes.footerNote = nullableText(input.footerNote);
     }
     if (input.vatEnabled !== undefined) changes.vatEnabled = input.vatEnabled;
+    if (input.paymentsOpen !== undefined) {
+      changes.paymentsOpen = input.paymentsOpen;
+    }
     if (Object.keys(changes).length > 0) {
       await this.pageRepository.upsert({ id: PRO_PAGE_ID, ...changes }, ['id']);
     }
@@ -666,6 +684,7 @@ function toPageView(row: ProPage): ProPageView {
     venuePickerTitle: row.venuePickerTitle ?? null,
     footerNote: row.footerNote ?? null,
     vatEnabled: bool(row.vatEnabled),
+    paymentsOpen: bool(row.paymentsOpen),
   };
 }
 

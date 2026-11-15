@@ -24,6 +24,7 @@ import { ProDiscountRedemption } from './pro-discount-redemption.entity';
 import { ProDiscountsService } from './pro-discounts.service';
 import { RedeemThrottleService } from '../unlock-codes/redeem-throttle.service';
 import { RedeemException } from '../unlock-codes/unlock-code-format';
+import { UserRole } from '../users/user.entity';
 
 type Row = Record<string, any>;
 
@@ -265,7 +266,7 @@ describe('ProPaymentsService (task 18)', () => {
           isPurchasable: false,
         },
       ],
-      page: [{ id: 1, vatEnabled: 0 }],
+      page: [{ id: 1, vatEnabled: 0, paymentsOpen: 1 }],
       subs: [],
       payments: [],
       customers: [],
@@ -1214,6 +1215,167 @@ describe('ProPaymentsService (task 18)', () => {
   });
 
   // ── discount codes (task 19) ────────────────────────────────────────
+
+  describe('payments closed - "เร็ว ๆ นี้" (task 23)', () => {
+    const admin = {
+      id: 'admin-1',
+      email: 'admin@example.test',
+      role: UserRole.ADMIN,
+    };
+    const student = { ...user, role: UserRole.USER };
+    const closedSub = () => ({
+      id: SUB,
+      userId: 'user-a',
+      status: 'active',
+      source: 'card',
+      autoRenew: 1,
+      omiseScheduleId: 'schd_test_1',
+      canceledAt: null,
+      currentPeriodEnd: new Date(NOW.getTime() + 10 * DAY),
+    });
+    const expectNothingStarted = () => {
+      expect(db.payments).toEqual([]);
+      expect(db.redemptions).toEqual([]);
+      expect(omise.createCharge).not.toHaveBeenCalled();
+      expect(billing.ensureCustomerLocked).not.toHaveBeenCalled();
+      expect(billing.attachCard).not.toHaveBeenCalled();
+      expect(billing.remakeSchedulesForUser).not.toHaveBeenCalled();
+      expect(throttle.begin).not.toHaveBeenCalled();
+    };
+
+    beforeEach(() => {
+      db.page[0].paymentsOpen = 0;
+    });
+
+    it('user: card / PromptPay checkout (with a code too) and change card → 403 PAYMENTS_NOT_OPEN (Thai), no row, no Opn call (AC2)', async () => {
+      db.subs.push(closedSub());
+      db.customers.push({ userId: 'user-a', omiseCustomerId: 'cust_test_a' });
+      const card = await errorOf(
+        service.checkout(
+          student,
+          { planId: PLAN, method: 'card', cardToken: 'tokn_test_1' },
+          NOW,
+        ),
+      );
+      expect(card).toEqual({
+        status: 403,
+        body: {
+          statusCode: 403,
+          message: 'ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้',
+          errorCode: 'PAYMENTS_NOT_OPEN',
+        },
+      });
+      expect(
+        (
+          await errorOf(
+            service.checkout(
+              user,
+              { planId: PLAN, method: 'promptpay', discountCode: 'SAVE10' },
+              NOW,
+            ),
+          )
+        ).body.errorCode,
+      ).toBe('PAYMENTS_NOT_OPEN');
+      expect(
+        (await errorOf(service.changeCard(student, SUB, 'tokn_test_2', NOW)))
+          .body.errorCode,
+      ).toBe('PAYMENTS_NOT_OPEN');
+      expectNothingStarted();
+    });
+
+    it('checked before anything else: no page row → closed; Opn not configured → still 403', async () => {
+      db.page = [];
+      configured = false;
+      expect(
+        (
+          await errorOf(
+            service.checkout(user, { planId: PLAN, method: 'promptpay' }, NOW),
+          )
+        ).status,
+      ).toBe(403);
+      expect(omise.isConfigured).not.toHaveBeenCalled();
+      expectNothingStarted();
+    });
+
+    it('admin bypasses it: card + PromptPay checkout and change card work as usual (AC3)', async () => {
+      const result = await service.checkout(
+        admin,
+        { planId: PLAN, method: 'card', cardToken: 'tokn_test_1' },
+        NOW,
+      );
+      expect(result.status).toBe('successful');
+      expect(omise.createCharge).toHaveBeenCalledTimes(1);
+      omise.createCharge.mockResolvedValueOnce(
+        charge({
+          id: 'chrg_test_qr',
+          status: 'pending',
+          expires_at: '2026-11-14T05:00:00Z',
+          source: {
+            type: 'promptpay',
+            scannable_code: {
+              image: { download_uri: 'https://api.omise.co/qr' },
+            },
+          },
+        }),
+      );
+      const qr = await service.checkout(
+        admin,
+        { planId: PLAN_MAX, method: 'promptpay' },
+        NOW,
+      );
+      expect(qr.status).toBe('pending');
+      expect(db.payments).toHaveLength(2);
+
+      db.subs.push({ ...closedSub(), userId: 'admin-1' });
+      db.customers.push({ userId: 'admin-1', omiseCustomerId: 'cust_test_a' });
+      await expect(
+        service.changeCard(admin, SUB, 'tokn_test_2', NOW),
+      ).resolves.toMatchObject({ cardLastDigits: '4444' });
+    });
+
+    it('open → user pays as usual; the switch is read fresh on every request (AC3, AC4)', async () => {
+      db.page[0].paymentsOpen = 1;
+      const first = await service.checkout(
+        student,
+        { planId: PLAN, method: 'card', cardToken: 'tokn_test_1' },
+        NOW,
+      );
+      expect(first.status).toBe('successful');
+      db.page[0].paymentsOpen = 0;
+      expect(
+        (
+          await errorOf(
+            service.checkout(
+              student,
+              { planId: PLAN_MAX, method: 'card', cardToken: 'tokn_test_1' },
+              NOW,
+            ),
+          )
+        ).body.errorCode,
+      ).toBe('PAYMENTS_NOT_OPEN');
+      db.page[0].paymentsOpen = true;
+      await expect(
+        service.checkout(
+          student,
+          { planId: PLAN_MAX, method: 'card', cardToken: 'tokn_test_1' },
+          NOW,
+        ),
+      ).resolves.toHaveProperty('paymentId');
+      expect(omise.createCharge).toHaveBeenCalledTimes(2);
+      expect(db.payments).toHaveLength(2);
+    });
+
+    it('closed does not stop the quote or cancel renewal', async () => {
+      await expect(service.quote('user-a', PLAN, NOW)).resolves.toMatchObject({
+        totalSatang: 19900,
+      });
+      db.subs.push(closedSub());
+      await expect(service.cancelRenewal('user-a', SUB, NOW)).resolves.toEqual({
+        id: SUB,
+      });
+      expect(billing.deleteSchedule).toHaveBeenCalledWith('schd_test_1');
+    });
+  });
 
   describe('discount codes (task 19)', () => {
     const qrCharge = (id: string, extra: Partial<OmiseCharge> = {}) =>

@@ -7,23 +7,27 @@ import { AlertCircle, Ban, CheckCircle2, Clock, Crown, Loader2, QrCode, RotateCc
 import FadeIn from '@/components/animations/FadeIn';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/lib/api/apiError';
-import { createCheckout, getProPayment, type ProPaymentDetail } from '@/lib/api/pro';
+import { createCheckout, getProPayment, getProUpgrade, type ProPaymentDetail } from '@/lib/api/pro';
 import { formatSatang } from '@/lib/pro';
 import {
+  canPayNow,
   CARD_PENDING_POLL_LIMIT_MS,
   checkoutHref,
   formatCountdown,
+  isPaymentsNotOpenError,
   isSafeHttpsUrl,
   loginHref,
   MEMBERSHIP_PATH,
   msUntil,
   PAYMENT_CANCELED_MESSAGE,
+  PAYMENT_ERROR_MESSAGES,
   PAYMENT_EXPIRY_GRACE_MS,
   PAYMENT_POLL_MS,
   paymentErrorMessage,
   resultHref,
 } from '@/lib/pro-payments';
 import { formatThaiDate } from '@/lib/unlock-codes';
+import { ComingSoonText } from './PaymentsClosedNotice';
 
 const FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800';
@@ -66,7 +70,10 @@ export default function PaymentResultView() {
   const [pollState, setPollState] = useState<{ key: string; netError: boolean; stopped: boolean }>({ key: '', netError: false, stopped: false });
   const current = state?.key === requestKey ? state : null;
   const detail = current?.detail ?? null;
-  const loading = !!paymentId && !!userId && !current;
+  // task 23: paymentsOpen จาก GET /pro/upgrade (โหลดคู่กับ payment) — โหลดไม่สำเร็จ = เปิด (server ยังบล็อกด้วย 403)
+  const [openResult, setOpenResult] = useState<{ key: string; open: boolean } | null>(null);
+  const openLoaded = openResult?.key === (userId ?? '');
+  const loading = !!paymentId && !!userId && (!current || !openLoaded);
   const netError = pollState.key === requestKey && pollState.netError;
   const pollStopped = pollState.key === requestKey && pollState.stopped;
 
@@ -74,6 +81,10 @@ export default function PaymentResultView() {
   const [retrying, setRetrying] = useState(false);
   const retryingRef = useRef(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  // task 23: ปิดรับชำระเงินและไม่ใช่แอดมิน (ตั้งแต่โหลดหน้า) หรือสร้าง QR ใหม่แล้ว API ตอบ 403 PAYMENTS_NOT_OPEN
+  // → ปุ่ม "สร้าง QR ใหม่ · เร็ว ๆ นี้" + ข้อความโทนกลาง (ไม่ใช่ error)
+  const [closedByServer, setClosedByServer] = useState(false);
+  const paymentsClosed = closedByServer || !canPayNow(openResult && openLoaded ? openResult.open : true, user?.role);
 
   useEffect(() => {
     if (!userId) {
@@ -81,6 +92,22 @@ export default function PaymentResultView() {
       router.replace(loginHref(back));
     }
   }, [userId, paymentId, planParam, router]);
+
+  // โหลด paymentsOpen ครั้งเดียวต่อผู้ใช้ (ไม่ poll ซ้ำ)
+  useEffect(() => {
+    if (!userId) return;
+    const controller = new AbortController();
+    getProUpgrade(controller.signal).then(
+      (d) => {
+        if (!controller.signal.aborted) setOpenResult({ key: userId, open: d.paymentsOpen });
+      },
+      (err) => {
+        if (controller.signal.aborted || isAbortError(err)) return;
+        setOpenResult({ key: userId, open: true });
+      },
+    );
+    return () => controller.abort();
+  }, [userId]);
 
   // โหลด + poll ทุก 5 วินาทีขณะ pending (setTimeout ต่อกันทีละรอบ ไม่ซ้อน) — ออกจากหน้า/เปลี่ยน payment → หยุด
   useEffect(() => {
@@ -146,7 +173,8 @@ export default function PaymentResultView() {
       if (!res.paymentId) throw new Error('missing paymentId');
       router.replace(resultHref(res.paymentId, planId));
     } catch (err) {
-      setRetryError(paymentErrorMessage(err, 'สร้าง QR ใหม่ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'));
+      if (isPaymentsNotOpenError(err)) setClosedByServer(true);
+      else setRetryError(paymentErrorMessage(err, 'สร้าง QR ใหม่ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'));
     } finally {
       retryingRef.current = false;
       setRetrying(false);
@@ -207,9 +235,21 @@ export default function PaymentResultView() {
 
   const left = msUntil(detail.expiresAt, now);
   const qrExpired = detail.status === 'expired' || (detail.status === 'pending' && detail.method === 'promptpay' && left === 0);
+  // ปิดรับชำระ: สร้าง QR ใหม่ไม่ได้ → ข้อความสถานะโทนกลางแทนการชวนให้สร้าง QR ใหม่
+  const qrClosed = detail.method === 'promptpay' && !!planId && paymentsClosed;
+  const comingSoonStatus = qrClosed && (
+    <p role="status" className="mt-1 text-sm text-indigo-700 dark:text-indigo-300 break-words">
+      {PAYMENT_ERROR_MESSAGES.PAYMENTS_NOT_OPEN}
+    </p>
+  );
   const retryAction =
     detail.method === 'promptpay' ? (
-      planId ? (
+      qrClosed ? (
+        <button type="button" disabled aria-disabled="true" className={PRIMARY_BUTTON}>
+          <Clock className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+          <ComingSoonText prefix="สร้าง QR ใหม่" />
+        </button>
+      ) : planId ? (
         <button type="button" onClick={handleNewQr} disabled={retrying} aria-busy={retrying} className={PRIMARY_BUTTON}>
           {retrying ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <QrCode className="w-4 h-4" aria-hidden="true" />}
           สร้าง QR ใหม่
@@ -307,7 +347,10 @@ export default function PaymentResultView() {
       <>
         <Clock className="w-16 h-16 text-gray-400 dark:text-gray-500" aria-hidden="true" />
         <h1 className="mt-3 text-xl font-bold text-gray-900 dark:text-gray-100">QR หมดอายุแล้ว</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">ยังไม่ได้รับการชำระเงิน สร้าง QR ใหม่เพื่อชำระอีกครั้ง</p>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          {qrClosed ? 'ยังไม่ได้รับการชำระเงิน' : 'ยังไม่ได้รับการชำระเงิน สร้าง QR ใหม่เพื่อชำระอีกครั้ง'}
+        </p>
+        {comingSoonStatus}
         {summary}
         <div className="mt-6 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           {retryAction}
@@ -322,8 +365,9 @@ export default function PaymentResultView() {
         <XCircle className="w-16 h-16 text-red-500 dark:text-red-400" aria-hidden="true" />
         <h1 className="mt-3 text-xl font-bold text-gray-900 dark:text-gray-100">ชำระเงินไม่สำเร็จ</h1>
         <p role="alert" className="mt-1 text-sm text-red-700 dark:text-red-300 break-words">
-          {detail.failureMessage || 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'}
+          {detail.failureMessage || (qrClosed ? 'ทำรายการไม่สำเร็จ' : 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')}
         </p>
+        {comingSoonStatus}
         {summary}
         <div className="mt-6 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">{retryAction}</div>
       </>
@@ -341,8 +385,9 @@ export default function PaymentResultView() {
             className="mt-4 w-full max-w-[16rem] aspect-square rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-white"
           />
         ) : (
-          <p className="mt-4 text-sm text-red-700 dark:text-red-300">แสดง QR ไม่ได้ กรุณาสร้าง QR ใหม่</p>
+          <p className="mt-4 text-sm text-red-700 dark:text-red-300">{qrClosed ? 'แสดง QR ไม่ได้' : 'แสดง QR ไม่ได้ กรุณาสร้าง QR ใหม่'}</p>
         )}
+        {!isSafeHttpsUrl(detail.qrImageUrl) && comingSoonStatus}
         <p className="mt-4 text-3xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums">{formatSatang(detail.totalSatang)}</p>
         {left !== null && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">

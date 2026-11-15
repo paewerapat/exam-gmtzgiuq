@@ -20,7 +20,7 @@ interface PageTextTabProps {
   onSaved: (page: ProPageSettings) => void;
 }
 
-/** แท็บ "หน้า Upgrade": แก้ข้อความระดับหน้า + เปิด/ปิด VAT 7% (task 18) */
+/** แท็บ "หน้า Upgrade": แก้ข้อความระดับหน้า + เปิด/ปิด VAT 7% (task 18) + เปิด/ปิดรับชำระเงิน (task 23) */
 export default function PageTextTab({ page, onSaved }: PageTextTabProps) {
   const [form, setForm] = useState<ProPageSettings>(page);
   const [saving, setSaving] = useState(false);
@@ -83,6 +83,36 @@ export default function PageTextTab({ page, onSaved }: PageTextTabProps) {
           );
         })}
       </div>
+      {/* task 23: ปิดรับชำระชั่วคราวระหว่างยังไม่มี live key ของ Opn */}
+      <fieldset className="mt-6 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <legend className="px-1 text-sm font-semibold text-gray-900 dark:text-gray-100">การชำระเงิน</legend>
+        <label className="flex items-start gap-3 min-h-11 py-1 cursor-pointer">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={form.paymentsOpen}
+            onChange={(e) => setForm((prev) => ({ ...prev, paymentsOpen: e.target.checked }))}
+            aria-describedby="pro-page-payments-hint"
+            className="mt-0.5 h-5 w-5 flex-shrink-0 rounded border-gray-300 dark:border-gray-600 accent-indigo-600"
+          />
+          <span className="min-w-0 text-sm text-gray-800 dark:text-gray-200">
+            เปิดรับชำระเงิน
+            <span
+              className={`ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                form.paymentsOpen
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+              }`}
+              aria-hidden="true"
+            >
+              {form.paymentsOpen ? 'เปิดอยู่' : 'ปิดอยู่'}
+            </span>
+            <span id="pro-page-payments-hint" className="block text-xs text-gray-500 dark:text-gray-400">
+              ปิด = ผู้ใช้เห็น &quot;เร็ว ๆ นี้&quot; และกดชำระไม่ได้ (แอดมินยังทดสอบจ่ายได้) เปิดเมื่อใส่ live key ของ Opn แล้ว
+            </span>
+          </span>
+        </label>
+      </fieldset>
       <fieldset className="mt-6 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <legend className="px-1 text-sm font-semibold text-gray-900 dark:text-gray-100">ภาษีมูลค่าเพิ่ม</legend>
         <label className="flex items-start gap-3 min-h-11 py-1 cursor-pointer">

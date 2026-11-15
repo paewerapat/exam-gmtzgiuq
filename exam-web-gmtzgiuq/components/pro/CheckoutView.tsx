@@ -7,6 +7,7 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowLeft,
+  Clock,
   CreditCard,
   Info,
   Loader2,
@@ -20,7 +21,7 @@ import {
 import FadeIn from '@/components/animations/FadeIn';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/lib/api/apiError';
-import { createCheckout, getCheckoutQuote, type ProCheckoutQuote, type ProPaymentMethod } from '@/lib/api/pro';
+import { createCheckout, getCheckoutQuote, getProUpgrade, type ProCheckoutQuote, type ProPaymentMethod } from '@/lib/api/pro';
 import { getOmisePublicKey, loadOmiseCard, omiseErrorMessage, OMISE_NOT_READY_MESSAGE, requestCardToken } from '@/lib/omise';
 import { formatSatang } from '@/lib/pro';
 import {
@@ -30,8 +31,20 @@ import {
   formatDiscountValue,
   isDiscountErrorCode,
 } from '@/lib/pro-discounts';
-import { checkoutHref, loginHref, MEMBERSHIP_PATH, paymentErrorMessage, redirectToAuthorize, resultHref } from '@/lib/pro-payments';
+import {
+  canPayNow,
+  checkoutHref,
+  COMING_SOON_LABEL,
+  isPaymentsNotOpenError,
+  loginHref,
+  MEMBERSHIP_PATH,
+  PAYMENT_ERROR_MESSAGES,
+  paymentErrorMessage,
+  redirectToAuthorize,
+  resultHref,
+} from '@/lib/pro-payments';
 import { formatThaiDate } from '@/lib/unlock-codes';
+import PaymentsClosedNotice from './PaymentsClosedNotice';
 
 const FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800';
@@ -62,9 +75,21 @@ export default function CheckoutView() {
 
   const [reloadKey, setReloadKey] = useState(0);
   const requestKey = `${planId}|${userId ?? ''}|${reloadKey}`;
-  const [result, setResult] = useState<{ key: string; quote: ProCheckoutQuote | null; error: LoadError | null } | null>(null);
+  const [result, setResult] = useState<{
+    key: string;
+    quote: ProCheckoutQuote | null;
+    error: LoadError | null;
+    /** task 23: GET /pro/upgrade paymentsOpen (โหลดไม่สำเร็จ = true — server ยังบล็อกด้วย 403) */
+    paymentsOpen: boolean;
+  } | null>(null);
   const loading = !!planId && !!userId && result?.key !== requestKey;
   const quote = loading ? null : (result?.quote ?? null);
+
+  // task 23: ปิดรับชำระเงิน → ผู้ใช้ทั่วไปเห็นกล่อง "เร็ว ๆ นี้" (แอดมินจ่ายได้) / API ตอบ 403 PAYMENTS_NOT_OPEN ระหว่างจ่าย → สถานะเดียวกัน
+  const [closedByServer, setClosedByServer] = useState(false);
+  const paymentsOpen = loading ? true : (result?.paymentsOpen ?? true);
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const canPay = !closedByServer && canPayNow(paymentsOpen, user?.role);
 
   const [method, setMethod] = useState<ProPaymentMethod>('card');
   const [submitting, setSubmitting] = useState(false);
@@ -87,32 +112,42 @@ export default function CheckoutView() {
   useEffect(() => {
     if (!planId || !userId) return;
     const controller = new AbortController();
-    getCheckoutQuote(planId, controller.signal)
-      .then((res) => {
-        if (!controller.signal.aborted) setResult({ key: requestKey, quote: res, error: null });
-      })
-      .catch((err) => {
-        if (isAbortError(err) || controller.signal.aborted) return;
-        const notPurchasable = err instanceof ApiError && (err.status === 400 || err.status === 404);
-        setResult({
-          key: requestKey,
-          quote: null,
-          error: {
-            message: notPurchasable
-              ? paymentErrorMessage(err, 'แพ็กเกจนี้ยังไม่เปิดให้สมัคร')
-              : paymentErrorMessage(err, 'โหลดข้อมูลการชำระเงินไม่สำเร็จ'),
-            retryable: !notPurchasable,
-          },
-        });
+    const quotePromise = getCheckoutQuote(planId, controller.signal).then(
+      (quote) => ({ quote, err: null as unknown }),
+      (err: unknown) => ({ quote: null, err }),
+    );
+    // task 23: สถานะเปิดรับชำระ (quote ไม่บอก) — ล้ม → ถือว่าเปิด
+    const openPromise = getProUpgrade(controller.signal).then(
+      (d) => d.paymentsOpen,
+      () => true,
+    );
+    Promise.all([quotePromise, openPromise]).then(([{ quote: res, err }, open]) => {
+      if (controller.signal.aborted || (err && isAbortError(err))) return;
+      if (res) {
+        setResult({ key: requestKey, quote: res, error: null, paymentsOpen: open });
+        return;
+      }
+      const notPurchasable = err instanceof ApiError && (err.status === 400 || err.status === 404);
+      setResult({
+        key: requestKey,
+        quote: null,
+        paymentsOpen: open,
+        error: {
+          message: notPurchasable
+            ? paymentErrorMessage(err, 'แพ็กเกจนี้ยังไม่เปิดให้สมัคร')
+            : paymentErrorMessage(err, 'โหลดข้อมูลการชำระเงินไม่สำเร็จ'),
+          retryable: !notPurchasable,
+        },
       });
+    });
     return () => controller.abort();
   }, [planId, userId, requestKey]);
 
   // เลือกบัตร → โหลด omise.js ล่วงหน้า (เฉพาะหน้านี้) ล้มก็ไม่เป็นไร กดชำระจะลองใหม่และแจ้ง error
   useEffect(() => {
-    if (method !== 'card' || !publicKey || !quote || isAlreadyAutoRenewing(quote)) return;
+    if (method !== 'card' || !publicKey || !quote || !canPay || isAlreadyAutoRenewing(quote)) return;
     loadOmiseCard().catch(() => {});
-  }, [method, publicKey, quote]);
+  }, [method, publicKey, quote, canPay]);
 
   function stopSubmitting() {
     submittingRef.current = false;
@@ -123,7 +158,7 @@ export default function CheckoutView() {
   async function requote(code: string | null): Promise<ProCheckoutQuote> {
     const key = requestKey;
     const res = await getCheckoutQuote(planId, undefined, code ?? undefined);
-    setResult((prev) => (prev?.key === key ? { key, quote: res, error: null } : prev));
+    setResult((prev) => (prev?.key === key ? { ...prev, quote: res, error: null } : prev));
     return res;
   }
 
@@ -188,7 +223,7 @@ export default function CheckoutView() {
   }
 
   async function handlePay() {
-    if (!quote || submittingRef.current || applyingRef.current || isAlreadyAutoRenewing(quote)) return;
+    if (!quote || !canPay || submittingRef.current || applyingRef.current || isAlreadyAutoRenewing(quote)) return;
     submittingRef.current = true;
     setSubmitting(true);
     setPayError(null);
@@ -225,7 +260,10 @@ export default function CheckoutView() {
       if (!res.paymentId) throw new Error('missing paymentId');
       router.push(resultHref(res.paymentId, quote.plan.id));
     } catch (err) {
-      if (discountCode && err instanceof ApiError && isDiscountErrorCode(err.errorCode)) {
+      if (isPaymentsNotOpenError(err)) {
+        // แอดมินปิดรับชำระระหว่างนั้น → กล่อง "เร็ว ๆ นี้" (ไม่ใช่ error ทั่วไป)
+        setClosedByServer(true);
+      } else if (discountCode && err instanceof ApiError && isDiscountErrorCode(err.errorCode)) {
         handleDiscountRejected(err);
       } else {
         setPayError(omiseErrorMessage(err) ?? paymentErrorMessage(err, 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'));
@@ -239,6 +277,40 @@ export default function CheckoutView() {
       <div className="flex items-center justify-center py-32" role="status" aria-label="กำลังไปหน้าเข้าสู่ระบบ">
         <Loader2 className="w-9 h-9 animate-spin motion-reduce:animate-none text-indigo-500 dark:text-indigo-400" aria-hidden="true" />
       </div>
+    );
+  }
+
+  if (planId && !loading && !canPay) {
+    return (
+      <FadeIn>
+        <section
+          aria-labelledby="checkout-coming-soon-title"
+          data-testid="checkout-coming-soon"
+          className={`${CARD} px-6 py-14 text-center max-w-xl mx-auto mt-8`}
+        >
+          <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-indigo-600 dark:text-indigo-300" aria-hidden="true" />
+          </div>
+          <h1 id="checkout-coming-soon-title" className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            {COMING_SOON_LABEL}
+          </h1>
+          {quote && (quote.plan.venue.name || quote.plan.name) && (
+            <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300 break-words">
+              {[quote.plan.venue.name, quote.plan.name].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 break-words">
+            {PAYMENT_ERROR_MESSAGES.PAYMENTS_NOT_OPEN} ตอนนี้ยังสมัครสมาชิก Pro ด้วยการชำระเงินไม่ได้ หากมีโค้ดสมาชิก กรอกได้ที่หน้าแพ็กเกจ
+          </p>
+          <Link
+            href={quote?.plan.venue.key ? `/upgrade?venue=${encodeURIComponent(quote.plan.venue.key)}` : '/upgrade'}
+            className={`${PRIMARY_BUTTON} mt-6`}
+          >
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            กลับไปหน้าแพ็กเกจ
+          </Link>
+        </section>
+      </FadeIn>
     );
   }
 
@@ -302,6 +374,8 @@ export default function CheckoutView() {
           <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           กลับไปเลือกแพ็กเกจ
         </Link>
+
+        <PaymentsClosedNotice closed={!paymentsOpen} isAdmin={isAdmin} />
 
         <section aria-labelledby="checkout-title" className={`${CARD} p-4 sm:p-6`}>
           <h1 id="checkout-title" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">

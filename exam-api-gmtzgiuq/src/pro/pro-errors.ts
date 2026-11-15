@@ -98,6 +98,11 @@ export const PRO_ERRORS = {
     status: 409,
     message: 'เปลี่ยนบัตรได้เฉพาะแพ็กเกจที่ชำระด้วยบัตรและยังใช้งานอยู่',
   },
+  // pro_page.paymentsOpen off: no new payment / card change (task 23)
+  PAYMENTS_NOT_OPEN: {
+    status: 403,
+    message: 'ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้',
+  },
   // 503 (not 429) so Opn always retries if it were ever hit by mistake
   WEBHOOK_RATE_LIMITED: {
     status: 503,

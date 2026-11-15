@@ -26,6 +26,10 @@ export class ProPage {
   @Column({ type: 'boolean', default: false })
   vatEnabled: boolean;
 
+  // Off = new payments are refused for non-admins ("เร็ว ๆ นี้", task 23)
+  @Column({ type: 'boolean', default: false })
+  paymentsOpen: boolean;
+
   @UpdateDateColumn()
   updatedAt: Date;
 }

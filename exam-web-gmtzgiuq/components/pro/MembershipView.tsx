@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   AlertCircle,
   AlertTriangle,
+  Clock,
   CreditCard,
   Crown,
   LogIn,
@@ -21,7 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   cancelProRenewal,
   changeProCard,
-  getMyPro,
+  getMyProData,
   getMyProPayments,
   type ProMeItem,
   type ProMyPaymentPage,
@@ -29,8 +30,10 @@ import {
 import { getOmisePublicKey, omiseErrorMessage, OMISE_NOT_READY_MESSAGE, requestCardToken } from '@/lib/omise';
 import { formatSatang, subscriptionSourceLabel } from '@/lib/pro';
 import {
+  canPayNow,
   checkoutHref,
   formatCardLabel,
+  isPaymentsNotOpenError,
   loginHref,
   MEMBERSHIP_PATH,
   PAYMENT_CANCELED_MESSAGE,
@@ -41,6 +44,7 @@ import {
   resultHref,
 } from '@/lib/pro-payments';
 import { daysRemaining, formatThaiDate } from '@/lib/unlock-codes';
+import { ComingSoonText } from './PaymentsClosedNotice';
 import ProCodeRedeemBox from './ProCodeRedeemBox';
 
 const PAYMENTS_LIMIT = 10;
@@ -51,6 +55,8 @@ const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray
 const BTN = `inline-flex items-center justify-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed ${FOCUS_RING}`;
 const BTN_PRIMARY = `${BTN} bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-400`;
 const BTN_OUTLINE = `${BTN} border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50`;
+// task 23: ปุ่ม "เร็ว ๆ นี้" ขณะปิดรับชำระเงิน (BTN มี disabled:opacity-60 อยู่แล้ว จึงใช้สีเทาเข้มพอให้อ่านออก)
+const BTN_COMING_SOON = `${BTN} border border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-700/60 dark:text-gray-300`;
 const BTN_DANGER = `${BTN} border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800/60 dark:text-red-300 dark:hover:bg-red-900/30`;
 
 function isAbortError(err: unknown) {
@@ -66,9 +72,11 @@ export default function MembershipView() {
 
   const [reloadKey, setReloadKey] = useState(0);
   const subsKey = `${userId ?? ''}|${reloadKey}`;
-  const [subsResult, setSubsResult] = useState<{ key: string; items: ProMeItem[] | null } | null>(null);
+  const [subsResult, setSubsResult] = useState<{ key: string; items: ProMeItem[] | null; paymentsOpen?: boolean } | null>(null);
   const subsLoading = !!userId && subsResult?.key !== subsKey;
   const subs = subsLoading ? null : (subsResult?.items ?? null);
+  // task 23: ปิดรับชำระเงิน → ปุ่มต่ออายุ/เปลี่ยนบัตรเป็น "เร็ว ๆ นี้" (แอดมินยังทำได้) ยกเลิกต่ออายุ/ประวัติใช้ได้ตามปกติ
+  const canPay = canPayNow(subsResult?.paymentsOpen ?? true, user?.role);
 
   const [page, setPage] = useState(1);
   const paymentsKey = `${userId ?? ''}|${page}|${reloadKey}`;
@@ -85,9 +93,9 @@ export default function MembershipView() {
   useEffect(() => {
     if (!userId) return;
     const controller = new AbortController();
-    getMyPro(controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setSubsResult({ key: subsKey, items });
+    getMyProData(controller.signal)
+      .then(({ items, paymentsOpen }) => {
+        if (!controller.signal.aborted) setSubsResult({ key: subsKey, items, paymentsOpen });
       })
       .catch((err) => {
         if (isAbortError(err) || controller.signal.aborted) return;
@@ -148,7 +156,7 @@ export default function MembershipView() {
   }
 
   async function handleChangeCard(sub: ProMeItem) {
-    if (!startBusy({ id: sub.id, action: 'card' })) return;
+    if (!canPay || !startBusy({ id: sub.id, action: 'card' })) return;
     try {
       const token = await requestCardToken({ amountSatang: 0, submitLabel: 'บันทึกบัตร', hideAmount: true });
       if (!token) return;
@@ -169,6 +177,8 @@ export default function MembershipView() {
       // โหลดสถานะจาก server ใหม่ (บัตร / การต่ออายุของทุกแพ็กเกจ)
       setReloadKey((k) => k + 1);
     } catch (err) {
+      // แอดมินปิดรับชำระระหว่างนั้น → ปุ่มกลายเป็น "เร็ว ๆ นี้"
+      if (isPaymentsNotOpenError(err)) setSubsResult((prev) => (prev ? { ...prev, paymentsOpen: false } : prev));
       toast.error(omiseErrorMessage(err) ?? paymentErrorMessage(err, 'เปลี่ยนบัตรไม่สำเร็จ'));
     } finally {
       endBusy();
@@ -333,13 +343,25 @@ export default function MembershipView() {
                     )}
 
                     <div className="mt-auto pt-4 flex flex-wrap gap-2">
-                      {canRenew && (
+                      {canRenew && !canPay && (
+                        <button type="button" disabled aria-disabled="true" className={BTN_COMING_SOON}>
+                          <Clock className="w-4 h-4" aria-hidden="true" />
+                          <ComingSoonText prefix="ต่ออายุ" />
+                        </button>
+                      )}
+                      {canRenew && canPay && (
                         <Link href={checkoutHref(sub.planId)} className={BTN_PRIMARY}>
                           <RefreshCw className="w-4 h-4" aria-hidden="true" />
                           ต่ออายุ
                         </Link>
                       )}
-                      {isCard && (
+                      {isCard && !canPay && (
+                        <button type="button" disabled aria-disabled="true" className={BTN_COMING_SOON}>
+                          <Clock className="w-4 h-4" aria-hidden="true" />
+                          <ComingSoonText prefix="เปลี่ยนบัตร" />
+                        </button>
+                      )}
+                      {isCard && canPay && (
                         <button
                           type="button"
                           onClick={() => handleChangeCard(sub)}
@@ -371,7 +393,7 @@ export default function MembershipView() {
                         </button>
                       )}
                     </div>
-                    {isCard && !publicKey && (
+                    {isCard && canPay && !publicKey && (
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">เปลี่ยนบัตร: {OMISE_NOT_READY_MESSAGE}</p>
                     )}
                   </li>

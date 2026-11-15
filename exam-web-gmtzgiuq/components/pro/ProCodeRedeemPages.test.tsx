@@ -13,13 +13,18 @@ jest.mock('next/navigation', () => ({
   usePathname: () => '/upgrade',
   useSearchParams: () => new URLSearchParams(''),
 }));
-jest.mock('@/lib/api/pro', () => ({
-  getProUpgrade: jest.fn(),
-  getMyPro: jest.fn(),
-  getMyProPayments: jest.fn(),
-  cancelProRenewal: jest.fn(),
-  changeProCard: jest.fn(),
-}));
+jest.mock('@/lib/api/pro', () => {
+  const getMyPro = jest.fn();
+  return {
+    getProUpgrade: jest.fn(),
+    getMyPro,
+    // task 23: MembershipView ใช้ getMyProData (items จาก mock getMyPro)
+    getMyProData: jest.fn(async (signal?: AbortSignal) => ({ items: await getMyPro(signal), paymentsOpen: true })),
+    getMyProPayments: jest.fn(),
+    cancelProRenewal: jest.fn(),
+    changeProCard: jest.fn(),
+  };
+});
 jest.mock('@/lib/api/unlockCodes', () => ({ redeemUnlockCode: jest.fn() }));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('react-toastify', () => ({ toast: { success: jest.fn(), error: jest.fn(), warning: jest.fn() } }));
@@ -47,12 +52,13 @@ const plan = (id: string, code: string, rank: number, name: string) => ({
 });
 
 const upgradeData = (my: ProUpgradeData['my'] = []): ProUpgradeData => ({
-  page: { title: 'แพ็กเกจ LUMO', subtitle: '', venuePickerTitle: 'เลือกสนาม', footerNote: '', vatEnabled: false },
+  page: { title: 'แพ็กเกจ LUMO', subtitle: '', venuePickerTitle: 'เลือกสนาม', footerNote: '', vatEnabled: false, paymentsOpen: true },
   venues: [
     { id: 'v1', key: 'netsat', name: 'NETSAT', description: null, comparison: { groups: [] }, plans: [plan('n-free', 'free', 0, 'Free'), plan('n-pro', 'pro', 1, 'PRO')] },
     { id: 'v2', key: 'tgat', name: 'TGAT', description: null, comparison: { groups: [] }, plans: [plan('t-pro', 'pro', 1, 'TGAT PRO')] },
   ],
   my,
+  paymentsOpen: true,
 });
 
 const proResult = (venue: { key: string; name: string }) => ({

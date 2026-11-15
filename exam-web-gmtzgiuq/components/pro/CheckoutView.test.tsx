@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CheckoutView from './CheckoutView';
-import { createCheckout, getCheckoutQuote, type ProCheckoutQuote } from '@/lib/api/pro';
+import { createCheckout, getCheckoutQuote, getProUpgrade, type ProCheckoutQuote } from '@/lib/api/pro';
 import { ApiError } from '@/lib/api/apiError';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToAuthorize } from '@/lib/pro-payments';
@@ -14,7 +14,12 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace, push: mockPush }),
   useSearchParams: () => new URLSearchParams(mockSearch),
 }));
-jest.mock('@/lib/api/pro', () => ({ getCheckoutQuote: jest.fn(), createCheckout: jest.fn() }));
+jest.mock('@/lib/api/pro', () => ({
+  getCheckoutQuote: jest.fn(),
+  createCheckout: jest.fn(),
+  // task 23: สถานะเปิดรับชำระ (ค่าเริ่มต้นเปิด)
+  getProUpgrade: jest.fn(async () => ({ paymentsOpen: true })),
+}));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('@/lib/pro-payments', () => ({
   ...jest.requireActual('@/lib/pro-payments'),
@@ -264,5 +269,84 @@ describe('/upgrade/checkout — CheckoutView (task 18)', () => {
     await user.click(within(heading.parentElement as HTMLElement).getByRole('button', { name: 'ลองใหม่' }));
     expect(await screen.findByTestId('checkout-total')).toBeInTheDocument();
     expect(getCheckoutQuote).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('/upgrade/checkout — ปิดรับชำระเงิน "เร็ว ๆ นี้" (task 23)', () => {
+  const originalKey = process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetOmiseLoaderForTest();
+    delete window.OmiseCard;
+    document.head.querySelectorAll('script').forEach((s) => s.remove());
+    mockSearch = 'plan=p-pro';
+    process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY = 'pkey_test_dummy';
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'u1', role: 'user' } });
+    (getCheckoutQuote as jest.Mock).mockResolvedValue(quote());
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: false });
+  });
+  afterAll(() => {
+    process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY = originalKey;
+    (getProUpgrade as jest.Mock).mockImplementation(async () => ({ paymentsOpen: true }));
+  });
+
+  it('ปิด + ผู้ใช้ทั่วไป (เปิด URL ตรง): กล่อง "เร็ว ๆ นี้" + ปุ่มกลับหน้าแพ็กเกจ ไม่มีฟอร์ม/ปุ่มจ่าย/ช่องโค้ดส่วนลด ไม่โหลด omise.js', async () => {
+    render(<CheckoutView />);
+    const box = await screen.findByTestId('checkout-coming-soon');
+    expect(within(box).getByRole('heading', { level: 1, name: 'เร็ว ๆ นี้' })).toBeInTheDocument();
+    expect(box).toHaveTextContent('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้');
+    expect(box).toHaveTextContent('NETSAT · PRO');
+    expect(within(box).getByRole('link', { name: 'กลับไปหน้าแพ็กเกจ' })).toHaveAttribute('href', '/upgrade?venue=netsat');
+    expect(screen.queryByRole('button', { name: /ชำระด้วยบัตร|สร้าง QR ชำระ/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('โค้ดส่วนลด')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(document.head.querySelector('script[src*="omise"]')).toBeNull();
+    expect(createCheckout).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toMatch(/ปลดล็อก/);
+  });
+
+  it('ปิด + quote โหลดไม่ได้ → ยังเป็นกล่อง "เร็ว ๆ นี้" (ไม่ใช่ error) กลับไป /upgrade', async () => {
+    (getCheckoutQuote as jest.Mock).mockRejectedValue(new TypeError('Failed to fetch'));
+    render(<CheckoutView />);
+    const box = await screen.findByTestId('checkout-coming-soon');
+    expect(within(box).getByRole('link', { name: 'กลับไปหน้าแพ็กเกจ' })).toHaveAttribute('href', '/upgrade');
+    expect(screen.queryByRole('button', { name: 'ลองใหม่' })).not.toBeInTheDocument();
+  });
+
+  it('ปิด + แอดมิน: ฟอร์มชำระเงินปกติ + แถบ "ปิดรับชำระเงินอยู่ — แอดมินทดสอบจ่ายได้" จ่าย PromptPay ได้', async () => {
+    const user = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'a1', role: 'admin' } });
+    (createCheckout as jest.Mock).mockResolvedValue({ paymentId: 'pay9', status: 'pending', qrImageUrl: 'https://qr', expiresAt: FUTURE });
+    render(<CheckoutView />);
+    expect(await screen.findByTestId('payments-admin-notice')).toHaveTextContent('ปิดรับชำระเงินอยู่ — แอดมินทดสอบจ่ายได้');
+    expect(screen.queryByTestId('checkout-coming-soon')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /PromptPay/ }));
+    await user.click(screen.getByRole('button', { name: 'สร้าง QR ชำระ ฿212.93' }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/upgrade/result?payment=pay9&plan=p-pro'));
+  });
+
+  it('เปิดอยู่แต่ API ตอบ 403 PAYMENTS_NOT_OPEN ระหว่างจ่าย → กล่อง "เร็ว ๆ นี้" ไม่ใช่ error ทั่วไป', async () => {
+    const user = userEvent.setup();
+    (getProUpgrade as jest.Mock).mockResolvedValue({ paymentsOpen: true });
+    (createCheckout as jest.Mock).mockRejectedValue(
+      new ApiError('ระบบชำระเงินจะเปิดให้บริการเร็ว ๆ นี้', 403, 'PAYMENTS_NOT_OPEN'),
+    );
+    render(<CheckoutView />);
+    await user.click(await screen.findByRole('radio', { name: /PromptPay/ }));
+    expect(screen.queryByTestId('payments-admin-notice')).not.toBeInTheDocument();
+    await user.click(payButton());
+    expect(await screen.findByTestId('checkout-coming-soon')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /สร้าง QR ชำระ/ })).not.toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('โหลดสถานะเปิดรับชำระไม่สำเร็จ → ถือว่าเปิด (server ยังกันด้วย 403)', async () => {
+    (getProUpgrade as jest.Mock).mockRejectedValue(new TypeError('Failed to fetch'));
+    render(<CheckoutView />);
+    expect(await screen.findByTestId('checkout-total')).toHaveTextContent('฿212.93');
+    expect(screen.queryByTestId('checkout-coming-soon')).not.toBeInTheDocument();
   });
 });
