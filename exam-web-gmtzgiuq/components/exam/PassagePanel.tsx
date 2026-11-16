@@ -65,7 +65,7 @@ export function PassageContent({ passage, className = '' }: { passage: ExamPassa
   return (
     <div className={className}>
       {hasBody && (
-        <div className="prose prose-sm max-w-none text-gray-800 dark:text-gray-200 leading-relaxed break-words">
+        <div className="font-question prose prose-sm max-w-none text-gray-800 dark:text-gray-200 leading-relaxed break-words">
           {passageShowsLineNumbers(passage) ? (
             <NumberedPassageBody body={passage.body!} />
           ) : (

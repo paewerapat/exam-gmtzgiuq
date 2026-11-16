@@ -16,6 +16,9 @@ html.dark {
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* utility `font-question`: เนื้อหาข้อสอบ (โจทย์ ตัวเลือก เฉลย คำใบ้ บทอ่าน) — Latin/ตัวเลขใช้ Noto Sans, ไทยตกไป Noto Sans Thai
+     ตัวแปรมาจาก next/font ใน app/layout.tsx; สูตร KaTeX (.katex) กำหนดฟอนต์ของตัวเองจึงไม่เปลี่ยน */
+  --font-question: var(--font-noto-sans), var(--font-noto-sans-thai), sans-serif;
 }
 
 body {

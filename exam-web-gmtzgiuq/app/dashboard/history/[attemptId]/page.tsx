@@ -235,7 +235,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
-                        <p className="line-clamp-2 text-xs leading-relaxed">
+                        <p className="font-question line-clamp-2 text-xs leading-relaxed">
                           <LatexText text={item.question.question} />
                         </p>
                       </td>
@@ -297,7 +297,7 @@ function QuestionReview({ attempt, exam }: { attempt: ExamAttempt; exam: Exam | 
                               item.status === 'correct' ? 'text-green-700 dark:text-green-300' :
                               item.status === 'incorrect' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                             }`}>คำอธิบาย</p>
-                            <div className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            <div className="font-question text-gray-700 dark:text-gray-300 leading-relaxed">
                               <LatexText text={item.question.explanation!} />
                             </div>
                           </div>

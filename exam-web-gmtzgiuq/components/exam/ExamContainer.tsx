@@ -403,7 +403,7 @@ export default function ExamContainer({
               {/* ── LEFT: question text + hint + result ── */}
               <div className="flex-1 px-6 pb-6">
                 {/* Question text */}
-                <div className="prose prose-sm max-w-none text-gray-800 dark:text-gray-200 leading-relaxed">
+                <div className="font-question prose prose-sm max-w-none text-gray-800 dark:text-gray-200 leading-relaxed">
                   <LatexRenderer content={currentQuestion.question} />
                 </div>
 
@@ -425,7 +425,7 @@ export default function ExamContainer({
                       />
                       <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">คำใบ้</span>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                    <p className="font-question text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                       <LatexText text={currentQuestion.hint} />
                     </p>
                   </div>
@@ -469,7 +469,7 @@ export default function ExamContainer({
                       </p>
                     )}
                     {currentQuestion.explanation && (
-                      <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed prose prose-sm max-w-none">
+                      <div className="font-question text-sm text-gray-700 dark:text-gray-300 leading-relaxed prose prose-sm max-w-none">
                         <LatexRenderer content={currentQuestion.explanation} />
                       </div>
                     )}

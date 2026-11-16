@@ -1,7 +1,24 @@
 import type { Metadata } from "next";
+import { Noto_Sans, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import Navbar from "@/components/layout/Navbar";
+
+// ฟอนต์เนื้อหาข้อสอบ (โจทย์ ตัวเลือก เฉลย คำใบ้ บทอ่าน) ใช้ผ่าน class `font-question` (globals.css)
+// ส่วนอื่นของเว็บยังเป็น Prompt — variable font ครอบทุก weight; ไม่ preload เพราะใช้เฉพาะหน้าข้อสอบ/ทบทวน
+const notoSans = Noto_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  variable: "--font-noto-sans",
+});
+
+const notoSansThai = Noto_Sans_Thai({
+  subsets: ["thai"],
+  display: "swap",
+  preload: false,
+  variable: "--font-noto-sans-thai",
+});
 
 export const metadata: Metadata = {
   title: "LUMO - Online Exam Practice Platform",
@@ -23,7 +40,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">
+      <body className={`${notoSans.variable} ${notoSansThai.variable} antialiased`}>
         <Providers>
           <Navbar />
           <main>{children}</main>

@@ -25,7 +25,7 @@ export default function ChoiceContent({
 
   return (
     <>
-      {hasText && <LatexText text={text} />}
+      {hasText && <LatexText text={text} className="font-question" />}
       {hasImage && (
         // พื้นรูปสีอ่อนทั้งสองโหมด: รูปวาดเส้นดำพื้นใสยังมองเห็นใน dark mode
         // eslint-disable-next-line @next/next/no-img-element

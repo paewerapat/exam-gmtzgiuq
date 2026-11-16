@@ -97,7 +97,7 @@ export default function QuestionReview({
           {passage && <PassageDisclosure key={passage.id} passage={passage} className="mb-4" />}
 
           {/* Question */}
-          <div className="prose prose-sm max-w-none mb-4">
+          <div className="font-question prose prose-sm max-w-none mb-4">
             <LatexRenderer content={question.question} />
           </div>
 
@@ -191,7 +191,7 @@ export default function QuestionReview({
           {question.explanation && (
             <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800/50">
               <div className="font-medium text-blue-800 dark:text-blue-300 mb-2">คำอธิบาย</div>
-              <div className="text-blue-700 dark:text-blue-300 prose prose-sm max-w-none">
+              <div className="font-question text-blue-700 dark:text-blue-300 prose prose-sm max-w-none">
                 <LatexRenderer content={question.explanation} />
               </div>
             </div>
